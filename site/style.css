@@ -2,21 +2,21 @@
   --bg:#f3f1ec;--panel:#fbfaf7;--ink:#1a1b19;--muted:#5d605a;--faint:#8d9089;--rule:#d9d6ce;
   --accent:#b8650a;--ember:#c8361a;--cool:#2d6f86;
   --map-bg:#e4e2db;--land:#d6d3ca;--ua:#ebe8e0;--admin:#b9b5aa;--border:#7a776e;--water:#a9c3cc;--label:#3a3b37;
-  --fire-now:#c8361a;--fire-old:#c27a1e;--chip:#ebe8e1;--loss-now:#14304a;--loss-old:#5a7486;--front:#a3122a;--front-rgb:163,18,42;--road:#b49a6a;--grey-rgb:120,110,95;--ucdp:#6b4fa0;--arc:#1f6f8b;
+  --fire-now:#c8361a;--fire-old:#c27a1e;--chip:#ebe8e1;--loss-now:#14304a;--loss-old:#5a7486;--front:#a3122a;--front-rgb:163,18,42;--uactl:#1f5fbf;--uactl-rgb:31,95,191;--road:#b49a6a;--grey-rgb:120,110,95;--ucdp:#6b4fa0;--arc:#1f6f8b;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0b0d0c;--panel:#121513;--ink:#e8e6df;--muted:#9fa39a;--faint:#6b6f68;--rule:#262a27;
   --accent:#f2a33a;--ember:#ff5a1f;--cool:#6fb3c8;
   --map-bg:#070908;--land:#141816;--ua:#1b201d;--admin:#2c322e;--border:#59605a;--water:#1d3a44;--label:#b9bcb3;
-  --fire-now:#ff6a2a;--fire-old:#f2a33a;--chip:#1a1e1b;--loss-now:#dff3ff;--loss-old:#7fa6bd;--front:#ff4d6a;--front-rgb:255,77,106;--road:#6b6252;--grey-rgb:190,180,160;--ucdp:#b39cff;--arc:#7fd3e6;
+  --fire-now:#ff6a2a;--fire-old:#f2a33a;--chip:#1a1e1b;--loss-now:#dff3ff;--loss-old:#7fa6bd;--front:#ff4d6a;--front-rgb:255,77,106;--uactl:#5aa2ff;--uactl-rgb:90,162,255;--road:#6b6252;--grey-rgb:190,180,160;--ucdp:#b39cff;--arc:#7fd3e6;
   color-scheme:dark;
 }}
 :root[data-theme="dark"]{
   --bg:#0b0d0c;--panel:#121513;--ink:#e8e6df;--muted:#9fa39a;--faint:#6b6f68;--rule:#262a27;
   --accent:#f2a33a;--ember:#ff5a1f;--cool:#6fb3c8;
   --map-bg:#070908;--land:#141816;--ua:#1b201d;--admin:#2c322e;--border:#59605a;--water:#1d3a44;--label:#b9bcb3;
-  --fire-now:#ff6a2a;--fire-old:#f2a33a;--chip:#1a1e1b;--loss-now:#dff3ff;--loss-old:#7fa6bd;--front:#ff4d6a;--front-rgb:255,77,106;--road:#6b6252;--grey-rgb:190,180,160;--ucdp:#b39cff;--arc:#7fd3e6;
+  --fire-now:#ff6a2a;--fire-old:#f2a33a;--chip:#1a1e1b;--loss-now:#dff3ff;--loss-old:#7fa6bd;--front:#ff4d6a;--front-rgb:255,77,106;--uactl:#5aa2ff;--uactl-rgb:90,162,255;--road:#6b6252;--grey-rgb:190,180,160;--ucdp:#b39cff;--arc:#7fd3e6;
   color-scheme:dark;
 }
 *{box-sizing:border-box}

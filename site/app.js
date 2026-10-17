@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"equilibre": "e26c9634d0", "mcsd": "2782ef168f", "ru": "c8e48774e0", "sans_dsm": "23b812743d", "sans_enveloppes": "04547c0597", "sans_gsua": "d122d3b91b", "sans_indices": "b94edf4432", "sans_isw": "315b752565", "sans_medias": "2af67fb9cb", "sans_modru": "1960f84c9b", "sans_presence": "f8afad3806", "sans_wiki": "da148aadc9", "tiers": "44cc9604b5", "ua": "67769ca566"};
+const FRONT_V = {"equilibre": "188b0a9203", "mcsd": "efae986d7d", "ru": "25486f7ffd", "sans_dsm": "3ba1340da9", "sans_enveloppes": "1eabfe10b7", "sans_gsua": "af2359ef74", "sans_indices": "6131e18a1f", "sans_isw": "791e1f042c", "sans_medias": "9e2604c268", "sans_modru": "c6a9220828", "sans_presence": "cb5eb716f3", "sans_wiki": "3aee975c42", "tiers": "95b6a8cadf", "ua": "7a8f836c8f"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
@@ -22,7 +22,7 @@ $("theme").onclick = () => {
 let C = {};
 function readColors(){
   const cs = getComputedStyle(root);
-  ["bg","road","front","front-rgb","grey-rgb","ucdp","arc","map-bg","loss-now","loss-old","land","ua","admin","border","water","label","fire-now","fire-old","cool","ember","accent","faint","rule","muted","ink"].forEach(k => C[k] = cs.getPropertyValue("--"+k).trim());
+  ["bg","road","uactl","uactl-rgb","front","front-rgb","grey-rgb","ucdp","arc","map-bg","loss-now","loss-old","land","ua","admin","border","water","label","fire-now","fire-old","cool","ember","accent","faint","rule","muted","ink"].forEach(k => C[k] = cs.getPropertyValue("--"+k).trim());
   C.dark = cs.colorScheme.indexOf("dark") >= 0;
 }
 readColors();
@@ -156,35 +156,136 @@ function buildRuMask(){
   ruMask = new Uint8Array(GX * GY);
   for (let c = 0; c < GX * GY; c++) ruMask[c] = d[c * 4 + 3] > 127 ? 1 : 0;
 }
+// ---------- flèches « qui pousse où » ----------
+// v_n = −Δp / |∇p| sur la ligne 50 % : déplacement de la ligne en km/mois, lissé sur 3 mois (p(t) − p(t−3)) / 3 ;
+// une maille ne compte que si |Δp| dépasse l'écart-type Monte Carlo de la différence (front_mcsd.js) ; agrégation par blocs de L km.
+let showArrows = !!(document.getElementById("lyrArrows") && document.getElementById("lyrArrows").checked), arrowCache = {}, arrowList = [];
+function loadMcsd(then){
+  if (window.FRONTP && window.FRONTP.mcsd) return then();
+  const sc = document.createElement("script"); sc.src = `front_mcsd.js?v=${FRONT_V.mcsd || ""}`; sc.onload = then; document.head.appendChild(sc);
+}
+const sdCache = {};
+function sdField(i){
+  if (!window.FRONTP || !window.FRONTP.mcsd) return null;
+  if (!sdCache.all) { const save = fieldCache.mcsd; sdCache.all = viewFields("mcsd"); }
+  return sdCache.all && sdCache.all[i];
+}
+function computeArrows(fi, Lkm){
+  const key = fieldName() + ":" + fi + ":" + Lkm;
+  if (arrowCache[key]) return arrowCache[key];
+  const F = viewFields(fieldName()), j0 = fi - 3;
+  if (!F || fi < 3 || !F[fi] || !F[j0]) return arrowCache[key] = [];
+  const a = new Float32Array(GX * GY), b0 = new Float32Array(GX * GY), sa = new Float32Array(GX * GY), sb = new Float32Array(GX * GY);
+  const q1 = F[fi], q0 = F[j0], s1 = sdField(fi), s0 = sdField(j0);
+  for (let u = 0; u < UCELLS.length; u++) { const c = UCELLS[u]; a[c] = q1[u] / 63; b0[c] = q0[u] / 63; if (s1) sa[c] = s1[u] / 63 * 0.5; if (s0) sb[c] = s0[u] / 63 * 0.5; }
+  const km = FR.grid.size / 1000, bs = Math.max(1, Math.round(Lkm / km)), blocks = new Map();
+  for (let u = 0; u < UCELLS.length; u++) {
+    const c = UCELLS[u], p = a[c];
+    if (p < 0.2 || p > 0.8) continue;  // voisinage de la ligne 50 %
+    const x = c % GX, y = (c - x) / GX;
+    if (x < 1 || y < 1 || x >= GX - 1 || y >= GY - 1) continue;
+    const L = cellPlace[c - 1] !== -1 ? a[c - 1] : p, Rr = cellPlace[c + 1] !== -1 ? a[c + 1] : p, U = cellPlace[c - GX] !== -1 ? a[c - GX] : p, D = cellPlace[c + GX] !== -1 ? a[c + GX] : p;
+    const gx = (Rr - L) / (2 * km), gy = (D - U) / (2 * km), g2 = gx * gx + gy * gy;
+    if (g2 < 1e-6) continue;
+    // seuil : un écart-type Monte Carlo de la différence (les erreurs de position des sources étant fortement
+    // corrélées d'un mois à l'autre, cet écart-type surestime déjà le bruit réel de Δp), et au moins 0,04
+    const dp = p - b0[c], noise = Math.sqrt(sa[c] * sa[c] + sb[c] * sb[c]);
+    if (Math.abs(dp) < Math.max(noise, 0.04)) continue;
+    // déplacement de la ligne (km) : −Δp ∇p / |∇p|², ramené au mois
+    const dx = -dp * gx / g2 / 3, dy = -dp * gy / g2 / 3;
+    const bk = Math.floor(x / bs) + "_" + Math.floor(y / bs);
+    let o = blocks.get(bk); if (!o) blocks.set(bk, o = {x: 0, y: 0, dx: 0, dy: 0, n: 0, ru: 0});
+    o.x += x; o.y += y; o.dx += dx; o.dy += dy; o.n++; o.ru += dp > 0 ? 1 : -1;
+  }
+  const out = [];
+  for (const o of blocks.values()) {
+    if (o.n < Math.max(2, bs / 2)) continue;
+    const dx = o.dx / o.n, dy = o.dy / o.n, v = Math.hypot(dx, dy);
+    if (v < 0.3) continue;  // moins de 300 m par mois : on ne dessine rien
+    out.push({gx: o.x / o.n + 0.5, gy: o.y / o.n + 0.5, dx: dx / v, dy: dy / v, v, ru: o.ru > 0, L: Lkm});
+  }
+  return arrowCache[key] = out;
+}
+function drawArrows(k){
+  const fi = frontIdx(); if (fi < 0) return;
+  if (!window.FRONTP || !window.FRONTP.mcsd) { loadMcsd(() => { arrowCache = {}; draw(); }); }
+  const Lkm = k < 1.6 ? 100 : k < 3 ? 50 : k < 6 ? 20 : 10;
+  const arr = computeArrows(fi, Lkm);
+  arrowList = [];
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const a of arr) {
+    const sx = (gAff[0] + a.gx * gAff[2]) * k + tr.x, sy = (gAff[1] + a.gy * gAff[2]) * k + tr.y;
+    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
+    // vue d'ensemble : un seul style discret ; au zoom, longueur et épaisseur proportionnelles à la vitesse
+    const overview = k < 1.6, len = overview ? Math.min(34, 8 + a.v * 4) : Math.min(70, 10 + a.v * 7), w = overview ? 1.6 : Math.min(7, 1.2 + a.v * 0.5);
+    const ex = sx + a.dx * len, ey = sy + a.dy * len, col = a.ru ? C.front : C.uactl;
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = overview ? 0.75 : 0.95; ctx.lineWidth = w; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * w * 1.6, ey - a.dy * w * 1.6); ctx.stroke();
+    const hx = -a.dy, hy = a.dx, hs = 3 + w * 1.6;
+    ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - a.dx * hs * 1.6 + hx * hs, ey - a.dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - a.dx * hs * 1.6 - hx * hs, ey - a.dy * hs * 1.6 - hy * hs); ctx.closePath(); ctx.fill();
+    arrowList.push({x: (sx + ex) / 2, y: (sy + ey) / 2, a});
+  }
+  ctx.globalAlpha = 1;
+}
+// voisinages précalculés : maille ukrainienne la plus proche de chaque maille de la bande russe, et l'inverse,
+// pour que les isolignes ne longent jamais la frontière (chaque côté recopie la valeur de l'autre)
+const nearUA = new Int32Array(GX * GY).fill(-1), nearBand = new Int32Array(GX * GY).fill(-1);
+function bfs(fromTest, intoTest, out, maxSteps){
+  const q = [], dist = new Int16Array(GX * GY).fill(-1);
+  for (let c = 0; c < GX * GY; c++) if (fromTest(c)) { out[c] = c; dist[c] = 0; q.push(c); }
+  for (let h = 0; h < q.length; h++) { const c = q[h]; if (dist[c] >= maxSteps) continue;
+    for (const x of [c - 1, c + 1, c - GX, c + GX]) if (x >= 0 && x < GX * GY && intoTest(x) && dist[x] < 0) { dist[x] = dist[c] + 1; out[x] = out[c]; q.push(x); } }
+}
+bfs(c => cellPlace[c] >= 0, c => cellPlace[c] === -2, nearUA, 60);
+bfs(c => cellPlace[c] === -2, c => cellPlace[c] >= 0, nearBand, 60);
+let pBand = new Float32Array(GX * GY), isoBand = null;
 function buildFront(){
   buildRuMask();
   const fi = frontIdx(), key = (C.dark ? "d" : "l") + fieldName() + (showStates ? "s" : ""), F = viewFields(fieldName());
   if (fi === frontFor && key === frontTheme) return;
   frontFor = fi; frontTheme = key;
   const img = octx.createImageData(GX, GY), px4 = img.data;
-  const [r, g, b] = C["front-rgb"].split(",").map(Number);
-  pgrid.fill(0);
-  if (ruMask) for (let c = 0; c < GX * GY; c++) if (ruMask[c] && cellPlace[c] === -1) pgrid[c] = 1;
+  const [r, g, b] = C["front-rgb"].split(",").map(Number), [ur, ug, ub] = C["uactl-rgb"].split(",").map(Number);
+  pgrid.fill(0); pBand.fill(0);
   if (fi >= 0 && F && F[fi]) {
-    const q = F[fi], [gr, gg, gb] = C["grey-rgb"].split(",").map(Number);
+    const q = F[fi], [gr, gg, gb] = C["grey-rgb"].split(",").map(Number), full = new Float32Array(GX * GY);
+    for (let u = 0; u < UCELLS.length; u++) full[UCELLS[u]] = q[u] / 63;
     for (let u = 0; u < UCELLS.length; u++) {
-      const c = UCELLS[u], p = q[u] / 63; pgrid[c] = p;
-      const o = c * 4, fade = bandFade[c];
+      const c = UCELLS[u], p = full[c], o = c * 4;
+      if (cellPlace[c] === -2) {
+        // Russie : seul l'écart à la normale compte, la probabilité de contrôle UKRAINIEN, dans une autre couleur
+        const pu = 1 - p;
+        // près de la frontière, on ignore la frange due au lissage temporel
+        if (pu > 0.05 && (pu > 0.25 || bandFade[c] < 0.93)) { px4[o] = ur; px4[o+1] = ug; px4[o+2] = ub; px4[o+3] = Math.round(255 * (0.12 + 0.6 * pu)); }
+        continue;
+      }
       if (showStates) {
-        if (p > 0.95) { px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = (C.dark ? 150 : 135) * fade; }
+        if (p > 0.95) { px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = C.dark ? 150 : 135; }
         else if (p >= 0.05) { const ch = ((c % GX) + Math.floor(c / GX)) % 2; px4[o] = gr; px4[o+1] = gg; px4[o+2] = gb; px4[o+3] = ch ? 170 : 90; }
-      } else if (p > 0.004) { px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = Math.round(255 * (C.dark ? 0.06 + 0.54 * p : 0.05 + 0.5 * p) * (p > 0.9 ? fade : 1)); }
+      } else if (p > 0.004) { px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = Math.round(255 * (C.dark ? 0.06 + 0.54 * p : 0.05 + 0.5 * p)); }
     }
-    const cs = d3.contours().size([GX, GY]).thresholds([0.05, 0.5, 0.95])(pgrid);
-    isoPaths = cs.map(c => ringsPath(c.coordinates));
-  } else isoPaths = [];
+    // isolignes ukrainiennes : la bande russe recopie la valeur ukrainienne voisine (pas de ligne sur la frontière)
+    for (let c = 0; c < GX * GY; c++) {
+      const k = cellPlace[c];
+      if (k >= 0) pgrid[c] = full[c];
+      else if (k === -2) pgrid[c] = nearUA[c] >= 0 ? full[nearUA[c]] : 1;
+      else pgrid[c] = ruMask && ruMask[c] ? 1 : 0;
+      // ligne 50 % côté russe : contrôle ukrainien, l'Ukraine recopie la valeur russe voisine
+      if (k === -2) pBand[c] = 1 - full[c];
+      else if (k >= 0) pBand[c] = nearBand[c] >= 0 ? 1 - full[nearBand[c]] : 0;
+    }
+    isoPaths = d3.contours().size([GX, GY]).thresholds([0.05, 0.5, 0.95])(pgrid).map(c => ringsPath(c.coordinates));
+    isoBand = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(pBand)[0].coordinates);
+  } else { isoPaths = []; isoBand = null; }
   octx.putImageData(img, 0, 0);
 }
-// domaine du modèle (Ukraine + bande russe) : les isolignes y sont découpées, pour ne pas tracer le bord de la grille
-let domainPath = null;
-{ const m = new Float32Array(GX * GY);
-  for (let c = 0; c < GX * GY; c++) { const x = c % GX, y = (c - x) / GX; if (cellPlace[c] !== -1 && x > 1 && y > 1 && x < GX - 2 && y < GY - 2) m[c] = 1; }
-  domainPath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates); }
+// domaines : Ukraine seule et bande russe seule (découpage des isolignes)
+let domainPath = null, bandPath = null;
+{ const m = new Float32Array(GX * GY), mb = new Float32Array(GX * GY);
+  for (let c = 0; c < GX * GY; c++) { const x = c % GX, y = (c - x) / GX, inner = x > 1 && y > 1 && x < GX - 2 && y < GY - 2;
+    if (cellPlace[c] >= 0 && inner) m[c] = 1; if (cellPlace[c] === -2 && inner) mb[c] = 1; }
+  domainPath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates);
+  bandPath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(mb)[0].coordinates); }
 { const m = new Float32Array(GX * GY); for (let c = 0; c < GX * GY; c++) { const k = cellPlace[c]; if (k >= 0 && pFlags[k]) m[c] = 1; }
   prePath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates); }
 const RAWCOL = {dsm: "#2f7fd8", isw: "#d89a2f", wiki: "#8a5bd8"};
@@ -210,6 +311,7 @@ function drawFront(k){
     ctx.stroke(isoPaths[0]); ctx.stroke(isoPaths[2]);
     ctx.setLineDash([]); ctx.lineWidth = 1.8 * u; ctx.globalAlpha = 1; ctx.stroke(isoPaths[1]);
     ctx.restore();
+    if (isoBand) { ctx.save(); ctx.clip(bandPath); ctx.strokeStyle = C.uactl; ctx.lineWidth = 1.8 * u; ctx.stroke(isoBand); ctx.restore(); }
   }
   const fi = frontIdx();
   if (fi >= 0) for (const src of ["dsm", "isw", "wiki"]) {
@@ -320,6 +422,7 @@ function draw(){
   if (showUcdp) drawUcdp(k);
   if (showLoss) drawLosses(k);
   if (showArcs) drawArcs(k);
+  if (showArrows) drawArrows(k);
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
 
   // villes : en coordonnées écran, seuil selon le zoom
@@ -494,10 +597,24 @@ $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
 $("lyrArcs").onchange = e => { showArcs = e.target.checked; legend(); draw(); };
+$("lyrArrows").onchange = e => { showArrows = e.target.checked; if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); legend(); draw(); };
 $("lyrBase").onchange = e => { showBase = e.target.checked; if (showBase) loadBasemap(); draw(); };
 const tip = $("tip");
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (showArrows && arrowList.length) {
+    let best = null, bd = 14;
+    for (const h of arrowList) { const d = Math.hypot(h.x - mx, h.y - my); if (d < bd) { bd = d; best = h; } }
+    if (best) {
+      const fi = frontIdx();
+      tip.innerHTML = `<div class="r"><span>${best.a.ru ? "avancée russe" : "avancée ukrainienne"}</span><b>${String(Math.round(best.a.v * 10) / 10).replace(".", ",")} km/mois</b></div>` +
+        `<div class="r"><span>segment</span><b>~${best.a.L} km de front</b></div><div class="r"><span>période</span><b>${monthLabel(fi - 3)} → ${monthLabel(fi)}</b></div>` +
+        `<div style="margin-top:4px;color:var(--faint)">déplacement moyen de la ligne 50 %, au-delà du bruit Monte Carlo</div>`;
+      tip.style.display = "block";
+      const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
+      return;
+    }
+  }
   const bx = (mx - tr.x) / tr.k, by = (my - tr.y) / tr.k;
   const i = Math.floor((bx - gAff[0]) / gAff[2]), j = Math.floor((by - gAff[1]) / gAff[2]);
   const fi = frontIdx(), k = i >= 0 && j >= 0 && i < GX && j < GY ? cellPlace[j * GX + i] : -1;
@@ -558,6 +675,7 @@ function legend(){
     O.groups.map((g,i) => `<span class="lchip" role="button" tabindex="0" data-g="${i}" aria-pressed="${lossOn[i]}">${pictoSvg(i, C["loss-now"])}${g}</span>`).join("");
   const raws = Object.entries(rawOn).filter(([, v]) => v).map(([s]) => s);
   if (raws.length) html += `<span style="flex-basis:100%;height:0"></span>` + raws.map(s => s === "modru" ? `<span><i style="background:${C.front};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i>annonces de prise du MoD RF (actives ; grandes : annoncées ce mois)</span>` : s === "gsua" ? `<span><i style="background:${C.cool};border-radius:0;clip-path:polygon(0 0,100% 0,50% 100%)"></i>annonces de reprise de l'état-major ukrainien</span>` : `<span><i style="border-top:2px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>limite de la zone russe selon ${s === "dsm" ? "DeepStateMap" : s === "isw" ? "l'ISW" : "Wikipédia"} (statut par localité, VIINA)</span>`).join("");
+  if (showArrows) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};height:3px;border-radius:0;vertical-align:3px"></i>avancée russe</span><span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px"></i>avancée ukrainienne</span><span>flèches : déplacement de la ligne 50 % sur 3 mois, en km/mois ; longueur et épaisseur proportionnelles</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)</span>`;
   if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>missiles et drones lancés du lieu annoncé vers l'oblast visé, agrégés sur le mois (${O.launch.specificShare}\u00a0% des lancements ont une cible précisée ; source : armée de l'air ukrainienne)</span>`;
   $("legend").innerHTML = html;
@@ -921,7 +1039,7 @@ function setLang(code){
 document.querySelectorAll("[data-lang-btn]").forEach(b => b.onclick = () => setLang(b.dataset.langBtn));
 try { const l = localStorage.getItem("uaf-lang"); if (l && document.querySelector(`.intro .i18n[data-lang="${l}"]`)) setLang(l); } catch(e) {}
 legend(); full();
-window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); });
+window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); });
 document.addEventListener("uaf-lang", () => updateArea());
 let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (canvas.parentElement.clientWidth !== W) full(); }, 150); });
 document.fonts && document.fonts.ready.then(() => draw());

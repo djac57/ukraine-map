@@ -61,7 +61,8 @@ NOISE = re.compile(r"полон|плен|служб|посад|звільнит�
 NEG = re.compile(r"фейк|неправда|ложь|не соответствует|не відповідає|спростов", re.I)
 STOP = set("""
 днр лнр донецкой донецкая народной народная республики республика луганской харьковской запорожской херсонской
-днепропетровской сумской николаевской области область вооруженных вооружённых сил силы всу украины україни россии
+днепропетровской сумской николаевской курской белгородской брянской курская курскую курск белгород брянск
+суджанском суджанского глушковском кореневском беловском большесолдатском рыльском льговском области область вооруженных вооружённых сил силы всу украины україни россии
 российской федерации министерство минобороны обороны группировки группировка войск запад юг центр восток север днепр
 героя герой российской армии армия президент владимир путин сырский зеленский генштаб генеральний штаб сили оборони
 зсу збройних сил україна донеччині харківщині запоріжжі луганщині сумщині херсонщині області напрямку напрямок
@@ -121,7 +122,10 @@ def candidates(sentence):
         if cur and cur[0][0].isupper():
             out.append(" ".join(cur))
     res = []
-    for c in out:
+    split = []
+    for c in out:  # coupe sur « в » / « у » (« Гуево в Суджанском районе »)
+        split += [x.strip() for x in re.split(r"\s(?:в|у|во)\s", c) if x.strip()]
+    for c in split:
         ws = c.split(" ")
         while ws and (ws[0].lower().startswith(VERB_PREFIX) or ws[0].lower() in STOP):
             ws = ws[1:]
@@ -260,6 +264,18 @@ def main():
                     if ru_regions and not regions:
                         # localité russe de la bande frontalière (Koursk, Belgorod, Briansk)
                         hits = [i for i in ru_index.get(k, []) if ru_places[i]["adm1"] in ru_regions and near_border(ru_places[i])]
+                        if len(hits) > 1:
+                            # homonymes : pendant l'incursion de Koursk, le plus proche de Soudja (à moins de 45 km) ;
+                            # sinon le plus proche de la frontière s'il l'est nettement
+                            def km_to(q, lat, lon):
+                                return math.hypot((q["lat"] - lat) * 111.2, (q["lon"] - lon) * 111.2 * math.cos(math.radians(lat)))
+                            ranked = sorted(hits, key=lambda i: km_to(ru_places[i], 51.19, 35.27))
+                            if "2024-08" <= day[:7] <= "2025-05" and km_to(ru_places[ranked[0]], 51.19, 35.27) <= 45 and \
+                                    (len(ranked) == 1 or km_to(ru_places[ranked[1]], 51.19, 35.27) - km_to(ru_places[ranked[0]], 51.19, 35.27) > 10):
+                                hits = ranked[:1]
+                            else:
+                                near30 = [i for i in hits if near_border(ru_places[i], 30)]
+                                hits = near30 if len(near30) == 1 else hits
                         if len(hits) != 1:
                             st["Russie : ambigu ou introuvable"] += 1
                             continue

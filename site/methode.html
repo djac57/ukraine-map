@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=cb8fc233db">
+<link rel="stylesheet" href="style.css?v=2cbd76e9b5">
 </head>
 <body>
 <div class="wrap">
@@ -20,6 +20,7 @@
 <p class="dek">Où passe le front ? DeepStateMap, l'Institute for the Study of War et les cartographes de Wikipédia ne tracent pas tout à fait la même ligne. Cette carte superpose leurs versions, mois par mois depuis février 2022, en une probabilité d'occupation et une estimation des kilomètres carrés tenus par la Russie. En couches : les feux qu'un satellite américain détecte en trop par rapport aux années de paix, et les pertes matérielles documentées.</p>
 <p class="src">Sources du front : <a href="https://github.com/zhukovyuri/VIINA">VIINA 2.0</a> (Zhukov et Ayers, licence ODbL), qui relève chaque jour le statut de 33 141 localités selon DeepStateMap, l'ISW et Wikipédia. Feux : détections VIIRS du satellite S-NPP, <a href="https://firms.modaps.eosdis.nasa.gov/">NASA FIRMS</a> (LANCE / ESDIS), archives annuelles 2012-2025, API FIRMS pour 2026 (traitement standard jusqu'au <span class="mono" id="spLast"></span>, puis quasi temps réel) ; fonds de carte <a href="https://www.naturalearthdata.com/">Natural Earth</a>. Dernière détection intégrée : <span class="mono" id="lastDay"></span>. Les dates de contexte proviennent de la presse, liens dans chaque encadré.</p>
 
+<p class="dek" style="margin-top:14px"><strong>But :</strong> une probabilité de contrôle agrégée de toutes les sources ouvertes, et, par son gradient dans le temps, déduire par la donnée qui pousse où (flèches : −Δp / |∇p| sur la ligne 50 %, sur 3 mois, au-delà du bruit Monte Carlo).</p>
 <section class="intro" aria-label="Présentation">
 <div class="langs" role="group" aria-label="Langue"><button class="btn" data-lang-btn="fr" type="button" aria-pressed="true">FR</button><button class="btn" data-lang-btn="en" type="button" aria-pressed="false">EN</button><button class="btn" data-lang-btn="uk" type="button" aria-pressed="false">УКР</button><button class="btn" data-lang-btn="ru" type="button" aria-pressed="false">РУС</button></div>
 <div class="i18n" data-lang="fr" lang="fr"><div class="why"><h3>Pourquoi cette carte</h3><p>Il existe beaucoup de cartes du front, et c'est justement le problème : on débat beaucoup, ces derniers temps, de qui tient quoi. La « zone grise » s'élargit, et chaque camp revendique parfois des avancées invraisemblables. Cette page adopte une approche par les données : plutôt qu'une ligne unique, elle donne une probabilité de contrôle, calculée à partir de toutes les sources ouvertes réutilisables, ukrainiennes, russes et tierces, avec un poids égal par camp. Le but n'est pas de situer le front au mètre près, mais de dégager une tendance générale, à peu près juste et chiffrée, pour comprendre les dynamiques. Prochaine étape : déduire qui pousse, et où. Page destinée aux personnes qui suivent le sujet ; données décalées d'au moins 7 jours, résolution mensuelle.</p></div><div class="howto"><h3>Comment lire la carte</h3><ul><li><svg width="34" height="12"><defs><linearGradient id="lgfr"><stop offset="0" stop-color="var(--front)" stop-opacity=".08"/><stop offset="1" stop-color="var(--front)" stop-opacity=".75"/></linearGradient></defs><rect width="34" height="12" fill="url(#lgfr)"/></svg><span>Couleur : probabilité que la Russie contrôle la zone ; plus le rouge est dense, plus c'est probable.</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="2.2"/></svg><span>Trait plein : la ligne la plus probable (50 %).</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="1.2" stroke-dasharray="4 3"/></svg><span>Pointillés : les lignes 5 % et 95 %.</span></li><li><svg width="34" height="12"><defs><pattern id="hpfr" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="rgba(var(--grey-rgb),.35)"/><rect width="1.5" height="1.5" fill="rgba(var(--grey-rgb),.8)"/></pattern></defs><rect width="34" height="12" fill="url(#hpfr)"/></svg><span>Entre les deux : la zone grise, où les sources divergent ou où les deux camps sont présents.</span></li><li><svg width="34" height="12"><line x1="2" y1="6" x2="32" y2="6" stroke="var(--faint)" stroke-width="2"/><circle cx="22" cy="6" r="4" fill="var(--accent)"/></svg><span>Curseur : le mois affiché ; ▶ rejoue l'historique.</span></li><li><svg width="34" height="12"><rect x="0" y="1" width="16" height="10" rx="2" fill="var(--accent)"/><rect x="18" y="1" width="16" height="10" rx="2" fill="none" stroke="var(--faint)"/></svg><span>Sélecteur : vue équilibrée, ukrainienne, russe ou tierce.</span></li><li><svg width="34" height="12"><rect x="11" y="0.5" width="11" height="11" rx="2" fill="var(--accent)"/><path d="M13.5 6l2 2 4-4" stroke="var(--bg)" stroke-width="1.6" fill="none"/></svg><span>Cases : sources prises en compte et calques affichés.</span></li></ul></div></div>
@@ -47,6 +48,7 @@
   <fieldset><legend>Résultat</legend>
     <label class="chk"><input type="checkbox" id="lyrFront" checked> densité p(occupé)</label>
     <label class="chk"><input type="checkbox" id="lyrStates"> 3 états (russe · zone grise · ukrainien)</label>
+    <label class="chk"><input type="checkbox" id="lyrArrows"> flèches : qui pousse où</label>
     <label class="chk"><input type="checkbox" id="lyrLines" checked> lignes 5 / 50 / 95 %</label>
     <div class="seg" role="group" aria-label="Vue"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true">tous (équilibré)</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">vue ukr.</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">vue russe</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false">tiers</button></div>
   </fieldset>
@@ -128,7 +130,20 @@
 </ul>
 <p>La surface de la zone grise et sa largeur moyenne (surface rapportée à la longueur de la ligne médiane) sont publiées mois par mois et par secteur. Sa largeur (environ 35 à 40 km avec les seuils 5 % et 95 %) vient surtout du désaccord mesuré entre les sources : σ0 calibrés de 3 à 6 km pour les cartes, 9 km pour les enveloppes. Le vieillissement des sources n'y joue presque aucun rôle (sans lui, la surface du dernier mois passe de 53 360 à 53 296 km²). Sans indices de combats, elle baisse de 3 % ; sans enveloppes ni annonces des médias, de 12 %. Ici, la zone grise mesure le désaccord et l'imprécision des sources, pas seulement le terrain physiquement disputé : elle est plus large que la zone grise de terrain décrite par les analystes. Molin s'appuie surtout sur des dizaines de milliers de vidéos géolocalisées par des volontaires et sur l'imagerie satellite. Faute de licence, aucune de ces bases n'entre ici dans le calcul.</p>
 <h3>Russie frontalière</h3>
-<p>Le champ ne s'arrête pas à la frontière. La grille s'étend sur 80 km côté russe (Briansk, Koursk, Belgorod, et au-delà le long de toute la frontière), et la ligne à 50 % passe là où les sources la placent, y compris en Russie. Faute de tracé réutilisable de l'incursion de Koursk, l'a priori y est « russe ». Seules les annonces de l'état-major ukrainien (prises) et du ministère russe (reprises), géocodées sur GeoNames, ainsi que les indices de combats, peuvent faire apparaître en creux une zone sous contrôle ukrainien. L'incertitude y est donc large, et la surface correspondante (sous la ligne médiane) est publiée à part. Résultat honnête : pendant l'incursion de Koursk (août 2024 – mars 2025), les combats recensés par l'UCDP et la présence ukrainienne que trahissent les reprises annoncées par Moscou élargissent nettement la zone grise côté russe, jusqu'à la ligne 95 %. La ligne médiane, elle, reste à la frontière : aucune source réutilisable ne trace la zone tenue par l'armée ukrainienne, et l'état-major ukrainien a publié trop peu de prises de localités géocodables.</p>
+<p>Le champ ne s'arrête pas à la frontière : la grille s'étend sur 80 km côté russe. Faute de carte réutilisable couvrant la Russie, l'a priori y est « russe » (logit +4, soit p ≈ 0,98). Seules des preuves de contrôle le renversent :</p>
+<ul>
+<li>une localité que le ministère russe annonce « libérée » au jour t était sous contrôle ukrainien avant t, depuis le 6 août 2024 dans la zone de Koursk, sinon pendant les 45 jours précédents (noyau ukrainien fort) ;</li>
+<li>les prises annoncées par l'état-major ukrainien.</li>
+</ul>
+<p>Côté russe, la carte n'affiche que l'écart à cet a priori, la probabilité de contrôle ukrainien, en bleu, et seulement au-delà de 5 %. La ligne 50 % n'y apparaît que si elle quitte la frontière, et aucune ligne ne longe la frontière. Résultat : en replay, l'incursion de Koursk apparaît en août 2024 (environ 500 km² sous la ligne médiane) ; elle culmine vers 730 km² en novembre, reflue en février-mars 2025 et disparaît en avril. Les cartes de l'ISW donnaient jusqu'à environ 1 300 km² : ce chiffre est un minimum, limité aux localités nommées par Moscou et géocodées sans ambiguïté (56 annonces). Les cartes Wikimedia Commons de l'incursion (« August 2024 Kursk Oblast incursion.svg », CC0, plus de 60 versions ; « Kursk front of the Russo-Ukrainian War.svg », CC BY-SA 4.0) sont réutilisables, mais leur géoréférencement version par version n'est pas encore fait.</p>
+<h3>Qui pousse où</h3>
+<p>Les flèches estiment le déplacement de la ligne 50 % : v<sub>n</sub> = −Δp / |∇p|, avec Δp la variation de p sur trois mois ramenée au mois et ∇p le gradient du champ, en km par mois.</p>
+<ul>
+<li><strong>Seuil</strong> : une maille ne compte que si Δp dépasse l'écart-type Monte Carlo de la différence (au moins 0,04). Moins de 300 m par mois : pas de flèche.</li>
+<li><strong>Agrégation</strong> : par segments d'environ 100, 50, 20 ou 10 km selon le zoom.</li>
+<li><strong>Lecture</strong> : rouge, l'armée russe avance ; bleu, l'armée ukrainienne. Au zoom, la longueur et l'épaisseur sont proportionnelles à la vitesse.</li>
+<li><strong>Contrôles</strong> : Avdiïvka (février 2024) et Pokrovsk (2025) donnent des flèches rouges vers l'ouest ; Koursk (août 2024), des flèches bleues vers le nord-est.</li>
+</ul>
 <h3>3. Indices de combats : plus d'incertitude, jamais un déplacement de ligne</h3>
 <p>Les pertes géolocalisées (WarSpotting), les feux en excès (FIRMS) et les combats recensés par l'UCDP disent qu'on se bat là, pas qui tient le terrain. Ils ne servent qu'à élargir l'incertitude : σ<sub>s</sub>(x) × (1 + α·h(x)), où h = 1 − exp(−densité / h0) est la densité d'indices du mois, lissée sur environ 6 km (α = <span class="mono" id="pAlpha"></span>, h0 = <span class="mono" id="pH0"></span>). Ce réglage se désactive (option <span class="mono">--sans-indices</span>) ; son effet figure dans le test de sensibilité.</p>
 <h3>4. Le temps : un contrôle persistant</h3>
@@ -245,9 +260,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
-<script src="front_equilibre.js?v=e26c9634d0"></script>
-<script src="front.js?v=b18c652e16"></script>
+<script src="front_equilibre.js?v=188b0a9203"></script>
+<script src="front.js?v=dd204162e4"></script>
 <script src="osint.js?v=f8b7973154"></script>
-<script src="app.js?v=808675d7b9"></script>
+<script src="app.js?v=fd731fdc11"></script>
 </body>
 </html>

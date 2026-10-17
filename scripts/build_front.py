@@ -88,7 +88,9 @@ DEFAULT = {
     "claim_logit": 1.73,   # annonces des médias : p = 0,85 au centre (recalé par la calibration)
     "claim_days": 90,      # annonces des médias : 90 jours
     "near_km": 20.0,       # … à moins de 20 km d'une zone tenue / contestée
-    "official_stale": 3,   # annonce officielle levée après 3 mois de démenti par les autres sources du même camp
+    "official_stale": 3,
+    "band_prior": 4.0,     # bande russe : a priori « russe » (logit +4, p ≈ 0,98) que seules des preuves de contrôle renversent
+    "band_ua_ctrl": 7.0,   # localité russe annoncée « libérée » par le MoD RF : contrôle ukrainien avant cette date (logit −7 au centre)   # annonce officielle levée après 3 mois de démenti par les autres sources du même camp
     "sigma_scale": 1.0,
     "v_scale": 1.0,
     "proxies": True,
@@ -519,6 +521,8 @@ class Model:
             self.uidx[k] = u
         self.inU = [c != -1 for c in cell]
         self.isUA = [cell[k] >= 0 for k in self.U]
+        self.maskUA = [1.0 if c >= 0 else 0.0 for c in cell]
+        self.maskBand = [1.0 if c == -2 else 0.0 for c in cell]
         self.maskU = [1.0 if x else 0.0 for x in self.inU]
         self.pid = [p["id"] for p in places]
         self.lat = [p["lat"] for p in places]
@@ -551,7 +555,8 @@ class Model:
                 per_place["uamin"][k] = SIGN[min(av, key=lambda c: RANK[c])]
                 present["rumax"] = present["uamin"] = True
         # bande russe : faute de tracé, toutes les cartes la tiennent pour russe (a priori p = 1)
-        return {s: [per_place[s][c] if c >= 0 else (1 if c == -2 else None) for c in self.cell] for s in POLY if present[s]}
+        # bande russe : les cartes VIINA ne la couvrent pas (None) ; elle a son a priori et ses preuves (voir band_evidence)
+        return {s: [per_place[s][c] if c >= 0 else None for c in self.cell] for s in POLY if present[s]}
 
     def near_index(self, base):
         hot = defaultdict(list)
@@ -684,6 +689,7 @@ class Model:
                 self.kernel(k, sgn * kstrength[src], ker[src])
                 flags[k] |= bit
         xy_active = {src: [k for k in state["official"].get(src, {}) if isinstance(k, tuple)] for src in ("modru", "gsua")}
+        band_ev = self.band_evidence(d, P, kstrength)
         # élargissement de σ : indices de combats partout, présence russe côté ukrainien
         widen = [1.0] * self.nU
         if h or pr or pu:
@@ -706,7 +712,34 @@ class Model:
             col = dist[s]
             lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / (sg * widen[u]))) for u in range(self.nU)]
         return {"day": day, "base": base, "dist": dist, "sigma": sigma, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
-                "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active}
+                "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active, "band_ev": band_ev}
+
+    def band_evidence(self, d, P, kstrength):
+        """Bande russe : somme des preuves (logits) par maille.
+        - « libérée » selon le MoD RF au jour t ⇒ contrôle ukrainien de la localité avant t : depuis le début de
+          l'incursion de Koursk (6 août 2024) pour la zone de Koursk, sinon pendant les 45 jours précédents ;
+        - annonces de prise de l'état-major ukrainien (noyau ukrainien, force calibrée)."""
+        ev = {}
+        day = d.strftime("%Y%m%d")
+        for (kind, lon, lat), dates in [(k, v) for k, v in self.official.get("modru", {}).items() if isinstance(k, tuple)]:
+            kursk = lat > 50.85 and lon < 36.6 and any("20240806" <= x <= "20250531" for x in dates)
+            for t in dates:
+                start = "20240806" if kursk and t >= "20240806" else (dt.date(int(t[:4]), int(t[4:6]), int(t[6:])) - dt.timedelta(days=45)).strftime("%Y%m%d")
+                if start <= day < t:
+                    tmp = {}
+                    self.kernel_xy(lon, lat, RU_CLAIM_RADIUS + 1.0, -P["band_ua_ctrl"], tmp)
+                    for u, v in tmp.items():
+                        if not self.isUA[u] and v < ev.get(u, 0.0):
+                            ev[u] = v
+                    break
+        for (kind, lon, lat), dates in [(k, v) for k, v in self.official.get("gsua", {}).items() if isinstance(k, tuple)]:
+            if any(x <= day for x in dates):
+                tmp = {}
+                self.kernel_xy(lon, lat, RU_CLAIM_RADIUS, -kstrength["gsua"], tmp)
+                for u, v in tmp.items():
+                    if not self.isUA[u] and v < ev.get(u, 0.0):
+                        ev[u] = v
+        return ev
 
     def pool(self, inp, camps, P, drop=(), cells=None, shift=None, pick=None, block=None):
         """Pool logarithmique normalisé par camp → liste de logits sur U (0 si personne ne vote)."""
@@ -741,7 +774,9 @@ class Model:
                     continue
                 num[c] = num.get(c, 0.0) + w * v
                 den[c] = den.get(c, 0.0) + w
-            if den:
+            if not self.isUA[u]:  # bande russe : a priori + preuves, identique pour toutes les vues
+                out[u] = P["band_prior"] + inp["band_ev"].get(u, 0.0)
+            elif den:
                 out[u] = sum(num[c] / den[c] for c in den) / len(den)
         return out
 
@@ -758,12 +793,16 @@ class Model:
         js = [k // NX for k in act]
         is_ = [k % NX for k in act]
         win = (max(0, min(js) - m), min(NY, max(js) + m + 1), max(0, min(is_) - m), min(NX, max(is_) + m + 1))
-        num = gauss_blur_win([prev[k] * self.maskU[k] for k in range(N)], r, win)
-        den = gauss_blur_win(self.maskU, r, win)
+        # diffusion séparée de part et d'autre de la frontière : l'a priori ukrainien ne déborde pas en Russie
         out = [0.0] * self.nU
-        for u, k in enumerate(self.U):
-            pr = num[k] / den[k] if den[k] > 1e-9 else prev[k]
-            out[u] = (1 - P["beta"]) * obs[u] + P["beta"] * pr
+        for mask in (self.maskUA, self.maskBand):
+            num = gauss_blur_win([prev[k] * mask[k] for k in range(N)], r, win)
+            den = gauss_blur_win(mask, r, win)
+            for u, k in enumerate(self.U):
+                if not mask[k]:
+                    continue
+                pr = num[k] / den[k] if den[k] > 1e-9 else prev[k]
+                out[u] = (1 - P["beta"]) * obs[u] + P["beta"] * pr
         return out
 
     def run(self, P, sigma0, v_km, layers, kstrength, month_list, fields, on_month=None, mc=False):
@@ -863,7 +902,7 @@ class Model:
             v = p[u]
             pl = self.cell[k]
             if pl == -2:  # bande russe : surface sous contrôle UKRAINIEN (1 - p), indicateur séparé
-                ru_exp += 1 - v
+                ru_exp += (1 - v) if v < 0.95 else 0.0
                 ru_med += 1.0 if v < 0.5 else 0.0
                 if any(p[q] < 0.5 for q in self.nb[u]) and v >= 0.5:
                     length += 1

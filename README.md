@@ -71,6 +71,7 @@ Du fait des licences NC (WarSpotting, Ivaniuk), le site et ses données dérivé
 | Cartes du ministère russe de la Défense, Rybar (images) | — | pro-russe | droit d'auteur sur les cartes elles-mêmes | **ni numérisées ni redistribuées** |
 | UAControlMap, cartes de M0nstas, Playfra | — | variable | aucune licence de réutilisation publiée | **cités comme références seulement** |
 | Fortifications | — | — | aucun jeu ouvert trouvé | **pas de couche** |
+| Wikimedia Commons, « August 2024 Kursk Oblast incursion.svg » (CC0) et « Kursk front of the Russo-Ukrainian War.svg » (CC BY-SA 4.0) | tiers | — | réutilisables (attribution et partage à l'identique pour la seconde) | **pas encore intégrées** : le géoréférencement version par version reste à faire |
 | Rybar, Suriyak, « militarymaps », Militaryland, Project Owl (UA Control Map) | — | pro-russes (Rybar, Suriyak, militarymaps) ; autres variables | aucune licence publiée | **écartés** |
 | OpenStreetMap | — | — | ODbL | **sans objet** : OSM ne cartographie pas le front |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/), VIIRS S-NPP : archives 2012-2025, API zone 2026 (traitement standard jusqu'au 30 juin 2026, puis quasi temps réel) | feux | — | données NASA libres, avec mention | **utilisé** |
@@ -95,7 +96,12 @@ Du fait des licences NC (WarSpotting, Ivaniuk), le site et ses données dérivé
   - Toutes sont traitées comme des noyaux gaussiens dont la force est calibrée par leur taux de confirmation par les sources tierces.
 - **Présence** : les pertes russes géolocalisées (WarSpotting) prouvent une présence russe. Côté ukrainien de la ligne, elles élargissent σ (γ) sans faire basculer le contrôle. Rien d'équivalent n'est réutilisable côté ukrainien.
 - **Trois états** : contrôle russe (p > 0,9), zone grise (0,1 – 0,9), contrôle ukrainien (p < 0,1). La surface et la largeur moyenne de la zone grise sont publiées par mois et par secteur. Le concept vient de l'analyste OSINT Clément Molin (@clement_molin).
-- **Russie frontalière** : la grille s'étend sur 80 km côté russe, sans découpage à la frontière. C'est le même champ p. L'a priori y est « russe » (toutes les cartes tiennent la Russie pour russe), et seules les annonces (prises ukrainiennes, reprises russes, géocodées sur GeoNames Russie) et les indices de combats peuvent faire déborder la ligne. Les km² sous contrôle ukrainien en Russie forment un indicateur séparé.
+- **Russie frontalière** : la grille s'étend sur 80 km côté russe, sans découpage à la frontière.
+  - L'a priori y est « russe » (logit +4).
+  - Les preuves de contrôle ukrainien sont les localités annoncées « libérées » par le MoD RF (contrôle ukrainien avant cette date, depuis le 6 août 2024 pour Koursk) et les prises annoncées par l'état-major ukrainien.
+  - La carte n'y montre que la probabilité de contrôle ukrainien (en bleu, au-delà de 5 %).
+  - Les km² sous contrôle ukrainien en Russie (ligne médiane) forment une courbe séparée : environ 500 à 730 km² d'août 2024 à février 2025.
+- **Flèches « qui pousse où »** : v_n = −Δp/|∇p| sur 3 mois, au-delà de l'écart-type Monte Carlo, agrégées par segments de 100, 50, 20 ou 10 km selon le zoom. Elles sont calculées dans le navigateur à partir de `front_*.js` et `front_mcsd.js`.
 - **Préparation des flèches « qui pousse où » (V2)** : p est sauvegardé par mois et par vue (`site/front_*.js`), ainsi que l'écart-type Monte Carlo de p par maille (`site/front_mcsd.js`, 0-63 pour 0-0,5).
 - **Variantes « sans X »** : elles sont précalculées pour chaque source, et la page permet de retirer une source à la fois du calcul.
 - **Fusion** : pool logarithmique. Chaque camp (ukrainien, russe, tiers) pèse un tiers ; une source absente ne vote pas.
