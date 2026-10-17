@@ -1,0 +1,83 @@
+# Mise à jour quotidienne (FIRMS, VIINA, WarSpotting, Oryx, missiles, UCDP) puis publication sur Pages.
+# - schedule / workflow_dispatch : récupération, construction, commit des sorties, déploiement ;
+# - push : déploiement seul (aucune récupération ni construction).
+# Secret requis : FIRMS_MAP_KEY. Le dossier raw/ n'est jamais versionné : il vit dans le cache Actions,
+# sauvegardé même si une étape échoue ou expire, pour que le passage suivant reprenne là où il s'est arrêté.
+# Les scripts build*.py refusent d'écraser une sortie publiée par une version plus pauvre (code 3).
+name: mise-a-jour
+on:
+  push:
+    branches: [main]
+  schedule: [{ cron: "30 6 * * *" }]
+  workflow_dispatch: {}
+permissions: { contents: write, pages: write, id-token: write }
+concurrency: { group: mise-a-jour, cancel-in-progress: false }
+
+jobs:
+  update:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Restaurer le cache des données brutes
+        uses: actions/cache/restore@v4
+        with: { path: raw, key: "raw-${{ github.run_id }}", restore-keys: "raw-" }
+
+      - name: FIRMS (archives, API de l'année, flux 7 jours)
+        run: python scripts/fetch.py raw --api --nrt
+        env: { FIRMS_MAP_KEY: "${{ secrets.FIRMS_MAP_KEY }}" }
+        timeout-minutes: 35
+        continue-on-error: true
+      - name: OSINT (VIINA, UCDP, Oryx, missiles, WarSpotting — reprise incrémentale)
+        run: python scripts/fetch_osint.py raw
+        timeout-minutes: 45
+        continue-on-error: true
+      - name: Sauvegarder le cache (même en cas d'échec ou d'expiration)
+        if: always()
+        uses: actions/cache/save@v4
+        with: { path: raw, key: "raw-${{ github.run_id }}" }
+
+      - name: Construire les feux
+        run: python scripts/build.py raw
+        timeout-minutes: 10
+        continue-on-error: true
+      - name: Construire les couches OSINT
+        run: python scripts/build_osint.py raw
+        timeout-minutes: 5
+        continue-on-error: true
+      - name: Construire la carte du front
+        run: python scripts/build_front.py raw/viina
+        timeout-minutes: 30
+        continue-on-error: true
+
+      - name: Versionner les sorties
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data/ site/
+          if git diff --cached --quiet; then echo "rien de neuf"; exit 0; fi
+          git commit -m "Données du $(date -u +%F)"
+          for i in 1 2 3; do
+            if git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"; then exit 0; fi
+            echo "essai $i échoué, nouvel essai dans 15 s"; sleep 15
+          done
+          exit 1
+
+  deploy:
+    needs: update
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: { name: github-pages, url: "${{ steps.pages.outputs.page_url }}" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.ref_name }}" }
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - id: pages
+        uses: actions/deploy-pages@v4

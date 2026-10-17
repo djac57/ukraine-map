@@ -1,0 +1,17 @@
+# Données brutes (cache Actions, jamais versionnées)
+raw/
+
+# Python, macOS
+__pycache__/
+*.pyc
+.DS_Store
+
+# Clés et secrets : jamais dans le dépôt (FIRMS_MAP_KEY passe par les secrets GitHub)
+.env
+.env.*
+*.env
+credentials
+credentials.*
+*.key
+*secret*
+*token*

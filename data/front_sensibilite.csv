@@ -1,0 +1,8 @@
+variante,equilibre_tout_km2,equilibre_depuis2022_km2,ua_tout_km2,ua_depuis2022_km2,ru_tout_km2,ru_depuis2022_km2,tiers_tout_km2,tiers_depuis2022_km2
+défaut : camps à un tiers chacun,121713,76165,119609,74068,127059,81518,122393,76840
+"poids par source, sans équilibre des camps",121257,75710,121257,75710,121257,75710,121257,75710
+sans enveloppes ni annonces (cartes seules),121045,75490,121612,76057,299858,277078,122393,76840
+sans indices de proximité (α = 0),122030,76481,119881,74340,127561,82019,122650,77097
+sans filtre temporel (β = 0),121836,76286,119662,74122,127121,81578,122590,77035
+σ0 doublés,122061,76619,119659,74250,128874,83475,122775,77306
+vitesse du front doublée,121705,76157,119602,74060,127035,81494,122387,76833
