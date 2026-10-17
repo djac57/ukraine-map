@@ -235,7 +235,7 @@ def arcs(months, cutoff):
 
 
 def ucdp(months, cutoff):
-    """Événements UCDP (GED 26.1 jusqu'en 2025, puis « candidate » mensuels), Ukraine, précision ≤ 25 km."""
+    """Événements UCDP (GED 26.1 jusqu'en 2025, puis « candidate » mensuels), Ukraine et Russie frontalière, précision ≤ 25 km."""
     midx = {m: i for i, m in enumerate(months)}
     rows = []
     z = os.path.join(RAW, "ucdp", "ged261-csv.zip")
@@ -249,8 +249,10 @@ def ucdp(months, cutoff):
     per = [0] * len(months)
     last = None
     for r in rows:
-        if r["country"] != "Ukraine" or r["where_prec"] not in ("1", "2"):
+        if r["country"] not in ("Ukraine", "Russia", "Russia (Soviet Union)") or r["where_prec"] not in ("1", "2"):
             continue
+        if r["country"] != "Ukraine" and not (44 <= float(r["latitude"]) <= 56 and 30 <= float(r["longitude"]) <= 42):
+            continue  # Russie : seulement les régions frontalières (Briansk, Koursk, Belgorod…)
         m = r["date_start"][:7]
         if m > cutoff or m not in midx:
             continue

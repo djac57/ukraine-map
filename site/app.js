@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"equilibre": "0b3e866b89", "ru": "c95f61a4d1", "sans_dsm": "f395e94a4d", "sans_enveloppes": "b13c7bc9a7", "sans_gsua": "23418f3bdf", "sans_indices": "ade37d04c4", "sans_isw": "12d88f2f3d", "sans_medias": "047d613c62", "sans_modru": "17ffde73fe", "sans_presence": "0c7c6bdfa5", "sans_wiki": "02494a75ac", "tiers": "42245d172e", "ua": "32a8147aa6"};
+const FRONT_V = {"equilibre": "e26c9634d0", "mcsd": "2782ef168f", "ru": "c8e48774e0", "sans_dsm": "23b812743d", "sans_enveloppes": "04547c0597", "sans_gsua": "d122d3b91b", "sans_indices": "b94edf4432", "sans_isw": "315b752565", "sans_medias": "2af67fb9cb", "sans_modru": "1960f84c9b", "sans_presence": "f8afad3806", "sans_wiki": "da148aadc9", "tiers": "44cc9604b5", "ua": "67769ca566"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
@@ -51,7 +51,7 @@ $("gapN").textContent = D.gapDays.length;
 
 const fLast = FR.months.filter(Boolean).pop();
 $("stats").innerHTML = [
-  [fmt(Math.round(fLast.a.equilibre.tout[0]/100)*100) + "\u00a0km²", "occupés au " + dateFr(fLast.date) + " (intervalle à 90 % : " + fmt(Math.round(fLast.mc.tout[0]/100)*100) + " – " + fmt(Math.round(fLast.mc.tout[1]/100)*100) + " ; vue russe " + fmt(Math.round(fLast.a.ru.tout[0]/100)*100) + ", vue ukrainienne " + fmt(Math.round(fLast.a.ua.tout[0]/100)*100) + ")"],
+  [fmt(Math.round(fLast.a.equilibre.tout[0]/100)*100) + "\u00a0km²", "occupés au " + dateFr(fLast.date) + " (intervalle à 95 % : " + fmt(Math.round(fLast.mc.tout[0]/100)*100) + " – " + fmt(Math.round(fLast.mc.tout[1]/100)*100) + " ; vue russe " + fmt(Math.round(fLast.a.ru.tout[0]/100)*100) + ", vue ukrainienne " + fmt(Math.round(fLast.a.ua.tout[0]/100)*100) + ")"],
   [fmt(Math.round(exTot/100)*100), "détections de feux au-dessus de la normale depuis le 24 février 2022"],
   [Math.round(exUA/(exUA+exRU)*100) + " %", "de l'excès en Ukraine, le reste dans les régions russes frontalières"],
   [MC[+D.months[peak].slice(5)-1] + " " + D.months[peak].slice(0,4), "mois record : " + fmt(D.series[peak][2]) + " détections en excès"]
@@ -71,7 +71,7 @@ let wx, wy, gAff = [0, 0, 1];
 const GX = FR.grid.nx, GY = FR.grid.ny;
 const cellPlace = new Int32Array(GX * GY);
 { const b = atob(FR.runs); let o = 0;
-  for (let i = 0; i < b.length; i += 3) { const v = b.charCodeAt(i) | b.charCodeAt(i+1) << 8, n = b.charCodeAt(i+2); cellPlace.fill(v === 65535 ? -1 : v, o, o + n); o += n; } }
+  for (let i = 0; i < b.length; i += 3) { const v = b.charCodeAt(i) | b.charCodeAt(i+1) << 8, n = b.charCodeAt(i+2); cellPlace.fill(v === 65535 ? -1 : v === 65534 ? -2 : v, o, o + n); o += n; } }
 const pFlags = Uint8Array.from(atob(FR.flags), c => c.charCodeAt(0));
 const SRCN = {dsm:"DeepStateMap", isw:"ISW / CTP", wiki:"Wikipédia", boost:"Wikipédia + VIINA"};
 const SRCCAMP = {dsm:"ukrainien", isw:"tiers", wiki:"tiers", boost:"tiers"};
@@ -107,7 +107,15 @@ const lastFront = FR.months.reduce((a, m, i) => m ? i : a, -1);
 const frontIdx = () => FR.months[cur] ? cur : (cur > lastFront ? lastFront : -1);
 if (lastFront >= 0) cur = lastFront;  // ouverture : dernier mois disponible pour le front
 // champs de probabilité : un fichier par vue (la vue équilibrée est chargée d'office), différences mois à mois
-const UCELLS = []; for (let c = 0; c < GX * GY; c++) if (cellPlace[c] >= 0) UCELLS.push(c);
+// bande russe : distance à l'Ukraine (en mailles), pour estomper la couleur vers l'intérieur de la Russie
+const bandFade = new Float32Array(GX * GY).fill(1);
+{ const dist = new Int16Array(GX * GY).fill(-1), q = [];
+  for (let c = 0; c < GX * GY; c++) if (cellPlace[c] === -2 && [c - 1, c + 1, c - GX, c + GX].some(x => x >= 0 && x < GX * GY && cellPlace[x] >= 0)) { dist[c] = 0; q.push(c); }
+  for (let h = 0; h < q.length; h++) { const c = q[h]; for (const x of [c - 1, c + 1, c - GX, c + GX]) if (x >= 0 && x < GX * GY && cellPlace[x] === -2 && dist[x] < 0) { dist[x] = dist[c] + 1; q.push(x); } }
+  const span = 80 / (FR.grid.size / 1000);
+  for (let c = 0; c < GX * GY; c++) if (cellPlace[c] === -2) bandFade[c] = Math.max(0, 1 - Math.max(0, dist[c]) / span) ** 1.5; }
+// mailles du modèle : Ukraine (indice de localité ≥ 0) et bande russe frontalière (-2), sans découpage à la frontière
+const UCELLS = []; for (let c = 0; c < GX * GY; c++) if (cellPlace[c] !== -1) UCELLS.push(c);
 const fieldCache = {};
 function viewFields(view){
   if (fieldCache[view]) return fieldCache[view];
@@ -134,28 +142,49 @@ function ringsPath(polys){
   for (const poly of polys) for (const ring of poly) { ring.forEach(([x,y], i) => i ? p.lineTo(x, y) : p.moveTo(x, y)); p.closePath(); }
   return p;
 }
+// masque « Russie » sur la grille : hors du domaine du modèle, la Russie compte pour p = 1 dans le tracé des
+// isolignes (pas de fausse ligne au bord de la bande frontalière)
+let ruMask = null;
+function buildRuMask(){
+  if (ruMask || !proj) return;
+  const cv = document.createElement("canvas"); cv.width = GX; cv.height = GY;
+  const cx = cv.getContext("2d"), gp = d3.geoPath(proj);
+  cx.setTransform(1 / gAff[2], 0, 0, 1 / gAff[2], -gAff[0] / gAff[2], -gAff[1] / gAff[2]);
+  cx.fillStyle = "#000";
+  for (const f of G.countries) if (f.properties.iso === "RU") cx.fill(new Path2D(gp(f) || ""));
+  const d = cx.getImageData(0, 0, GX, GY).data;
+  ruMask = new Uint8Array(GX * GY);
+  for (let c = 0; c < GX * GY; c++) ruMask[c] = d[c * 4 + 3] > 127 ? 1 : 0;
+}
 function buildFront(){
+  buildRuMask();
   const fi = frontIdx(), key = (C.dark ? "d" : "l") + fieldName() + (showStates ? "s" : ""), F = viewFields(fieldName());
   if (fi === frontFor && key === frontTheme) return;
   frontFor = fi; frontTheme = key;
   const img = octx.createImageData(GX, GY), px4 = img.data;
   const [r, g, b] = C["front-rgb"].split(",").map(Number);
   pgrid.fill(0);
+  if (ruMask) for (let c = 0; c < GX * GY; c++) if (ruMask[c] && cellPlace[c] === -1) pgrid[c] = 1;
   if (fi >= 0 && F && F[fi]) {
     const q = F[fi], [gr, gg, gb] = C["grey-rgb"].split(",").map(Number);
     for (let u = 0; u < UCELLS.length; u++) {
       const c = UCELLS[u], p = q[u] / 63; pgrid[c] = p;
-      const o = c * 4;
+      const o = c * 4, fade = bandFade[c];
       if (showStates) {
-        if (p > 0.9) { px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = C.dark ? 150 : 135; }
-        else if (p >= 0.1) { const ch = ((c % GX) + Math.floor(c / GX)) % 2; px4[o] = gr; px4[o+1] = gg; px4[o+2] = gb; px4[o+3] = ch ? 170 : 90; }
-      } else if (p > 0.004) { px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = Math.round(255 * (C.dark ? 0.06 + 0.54 * p : 0.05 + 0.5 * p)); }
+        if (p > 0.95) { px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = (C.dark ? 150 : 135) * fade; }
+        else if (p >= 0.05) { const ch = ((c % GX) + Math.floor(c / GX)) % 2; px4[o] = gr; px4[o+1] = gg; px4[o+2] = gb; px4[o+3] = ch ? 170 : 90; }
+      } else if (p > 0.004) { px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = Math.round(255 * (C.dark ? 0.06 + 0.54 * p : 0.05 + 0.5 * p) * (p > 0.9 ? fade : 1)); }
     }
-    const cs = d3.contours().size([GX, GY]).thresholds([0.1, 0.5, 0.9])(pgrid);
+    const cs = d3.contours().size([GX, GY]).thresholds([0.05, 0.5, 0.95])(pgrid);
     isoPaths = cs.map(c => ringsPath(c.coordinates));
   } else isoPaths = [];
   octx.putImageData(img, 0, 0);
 }
+// domaine du modèle (Ukraine + bande russe) : les isolignes y sont découpées, pour ne pas tracer le bord de la grille
+let domainPath = null;
+{ const m = new Float32Array(GX * GY);
+  for (let c = 0; c < GX * GY; c++) { const x = c % GX, y = (c - x) / GX; if (cellPlace[c] !== -1 && x > 1 && y > 1 && x < GX - 2 && y < GY - 2) m[c] = 1; }
+  domainPath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates); }
 { const m = new Float32Array(GX * GY); for (let c = 0; c < GX * GY; c++) { const k = cellPlace[c]; if (k >= 0 && pFlags[k]) m[c] = 1; }
   prePath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates); }
 const RAWCOL = {dsm: "#2f7fd8", isw: "#d89a2f", wiki: "#8a5bd8"};
@@ -176,9 +205,11 @@ function drawFront(k){
   ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.55; ctx.lineWidth = 1 * u; ctx.setLineDash([2*u, 3*u]);
   ctx.stroke(prePath);
   if (showLines && isoPaths.length) {
+    ctx.save(); ctx.clip(domainPath);
     ctx.strokeStyle = C.front; ctx.globalAlpha = 0.9; ctx.setLineDash([4*u, 3*u]); ctx.lineWidth = 0.9 * u;
     ctx.stroke(isoPaths[0]); ctx.stroke(isoPaths[2]);
     ctx.setLineDash([]); ctx.lineWidth = 1.8 * u; ctx.globalAlpha = 1; ctx.stroke(isoPaths[1]);
+    ctx.restore();
   }
   const fi = frontIdx();
   if (fi >= 0) for (const src of ["dsm", "isw", "wiki"]) {
@@ -470,10 +501,18 @@ function hover(e){
   const bx = (mx - tr.x) / tr.k, by = (my - tr.y) / tr.k;
   const i = Math.floor((bx - gAff[0]) / gAff[2]), j = Math.floor((by - gAff[1]) / gAff[2]);
   const fi = frontIdx(), k = i >= 0 && j >= 0 && i < GX && j < GY ? cellPlace[j * GX + i] : -1;
+  if (k === -2 && fi >= 0) {
+    const F = viewFields(fieldName()), u = d3.bisectLeft(UCELLS, j * GX + i), p = F && F[fi] ? F[fi][u] / 63 : NaN;
+    tip.innerHTML = `<div class="r"><span>p(contrôle russe)</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div><div class="r"><span>état</span><b>${p > 0.95 ? "contrôle russe" : p < 0.05 ? "contrôle ukrainien" : "zone grise"}</b></div>` +
+      `<div style="margin-top:4px">Russie, bande frontalière : a priori russe ; seules les annonces (état-major ukrainien, MoD RF) et les indices de combats peuvent faire déborder la ligne.</div>`;
+    tip.style.display = "block";
+    const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
+    return;
+  }
   if (k < 0 || fi < 0) { tip.style.display = "none"; return; }
   const b = monthCodes[fi][k], fl = pFlags[k], F = viewFields(fieldName());
   const u = d3.bisectLeft(UCELLS, j * GX + i), p = F && F[fi] ? F[fi][u] / 63 : NaN;
-  const st = isNaN(p) ? "…" : p > 0.9 ? "contrôle russe" : p < 0.1 ? "contrôle ukrainien" : "zone grise";
+  const st = isNaN(p) ? "…" : p > 0.95 ? "contrôle russe" : p < 0.05 ? "contrôle ukrainien" : "zone grise";
   // votes des sources à cette maille (statuts par localité) et part de chaque source dans le pool
   const avail = s => !!(FR.months[fi].sigma && FR.months[fi].sigma[s] != null);
   const sv = n => (b >> (2*n) & 3) || (avail(FR.viina[n]) ? 1 : 0), av = FR.viina.map((s, n) => sv(n)).filter(Boolean);
@@ -506,8 +545,8 @@ $("legend").addEventListener("click", e => {
 
 function legend(){
   if (typeof layerNotes === "function" && $("mSub")) $("mSub").innerHTML = layerNotes().join("<br>");
-  const front = showFront || showLines ? (showStates ? `<span><i style="background:rgba(${C["front-rgb"]},.6);border-radius:0"></i>contrôle russe (p > 0,9)</span><span><i style="background:rgba(${C["grey-rgb"]},.7);border-radius:0"></i>zone grise (0,1 – 0,9)</span><span>sans couleur : contrôle ukrainien (p < 0,1)</span>` : `<span><i style="background:rgba(${C["front-rgb"]},.75);border-radius:0"></i>probabilité d'occupation russe</span>`) +
-    (showLines ? `<span><i style="background:${C.front};height:2px;border-radius:0;vertical-align:3px"></i>ligne médiane (p = 50 %)</span><span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>10 % et 90 %</span>` : "") +
+  const front = showFront || showLines ? (showStates ? `<span><i style="background:rgba(${C["front-rgb"]},.6);border-radius:0"></i>contrôle russe (p > 0,95)</span><span><i style="background:rgba(${C["grey-rgb"]},.7);border-radius:0"></i>zone grise (0,05 – 0,95)</span><span>sans couleur : contrôle ukrainien (p < 0,05)</span>` : `<span><i style="background:rgba(${C["front-rgb"]},.75);border-radius:0"></i>probabilité d'occupation russe</span>`) +
+    (showLines ? `<span><i style="background:${C.front};height:2px;border-radius:0;vertical-align:3px"></i>ligne médiane (p = 50 %)</span><span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>5 % et 95 %</span>` : "") +
     `<span><i style="border-top:1px dotted ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>occupé avant 2022</span><span style="flex-basis:100%;height:0"></span>` : "";
   const items = mode === "pts"
     ? [[C["fire-now"], "feu en excès, mois affiché"], [C["fire-old"], "mois précédents (traînée)"]]
@@ -578,7 +617,9 @@ function updateArea(){
     const fi = frontIdx(), mo = fi >= 0 ? FR.months[fi] : null;
     if (!mo) big.innerHTML = "—";
     else { const a = mo.a[fieldName() in mo.a ? fieldName() : fmode] || mo.a.equilibre, r = v => fmt(Math.round(v/100)*100), v = fvar && mo.v && mo.v[fvar] ? mo.v[fvar].tout[0] : a.tout[0];
-      big.innerHTML = `<b>${r(v)} km²</b><span>${document.documentElement.dataset.kmLabel || "occupés"} · ${monthLabel(fi)}${fmode === "equilibre" && !fvar ? ` · 90 % : ${r(mo.mc.tout[0])} – ${r(mo.mc.tout[1])}` : ""}</span>`; }
+      const ru = a.russie ? a.russie[1] : 0;
+      big.innerHTML = `<b>${r(v)} km²</b><span>${document.documentElement.dataset.kmLabel || "occupés"} · ${monthLabel(fi)}${fmode === "equilibre" && !fvar ? ` · 95 % : ${r(mo.mc.tout[0])} – ${r(mo.mc.tout[1])}` : ""}</span>` +
+        (ru >= 50 ? `<span style="color:var(--cool)">${document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien"} : ${fmt(Math.round(ru/10)*10)} km²</span>` : ""); }
   }
   const fi = frontIdx(), el = $("areaBox");
   if (fi < 0) { el.innerHTML = `<div style="grid-column:1/-1"><span class="na">front : pas d'instantané pour ce mois</span></div>`; return; }
@@ -586,14 +627,14 @@ function updateArea(){
   const r10 = v => fmt(Math.round(v/10)*10), mc = mo.mc, eq = fmode === "equilibre";
   const crimea = a.tout[0] - a.horsCrimee[0], pre = a.horsCrimee[0] - a.depuis2022[0];
   el.innerHTML = `<div>occupé au ${dateFr(mo.date)} · ${MODEN[fmode]}<b>${r10(a.tout[0])} km²</b>${sh(a.tout[0])} de l'Ukraine · ` +
-      (eq ? `intervalle à 90\u00a0% : ${r10(mc.tout[0])} – ${r10(mc.tout[1])} km²` : `vue partielle (intervalle calculé pour la vue équilibrée)`) + ` · sous la ligne médiane : ${r10(a.tout[1])} km²</div>` +
-    `<div>pris depuis le 24 février 2022<b>${r10(a.depuis2022[0])} km²</b>` + (eq ? `90\u00a0% : ${r10(mc.depuis2022[0])} – ${r10(mc.depuis2022[1])} km² · ` : "") + `Crimée ${r10(crimea)} et Donbass d'avant 2022 ${r10(pre)} km² comptés à part</div>` +
-    `<div>zone grise (0,1 ≤ p ≤ 0,9)<b style="color:var(--accent)">${r10(mo.grey ? mo.grey.km2 : 0)} km²</b>largeur moyenne ${mo.grey && mo.grey.width_km != null ? String(mo.grey.width_km).replace(".", ",") : "—"} km le long de ${fmt(mo.grey ? mo.grey.front_km : 0)} km de front · désaccord des vues russe et ukrainienne : ${r10(mo.dis.tout[0])} km² (vue russe ${r10(mo.a.ru.tout[0])}, vue ukr. ${r10(mo.a.ua.tout[0])})</div>` +
+      (eq ? `intervalle à 95\u00a0% : ${r10(mc.tout[0])} – ${r10(mc.tout[1])} km²` : `vue partielle (intervalle calculé pour la vue équilibrée)`) + ` · sous la ligne médiane : ${r10(a.tout[1])} km²</div>` +
+    `<div>pris depuis le 24 février 2022<b>${r10(a.depuis2022[0])} km²</b>` + (eq ? `95\u00a0% : ${r10(mc.depuis2022[0])} – ${r10(mc.depuis2022[1])} km² · ` : "") + `Crimée ${r10(crimea)} et Donbass d'avant 2022 ${r10(pre)} km² comptés à part</div>` +
+    `<div>zone grise (0,05 ≤ p ≤ 0,95)<b style="color:var(--accent)">${r10(mo.grey ? mo.grey.km2 : 0)} km²</b>largeur moyenne ${mo.grey && mo.grey.width_km != null ? String(mo.grey.width_km).replace(".", ",") : "—"} km le long de ${fmt(mo.grey ? mo.grey.front_km : 0)} km de front · désaccord des vues russe et ukrainienne : ${r10(mo.dis.tout[0])} km² (vue russe ${r10(mo.a.ru.tout[0])}, vue ukr. ${r10(mo.a.ua.tout[0])})</div>` +
     (fvar && mo.v && mo.v[fvar] ? `<div style="grid-column:1/-1">sans cette source (${fvar.replace("_", " ")}) : <i>${r10(mo.v[fvar].tout[0])} km²</i>, soit ${mo.v[fvar].tout[0] - mo.a.equilibre.tout[0] >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round((mo.v[fvar].tout[0] - mo.a.equilibre.tout[0])/10)*10))} km² par rapport au modèle complet ; zone grise ${r10(mo.v[fvar].tout[2])} km²</div>` : "");
 }
 const UA_KM2 = (() => { let n = 0; for (let c = 0; c < GX * GY; c++) if (cellPlace[c] >= 0) n++; return n * (FR.grid.size/1000) ** 2; })();
 function lineChart(el, rows, opt){
-  const w = el.clientWidth, h = w < 500 ? 200 : 240, m = {t:10, r:8, b:26, l: w < 500 ? 46 : 58};
+  const w = el.clientWidth, h = opt.h || (w < 500 ? 200 : 240), m = {t:10, r:8, b:26, l: w < 500 ? 46 : 58};
   const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w-m.r]).paddingInner(0.18), cx = i => x(i) + x.bandwidth()/2;
   const ext = d3.extent(rows.flatMap(r => r.slice(1).filter(v => v != null)));
   const y = d3.scaleLinear().domain(opt.zero ? [0, ext[1] * 1.05] : [ext[0] * 0.98, ext[1] * 1.01]).nice().range([h-m.b, m.t]);
@@ -619,7 +660,13 @@ function drawAreaChart(){
   lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], lines: lean ? [{i: 1, color: C.front, w: 2.2}] : [
       {i: 5, color: C.ink, w: 1, dash: "2 3", op: .55}, {i: 6, color: C.cool, w: 1, dash: "2 3", op: .8},
       {i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.front, w: 2.2}],
-    title: i => FR.months[i] ? `${monthLabel(i)} — ${MODEN[fmode]} : ${fmt(FR.months[i].a[fmode][perim][0])} km² (90 % : ${fmt(FR.months[i].mc[perim][0])} – ${fmt(FR.months[i].mc[perim][1])}) ; vue russe ${fmt(FR.months[i].a.ru[perim][0])}, vue ukrainienne ${fmt(FR.months[i].a.ua[perim][0])}` : `${monthLabel(i)} — pas d'instantané`});
+    title: i => FR.months[i] ? `${monthLabel(i)} — ${MODEN[fmode]} : ${fmt(FR.months[i].a[fmode][perim][0])} km² (95 % : ${fmt(FR.months[i].mc[perim][0])} – ${fmt(FR.months[i].mc[perim][1])}) ; vue russe ${fmt(FR.months[i].a.ru[perim][0])}, vue ukrainienne ${fmt(FR.months[i].a.ua[perim][0])}` : `${monthLabel(i)} — pas d'instantané`});
+  const rrows = FR.months.map((v, i) => v && v.a[fmode] && v.a[fmode].russie ? [i, v.a[fmode].russie[1]] : null).filter(Boolean);
+  const ruEl = document.getElementById("ruChart");
+  if (ruEl && rrows.some(r => r[1] >= 50)) {
+    lineChart(ruEl, rrows, {zero: true, color: C.cool, lines: [{i: 1, color: C.cool, w: 1.8}], h: 90,
+      title: i => FR.months[i] && FR.months[i].a[fmode].russie ? `${monthLabel(i)} — en Russie, sous contrôle ukrainien (p < 0,5) : ${fmt(FR.months[i].a[fmode].russie[1])} km²` : ""});
+  } else if (ruEl) ruEl.replaceChildren();
   const grows = FR.months.map((v, i) => v && v.grey ? [i, v.grey.km2] : null).filter(Boolean);
   lineChart($("greyChart"), grows, {zero: true, color: C.accent, lines: [{i: 1, color: C.accent, w: 2.2}],
     title: i => FR.months[i] && FR.months[i].grey ? `${monthLabel(i)} — zone grise ${fmt(FR.months[i].grey.km2)} km², largeur moyenne ${String(FR.months[i].grey.width_km).replace(".", ",")} km` : `${monthLabel(i)} — pas d'instantané`});
@@ -663,8 +710,9 @@ function methodTables(){
   $("srcTab").innerHTML = `<tr><th>source</th><th>camp</th><th>poids dans le camp</th><th>licence</th><th>période</th><th>σ0 (km)</th><th>écart moyen calibré</th></tr>` +
     rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${String(r[2]).replace(".", ",")}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6] == null ? "—" : f1(r[6]) + " km"}</td></tr>`).join("");
   const S = FR.sensitivity;
-  $("sensTab").innerHTML = `<tr><th>variante</th><th>équilibré</th><th>dont depuis 2022</th><th>vue ukr.</th><th>vue russe</th><th>tiers</th></tr>` +
-    S.map((r, i) => `<tr${i ? "" : ' style="font-weight:600"'}><td>${r[0]}</td><td>${fmt(r[1])}</td><td>${fmt(r[2])}</td><td>${fmt(r[3])}</td><td>${fmt(r[5])}</td><td>${fmt(r[7])}</td></tr>`).join("");
+  $("sensTab").innerHTML = `<tr><th>variante</th><th>équilibré</th><th>dont depuis 2022</th><th>vue ukr.</th><th>vue russe</th><th>tiers</th><th>zone grise</th></tr>` +
+    S.map((r, i) => `<tr${i ? "" : ' style="font-weight:600"'}><td>${r[0]}</td><td>${fmt(r[1])}</td><td>${fmt(r[2])}</td><td>${fmt(r[3])}</td><td>${r[5] > 200000 ? "— *" : fmt(r[5])}</td><td>${fmt(r[7])}</td><td>${r[9] != null ? fmt(r[9]) : "—"}</td></tr>`).join("") +
+    `<tr><td colspan="7" style="text-align:left;color:var(--faint);font-size:11px">* sans enveloppes, la vue russe ne repose plus que sur des annonces ponctuelles et n'est pas définie ailleurs.</td></tr>`;
   // diagramme de calibration
   const el = $("calibChart"), w = Math.min(el.clientWidth || 320, 360), h = w, m = {t:10, r:10, b:34, l:40};
   const x = d3.scaleLinear([0, 1], [m.l, w - m.r]), y = d3.scaleLinear([0, 1], [h - m.b, m.t]);

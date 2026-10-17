@@ -23,7 +23,7 @@ Modèle (détaillé sur la page, section « Méthode ») :
    source qui ne couvre pas la maille ne vote pas ;
 4. filtre temporel : logit p(t) = (1-β)·observation(t) + β·[logit p(t-1) diffusé de v·1 mois] ;
 5. σ0_s calibrés par validation croisée (une source laissée de côté), v estimé sur l'historique ;
-6. intervalle à 90 % des km² par Monte Carlo (lignes décalées dans σ_s, sources rééchantillonnées).
+6. intervalle à 95 % des km² par Monte Carlo (lignes décalées dans σ_s, sources rééchantillonnées).
 """
 import base64
 import csv
@@ -96,12 +96,14 @@ DEFAULT = {
     "presence": True,
     "cues": True,
 }
+RU_BAND_KM = 80.0       # bande côté russe (Koursk, Belgorod, Briansk…) : même champ p, sans découpage à la frontière
+RU_CLAIM_RADIUS = 2.5   # rayon des noyaux d'annonces sur des localités russes (pas de pavage) : km
 LAG_DAYS = 7
 PRE_DATE = "20220223"
 CRIMEA_ADM1 = {"11", "20"}
 RU_MEDIA = {"ria", "ntv", "kp", "ng"}
 UA_MEDIA = {"24tvua", "espreso", "liga", "nv", "pravdaua", "unian", "militarnyy", "interfaxua", "forbesua"}
-MC_DRAWS = 12 if FAST else 40
+MC_DRAWS = 12 if FAST else 100
 INF = 1e9
 
 
@@ -422,7 +424,23 @@ def load_layers(months):
         p = O["ws"]["pts"]  # pertes RUSSES documentées : présence russe à cet endroit ce mois-là
         for j in range(0, len(p), 5):
             presence_ru[p[j + 2]].append(((p[j + 1] + 0.5) * 0.1, (p[j] + 0.5) * 0.1, float(p[j + 4])))
-    return combat, presence_ru
+    # présence ukrainienne en Russie : une reprise annoncée par le MoD RF prouve une présence ukrainienne
+    # dans les semaines qui précèdent (75 jours) ; elle élargit l'incertitude sans faire basculer le contrôle
+    presence_ua = defaultdict(list)
+    path = os.path.join(ROOT, "data", "claims_modru.csv")
+    if os.path.exists(path):
+        ends = []
+        for m in months:
+            y, mo = int(m[:4]), int(m[5:])
+            ends.append((dt.date(y + mo // 12, mo % 12 + 1, 1) - dt.timedelta(days=1)))
+        for r in csv.DictReader(open(path, encoding="utf-8")):
+            if not r["geonameid"].startswith("ru"):
+                continue
+            d = dt.date.fromisoformat(r["date"])
+            for mi, e in enumerate(ends):
+                if e - dt.timedelta(days=75) < d <= e + dt.timedelta(days=45):
+                    presence_ua[mi].append((float(r["lon"]), float(r["lat"]), 3.0))
+    return combat, presence_ru, presence_ua
 
 
 def density_field(points, h0):
@@ -437,6 +455,39 @@ def density_field(points, h0):
     return [1 - math.exp(-v / h0) if v > 1e-6 else 0.0 for v in dens]
 
 
+def russian_band(cell):
+    """Marque -2 les mailles russes à moins de RU_BAND_KM de l'Ukraine (polygone Natural Earth de site/geo.js)."""
+    src = open(os.path.join(ROOT, "site", "geo.js"), encoding="utf-8").read()
+    geo = json.loads(src[len("window.GEO="):].rstrip().rstrip(";"))
+    polys = []
+    for f in geo["countries"]:
+        if f["properties"]["iso"] == "RU":
+            for poly in f["geometry"]["coordinates"]:
+                xs = [q[0] for q in poly[0]]
+                ys = [q[1] for q in poly[0]]
+                polys.append((poly, (min(xs), min(ys), max(xs), max(ys))))
+    edge = [k for k in range(N) if cell[k] >= 0 and any(0 <= q < N and cell[q] < 0 for q in (k - 1, k + 1, k - NX, k + NX))]
+    D = chamfer(edge, RU_BAND_KM / CELL_KM * 3 + 6)
+    n = 0
+    for k in range(N):
+        if cell[k] != -1 or D[k] / 3 * CELL_KM > RU_BAND_KM:
+            continue
+        j, i = divmod(k, NX)
+        lon, lat = inv_laea(X0 + (i + 0.5) * SIZE, Y1 - (j + 0.5) * SIZE)
+        for poly, (x0, y0, x1, y1) in polys:
+            if x0 <= lon <= x1 and y0 <= lat <= y1 and in_ring(lon, lat, poly[0]) and not any(in_ring(lon, lat, h) for h in poly[1:]):
+                cell[k] = -2
+                n += 1
+                break
+    print(f"bande russe : {n} mailles ({n * CELL_KM ** 2:,.0f} km²)", flush=True)
+    return cell
+
+
+def act_since(act, k):
+    v = act[k]
+    return v if isinstance(v, str) else "0"
+
+
 def load_official_claims(pid_index):
     """Annonces officielles géocodées (faits) : {source: {indice de localité: [dates AAAAMMJJ]}}."""
     out = {"modru": defaultdict(list), "gsua": defaultdict(list)}
@@ -448,6 +499,8 @@ def load_official_claims(pid_index):
             k = pid_index.get(r["geonameid"])
             if k is not None:
                 out[src][k].append(r["date"].replace("-", ""))
+            else:  # localité russe (bande frontalière) : repérée par ses coordonnées
+                out[src][("xy", round(float(r["lon"]), 4), round(float(r["lat"]), 4))].append(r["date"].replace("-", ""))
     for src in out:
         for v in out[src].values():
             v.sort()
@@ -459,12 +512,13 @@ class Model:
     def __init__(self, months, snap, status, claims, official, cell, places):
         self.months, self.snap, self.status, self.claims, self.official = months, snap, status, claims, official
         self.cell, self.places = cell, places
-        self.U = [k for k in range(N) if cell[k] >= 0]
+        self.U = [k for k in range(N) if cell[k] != -1]
         self.nU = len(self.U)
         self.uidx = [-1] * N
         for u, k in enumerate(self.U):
             self.uidx[k] = u
-        self.inU = [c >= 0 for c in cell]
+        self.inU = [c != -1 for c in cell]
+        self.isUA = [cell[k] >= 0 for k in self.U]
         self.maskU = [1.0 if x else 0.0 for x in self.inU]
         self.pid = [p["id"] for p in places]
         self.lat = [p["lat"] for p in places]
@@ -477,7 +531,7 @@ class Model:
         self.radius = [max(CELL_KM, math.sqrt(self.ncell[k] * CELL_KM ** 2 / math.pi)) for k in range(len(places))]
         # voisinage 4-connexe dans U (pour la longueur du front)
         self.nb = [[self.uidx[q] for q in (k - 1, k + 1, k - NX, k + NX) if 0 <= q < N and self.inU[q]] for k in self.U]
-        self.sector = [places[cell[k]]["adm1n"] for k in self.U]
+        self.sector = [places[cell[k]]["adm1n"] if cell[k] >= 0 else "Russie" for k in self.U]
 
     def base_codes(self, day):
         st = self.status[day]
@@ -496,7 +550,8 @@ class Model:
                 per_place["rumax"][k] = SIGN[max(av, key=lambda c: RANK[c])]
                 per_place["uamin"][k] = SIGN[min(av, key=lambda c: RANK[c])]
                 present["rumax"] = present["uamin"] = True
-        return {s: [per_place[s][c] if c >= 0 else None for c in self.cell] for s in POLY if present[s]}
+        # bande russe : faute de tracé, toutes les cartes la tiennent pour russe (a priori p = 1)
+        return {s: [per_place[s][c] if c >= 0 else (1 if c == -2 else None) for c in self.cell] for s in POLY if present[s]}
 
     def near_index(self, base):
         hot = defaultdict(list)
@@ -516,6 +571,27 @@ class Model:
                             return True
             return False
         return near
+
+    def kernel_xy(self, lon, lat, r, logit, target):
+        c0 = grid_index(lon, lat)
+        if c0 < 0:
+            return
+        cj, ci = divmod(c0, NX)
+        rc = int(math.ceil(2 * r / CELL_KM))
+        for dj in range(-rc, rc + 1):
+            for di in range(-rc, rc + 1):
+                j2, i2 = cj + dj, ci + di
+                if not (0 <= j2 < NY and 0 <= i2 < NX):
+                    continue
+                u = self.uidx[j2 * NX + i2]
+                if u < 0:
+                    continue
+                d2 = (dj * dj + di * di) * CELL_KM ** 2
+                if d2 > 4 * r * r:
+                    continue
+                v = logit * math.exp(-d2 / (2 * r * r))
+                if abs(v) > abs(target.get(u, 0.0)):
+                    target[u] = v
 
     def kernel(self, k, logit, target):
         """Ajoute à target {u: logit} le noyau gaussien de la localité k (on garde le plus fort)."""
@@ -558,9 +634,10 @@ class Model:
             dist[s] = [dd.get(k) for k in self.U]
         sigma = {s: sigma0[s] * P["sigma_scale"] + v_km * P["v_scale"] * state["age"][s] / 30.0 for s in dist}
         mi = self.months.index(m)
-        combat, pres = layers
+        combat, pres, pres_ua = layers
         h = density_field(combat.get(mi, []), P["h0"]) if P["alpha"] > 0 else None
         pr = density_field(pres.get(mi, []), P["h0"]) if P["gamma"] > 0 else None
+        pu = density_field(pres_ua.get(mi, []), P["h0"]) if P["gamma"] > 0 else None
         near = self.near_index(base)
         ker = {s: {} for s in POINT}
         flags = defaultdict(int)
@@ -581,9 +658,18 @@ class Model:
             act = state["official"].setdefault(src, {})
             for k, dates in self.official.get(src, {}).items():
                 if any(x <= day for x in dates) and k not in act:
-                    act[k] = 0
-            same = ("rumax",) if src == "modru" else ("dsm", "uamin")
-            for k in list(act):
+                    act[k] = 0 if not isinstance(k, tuple) else min(x for x in dates if x <= day)
+            # localités russes : une annonce de prise ukrainienne tient jusqu'à une annonce russe contraire à moins de 5 km
+            for k in [x for x in act if isinstance(x, tuple)]:
+                _, lon, lat = k
+                if src == "gsua":
+                    later = [x for (kk, dates) in self.official.get("modru", {}).items() if isinstance(kk, tuple)
+                             and abs(kk[1] - lon) < 0.07 and abs(kk[2] - lat) < 0.045 for x in dates if act_since(act, k) < x <= day]
+                    if later:
+                        del act[k]
+                        continue
+                self.kernel_xy(lon, lat, RU_CLAIM_RADIUS, sgn * kstrength[src], ker[src])
+            for k in [x for x in act if not isinstance(x, tuple)]:
                 # démenti : toutes les cartes du même camp disent l'inverse ce mois-ci
                 b = base[k]
                 av = [c for c in b if c]
@@ -597,17 +683,21 @@ class Model:
                     continue
                 self.kernel(k, sgn * kstrength[src], ker[src])
                 flags[k] |= bit
+        xy_active = {src: [k for k in state["official"].get(src, {}) if isinstance(k, tuple)] for src in ("modru", "gsua")}
         # élargissement de σ : indices de combats partout, présence russe côté ukrainien
         widen = [1.0] * self.nU
-        if h or pr:
+        if h or pr or pu:
             for u, k in enumerate(self.U):
                 w = 1.0
                 if h and P["cues"]:
                     w += P["alpha"] * h[k]
-                if pr and P["presence"] and pr[k] > 0:
+                if P["presence"] and ((pr and pr[k] > 0) or (pu and pu[k] > 0)):
                     ds = [dist[s][u] for s in dist if dist[s][u] is not None]
-                    if ds and sum(ds) / len(ds) < 0:
+                    mean = sum(ds) / len(ds) if ds else 0
+                    if pr and mean < 0:
                         w += P["gamma"] * pr[k]
+                    if pu and mean > 0:  # présence ukrainienne documentée côté russe
+                        w += 4 * P["gamma"] * pu[k]
                 widen[u] = w
         lv = {}
         lmax = P["lmax"]
@@ -615,8 +705,8 @@ class Model:
             sg = sigma[s]
             col = dist[s]
             lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / (sg * widen[u]))) for u in range(self.nU)]
-        return {"day": day, "base": base, "dist": dist, "sigma": sigma, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr,
-                "flags": dict(flags), "age": {s: state["age"][s] for s in dist}}
+        return {"day": day, "base": base, "dist": dist, "sigma": sigma, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
+                "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active}
 
     def pool(self, inp, camps, P, drop=(), cells=None, shift=None, pick=None, block=None):
         """Pool logarithmique normalisé par camp → liste de logits sur U (0 si personne ne vote)."""
@@ -707,16 +797,19 @@ class Model:
 
     def rewiden(self, inp, P):
         """Logits des tracés recalculés avec un autre élargissement (variantes sans présence / sans indices)."""
-        h, pr, dist, lmax = inp["h"], inp["pr"], inp["dist"], P["lmax"]
+        h, pr, pu, dist, lmax = inp["h"], inp["pr"], inp.get("pu"), inp["dist"], P["lmax"]
         widen = [1.0] * self.nU
         for u, k in enumerate(self.U):
             w = 1.0
             if h and P["cues"]:
                 w += P["alpha"] * h[k]
-            if pr and P["presence"] and pr[k] > 0:
+            if P["presence"] and ((pr and pr[k] > 0) or (pu and pu[k] > 0)):
                 ds = [dist[s][u] for s in dist if dist[s][u] is not None]
-                if ds and sum(ds) / len(ds) < 0:
+                mean = sum(ds) / len(ds) if ds else 0
+                if pr and mean < 0:
                     w += P["gamma"] * pr[k]
+                if pu and mean > 0:
+                    w += 4 * P["gamma"] * pu[k]
             widen[u] = w
         lv = {s: [None if dist[s][u] is None else max(-lmax, min(lmax, dist[s][u] / (inp["sigma"][s] * widen[u])))
                   for u in range(self.nU)] for s in dist}
@@ -725,8 +818,8 @@ class Model:
         return out
 
     def monte_carlo(self, inp, P, obs, L):
-        band = [u for u in range(self.nU) if -6 < obs[u] < 6]
-        base_area = sum(sig(x) for x in L)
+        band = [u for u in range(self.nU) if self.isUA[u] and -6 < obs[u] < 6]
+        base_area = sum(sig(x) for u, x in enumerate(L) if self.isUA[u])
         band_area = sum(sig(L[u]) for u in band)
         rng = random.Random(42)
         by_camp = defaultdict(list)
@@ -737,6 +830,8 @@ class Model:
         blocks = set(block.values())
         b1 = 1 - P["beta"]
         areas = []
+        s1 = defaultdict(float)
+        s2 = defaultdict(float)
         for _ in range(MC_DRAWS):
             shift = {s: {b: rng.gauss(0, inp["sigma"][s]) for b in blocks} for s in inp["lv"]}
             pick = defaultdict(int)
@@ -744,22 +839,36 @@ class Model:
                 for _ in lst:
                     pick[rng.choice(lst)] += 1
             o = self.pool(inp, CAMPS, P, cells=band, shift=shift, pick=dict(pick), block=block)
-            tot = sum(sig(L[u] + b1 * (o.get(u, 0.0) - obs[u])) for u in band)
+            tot = 0.0
+            for u in band:
+                pv = sig(L[u] + b1 * (o.get(u, 0.0) - obs[u]))
+                tot += pv
+                s1[u] += pv
+                s2[u] += pv * pv
             areas.append((base_area - band_area + tot) * CELL_KM ** 2)
         areas.sort()
-        return [areas[int(0.05 * (len(areas) - 1))], areas[int(round(0.95 * (len(areas) - 1)))]]
+        sd = {u: math.sqrt(max(0.0, s2[u] / MC_DRAWS - (s1[u] / MC_DRAWS) ** 2)) for u in band}
+        # intervalle à 95 % : centiles 2,5 et 97,5 (100 tirages : ~2-3 tirages dans chaque queue)
+        return [areas[int(0.025 * (len(areas) - 1))], areas[int(round(0.975 * (len(areas) - 1)))], sd]
 
     def metrics(self, p, crimea, pre, sectors=False):
-        """Surfaces (espérance, médiane, zone grise 0,1-0,9, contrôle russe > 0,9) par périmètre ;
+        """Surfaces (espérance, médiane, zone grise 0,05-0,95, contrôle russe > 0,95) par périmètre ;
         largeur moyenne de la zone grise = surface grise / longueur de la ligne médiane."""
         a2 = CELL_KM ** 2
         out = {k: [0.0, 0.0, 0.0, 0.0] for k in ("tout", "horsCrimee", "depuis2022")}
         length = 0
         sec = defaultdict(lambda: [0.0, 0])
+        ru_exp = ru_med = 0.0
         for u, k in enumerate(self.U):
             v = p[u]
             pl = self.cell[k]
-            row = (v, 1.0 if v >= 0.5 else 0.0, 1.0 if 0.1 <= v <= 0.9 else 0.0, 1.0 if v > 0.9 else 0.0)
+            if pl == -2:  # bande russe : surface sous contrôle UKRAINIEN (1 - p), indicateur séparé
+                ru_exp += 1 - v
+                ru_med += 1.0 if v < 0.5 else 0.0
+                if any(p[q] < 0.5 for q in self.nb[u]) and v >= 0.5:
+                    length += 1
+                continue
+            row = (v, 1.0 if v >= 0.5 else 0.0, 1.0 if 0.05 <= v <= 0.95 else 0.0, 1.0 if v > 0.95 else 0.0)
             pers = ["tout"]
             if not crimea[pl]:
                 pers.append("horsCrimee")
@@ -777,6 +886,7 @@ class Model:
                 s[0] += row[2]
                 s[1] += 1 if edge else 0
         res = {k: [round(x * a2) for x in v] for k, v in out.items()}
+        res["russie_ua"] = [round(ru_exp * a2), round(ru_med * a2)]
         L_km = length * CELL_KM
         grey = res["tout"][2]
         res["front_km"] = round(L_km)
@@ -799,6 +909,11 @@ def calibrate(model, months_sample, P):
         for m in months_sample:
             base = model.base_codes(model.snap[m].strftime("%Y%m%d"))
             signs = model.poly_signs(base, proxies=False)
+            # calibration sur les tracés ukrainiens seulement : la bande russe (a priori) n'y participe pas
+            band = [k for k in model.U if model.cell[k] == -2]
+            for a in signs.values():
+                for k in band:
+                    a[k] = None
             dist = {s: signed_distance(a, model.U, model.inU, P["cap_km"]) for s, a in signs.items()}
             for s in held:
                 if s not in dist:
@@ -824,10 +939,13 @@ def calibrate(model, months_sample, P):
                 arr = signs[s]
                 for k in model.U:
                     sk = arr[k]
-                    if sk is None:
+                    if sk is None or model.cell[k] < 0:  # calibration sur l'Ukraine seulement (la bande russe est un a priori)
                         continue
-                    edge = sk == 0 or any(0 <= q < N and model.inU[q] and arr[q] is not None and arr[q] != sk
+                    edge = sk == 0 or any(0 <= q < N and model.cell[q] >= 0 and arr[q] is not None and arr[q] != sk
                                           for q in (k - 1, k + 1, k - NX, k + NX))
+                    # la frontière avec la bande russe est une limite commune à toutes les sources : exclue de la mesure
+                    if edge and any(0 <= q < N and model.cell[q] == -2 for q in (k - 1, k + 1, k - NX, k + NX)):
+                        edge = False
                     if edge and k in dmed:
                         err[s].append(min(abs(dmed[k]), P["cap_km"]))
                     if it >= 1 and k in L:
@@ -890,6 +1008,8 @@ def calibrate_claims(model, fm, P):
     for src, (claims, sgn) in tests.items():
         ok = n = 0
         for k, dates in claims.items():
+            if isinstance(k, tuple):  # localités russes : pas de source tierce pour vérifier
+                continue
             for d in dates[:1]:  # première annonce
                 t = tiers_side(k, d)
                 if t is None:
@@ -912,10 +1032,10 @@ def estimate_speed(model, months):
             av = [SIGN[c] for c in b if c]
             occ.append(bool(av) and sum(av) / len(av) > 0)
         mask = [occ[c] if c >= 0 else None for c in model.cell]
-        edge = sum(1 for k in model.U if any(0 <= q < N and mask[q] is not None and mask[q] != mask[k]
+        edge = sum(1 for k in model.U if mask[k] is not None and any(0 <= q < N and mask[q] is not None and mask[q] != mask[k]
                                              for q in (k - 1, k + 1, k - NX, k + NX)))
         if prev is not None and m >= "2022-06" and edge:
-            flipped = sum(1 for k in model.U if mask[k] != prev[k])
+            flipped = sum(1 for k in model.U if mask[k] is not None and mask[k] != prev[k])
             speeds.append(flipped * CELL_KM ** 2 / (edge / 2 * CELL_KM))
         prev = mask
     s = sorted(speeds)
@@ -986,6 +1106,7 @@ def main():
         ])
     claims = read_claims()
     cell, places = rasterize(os.path.join(SRC_DIR, "gn_UA_tess.geojson"))
+    cell = russian_band(cell)
     pid_index = {p["id"]: k for k, p in enumerate(places)}
     official = load_official_claims(pid_index)
     model = Model(months, snap, status, claims, official, cell, places)
@@ -1019,6 +1140,7 @@ def main():
     enc = {f: {} for f in fields}
     prevq = {f: None for f in fields}
     state = {"codes": {}}
+    enc_sd, prev_sd = {}, {"q": None}
     claim_places = {}
 
     def on_month(m, inp, ps, mcres):
@@ -1027,6 +1149,7 @@ def main():
             met = model.metrics(p, crimea, pre, sectors=(f == "equilibre"))
             if f in VIEWS:
                 mo["a"][f] = {k: met[k] for k in ("tout", "horsCrimee", "depuis2022")}
+                mo["a"][f]["russie"] = met["russie_ua"]
                 if f == "equilibre":
                     mo["grey"] = {"km2": met["tout"][2], "width_km": met["grey_width_km"], "front_km": met["front_km"],
                                   "sectors": met.get("sectors", {})}
@@ -1036,16 +1159,24 @@ def main():
             q = [min(63, int(x * 63 + 0.5)) for x in p]
             enc[f][m] = encode_field(q, prevq[f])
             prevq[f] = q
-        lo, hi = mcres
+        lo, hi, sd = mcres
+        # écart-type Monte Carlo de p par maille (pour les futures flèches « qui pousse où ») : 0-63 pour 0-0,5
+        q = [0] * len(U)
+        for u, v in sd.items():
+            q[u] = min(63, int(v / 0.5 * 63 + 0.5))
+        enc_sd[m] = encode_field(q, prev_sd["q"])
+        prev_sd["q"] = q
         tot = mo["a"]["equilibre"]["tout"][0]
         mo["mc"] = {per: [round(lo - tot + mo["a"]["equilibre"][per][0]), round(hi - tot + mo["a"]["equilibre"][per][0])]
                     for per in ("tout", "horsCrimee", "depuis2022")}
         pu, pr_ = ps["ua"], ps["ru"]
         dis = {"tout": [0.0, 0.0], "horsCrimee": [0.0, 0.0], "depuis2022": [0.0, 0.0]}
         for u, k in enumerate(U):
+            pl = cell[k]
+            if pl < 0:
+                continue
             dl = abs(pr_[u] - pu[u])
             big = 1.0 if dl > 0.5 else 0.0
-            pl = cell[k]
             for per in ("tout",) + (("horsCrimee",) if not crimea[pl] else ()) + (("depuis2022",) if not crimea[pl] and not pre[pl] else ()):
                 dis[per][0] += big
                 dis[per][1] += dl
@@ -1065,14 +1196,20 @@ def main():
         day0 = (snap[m].replace(day=1)).strftime("%Y%m%d")
         day1 = inp["day"]
         for src, bit in (("modru", 1024), ("gsua", 2048)):
-            act = [k for k, f in inp["flags"].items() if f & bit]
+            act = [k for k, f in inp["flags"].items() if f & bit] + inp["xy_active"][src]
             new = [k for k, dates in official.get(src, {}).items() if any(day0 <= x <= day1 for x in dates)]
-            mo[src] = {"actives": sorted(act), "nouvelles": sorted(new)}
+
+            def kid(k):  # localité ukrainienne : indice ; localité russe : « x<lon>_<lat> »
+                return f"x{k[1]}_{k[2]}" if isinstance(k, tuple) else str(k)
+            mo[src] = {"actives": sorted(kid(k) for k in act), "nouvelles": sorted(kid(k) for k in new)}
             for k in act + new:
-                claim_places[k] = [round(places[k]["lon"], 4), round(places[k]["lat"], 4), places[k]["name"]]
+                if isinstance(k, tuple):
+                    claim_places[kid(k)] = [k[1], k[2], "Russie"]
+                else:
+                    claim_places[kid(k)] = [round(places[k]["lon"], 4), round(places[k]["lat"], 4), places[k]["name"]]
         months_out[m] = mo
         g = mo["grey"]
-        print(f"  {m} : {mo['a']['equilibre']['tout'][0]:,} km² (90 % {mo['mc']['tout'][0]:,}–{mo['mc']['tout'][1]:,}) · "
+        print(f"  {m} : {mo['a']['equilibre']['tout'][0]:,} km² (95 % {mo['mc']['tout'][0]:,}–{mo['mc']['tout'][1]:,}) · "
               f"RU {mo['a']['ru']['tout'][0]:,} · UA {mo['a']['ua']['tout'][0]:,} · zone grise {g['km2']:,} km², "
               f"{g['width_km']} km de large · MoD actives {len(mo['modru']['actives'])}", flush=True)
 
@@ -1088,6 +1225,7 @@ def main():
         ("sans filtre temporel (β = 0)", {"beta": 0.0}),
         ("σ0 doublés", {"sigma_scale": 2.0}),
         ("vitesse du front doublée", {"v_scale": 2.0}),
+        ("sans vieillissement des sources (v = 0)", {"v_scale": 0.0}),
     ]
     sens = []
     tail = fm[-13:] if not FAST else fm[-3:]
@@ -1115,7 +1253,7 @@ def main():
             runs.extend((v & 0xFF, v >> 8, k))
             n -= k
     for c in cell:
-        c = 65535 if c < 0 else c
+        c = 65535 if c == -1 else 65534 if c == -2 else c
         if c == last:
             n += 1
         else:
@@ -1137,7 +1275,7 @@ def main():
         "params": P, "v": round(v_km, 2), "speeds": [round(x, 2) for x in speeds],
         "sigma0": {s: round(v, 2) for s, v in sig0.items()}, "mae": mae, "calibration": calib, "sensitivity": sens,
         "claimStrength": {s: round(v, 2) for s, v in kstrength.items()}, "claimReliability": kdetail, "claimStats": cstats,
-        "claimPlaces": {str(k): v for k, v in claim_places.items()},
+        "claimPlaces": claim_places,
         "mcDraws": MC_DRAWS, "calibSlope": round(slope, 2), "calibMonths": len(sample),
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
         "months": mlist,
@@ -1150,11 +1288,13 @@ def main():
         fjs = f"(window.FRONTP=window.FRONTP||{{}})[{json.dumps(f)}]=" + json.dumps(arr, separators=(",", ":")) + ";"
         open(os.path.join(ROOT, "site", f"front_{f}.js"), "w").write(fjs)
         digests[f] = hashlib.sha1(fjs.encode()).hexdigest()[:10]
-    print(f"champs : {len(fields)} fichiers front_*.js")
+    fjs = "(window.FRONTP=window.FRONTP||{})[\"mcsd\"]=" + json.dumps([enc_sd.get(m) for m in months], separators=(",", ":")) + ";"
+    open(os.path.join(ROOT, "site", "front_mcsd.js"), "w").write(fjs)
+    print(f"champs : {len(fields)} fichiers front_*.js + front_mcsd.js (écart-type Monte Carlo, 0-63 pour 0-0,5)")
     with open(os.path.join(ROOT, "data", "front_areas.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["mois", "date", "perimetre"] + [f"{v}_{x}_km2" for v in VIEWS for x in ("esperance", "mediane", "zone_grise", "controle_ru_90")]
-                   + ["mc_p05_km2", "mc_p95_km2", "desaccord_km2", "desaccord_doux_km2", "zone_grise_largeur_km"])
+                   + ["mc_p025_km2", "mc_p975_km2", "desaccord_km2", "desaccord_doux_km2", "zone_grise_largeur_km"])
         for mo in mlist:
             if not mo:
                 continue
@@ -1178,7 +1318,7 @@ def main():
         open(page, "w", encoding="utf-8").write(s2)
     lastm = [mo for mo in mlist if mo][-1]
     a = lastm["a"]["equilibre"]["tout"]
-    print(f"front.js : {len(js) // 1024} Ko · {lastm['date']} : {a[0]:,} km² (90 % {lastm['mc']['tout'][0]:,}–{lastm['mc']['tout'][1]:,}) · "
+    print(f"front.js : {len(js) // 1024} Ko · {lastm['date']} : {a[0]:,} km² (95 % {lastm['mc']['tout'][0]:,}–{lastm['mc']['tout'][1]:,}) · "
           f"zone grise {lastm['grey']['km2']:,} km² ({lastm['grey']['width_km']} km) · σ0 {meta['sigma0']} · noyaux {meta['claimStrength']}")
 
 

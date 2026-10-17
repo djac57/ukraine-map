@@ -50,10 +50,14 @@ REGION = [  # (motif, nom ADM1 du pavage GeoNames) : adjectif + « област�
 ]
 FRONT = {r for _, r in REGION}
 RUSSIA = r"курск|белгород|брянск|курськ|бєлгород"
+RU_REGION = [(r"курск" + r"\w*\s+(?:област|обл\.)" + r"|курськ\w*\s+(?:област|обл\.)|курщин", "41"),
+             (r"белгородск\w*\s+(?:област|обл\.)|бєлгородськ\w*\s+(?:област|обл\.)|бєлгородщин", "09"),
+             (r"брянск\w*\s+(?:област|обл\.)|брянськ\w*\s+(?:област|обл\.)|брянщин", "10")]
 VERBS = {
     "modru": re.compile(r"освобож|освободил|контроль над|взят[ыо]? под контроль|взяли под контроль", re.I),
     "gsua": re.compile(r"звільн|повернули під контроль|встановили контроль|контроль над", re.I),
 }
+NOISE = re.compile(r"полон|плен|служб|посад|звільнити небо|освободить небо|заручник|заложник", re.I)
 NEG = re.compile(r"фейк|неправда|ложь|не соответствует|не відповідає|спростов", re.I)
 STOP = set("""
 днр лнр донецкой донецкая народной народная республики республика луганской харьковской запорожской херсонской
@@ -144,6 +148,24 @@ def load_gazetteer(tess):
     return places, index
 
 
+def load_russian_gazetteer(path):
+    """Localités des oblasts de Koursk, Belgorod et Briansk (GeoNames RU, CC BY 4.0)."""
+    places, index = [], defaultdict(list)
+    if not path or not os.path.exists(path):
+        return places, index
+    import zipfile
+    import io
+    with zipfile.ZipFile(path) as z:
+        for r in csv.reader(io.TextIOWrapper(z.open("RU.txt"), encoding="utf-8"), delimiter="\t"):
+            if r[6] != "P" or r[10] not in ("41", "09", "10"):
+                continue
+            k = len(places)
+            places.append({"id": r[0], "name": r[1], "lat": float(r[4]), "lon": float(r[5]), "adm1": r[10], "pop": int(r[14] or 0)})
+            for n in {n.strip() for n in r[3].split(",") if re.search(r"[а-яё]", n.lower())}:
+                index[key(n)].append(k)
+    return places, index
+
+
 def front_places(status_by_day, places):
     """Pour chaque jour d'instantané : ensemble des localités tenues ou contestées selon au moins une carte."""
     out = {}
@@ -157,6 +179,20 @@ def main():
     BF.SRC_DIR = VIINA_DIR
     tess = os.path.join(VIINA_DIR, "gn_UA_tess.geojson")
     places, index = load_gazetteer(tess)
+    ru_places, ru_index = load_russian_gazetteer(sys.argv[3] if len(sys.argv) > 3 else os.path.join(RAW, "geonames", "RU.zip"))
+    ua_border = defaultdict(list)
+    for p in places:
+        if p["adm1"] in ("Sumy", "Kharkiv", "Chernihiv", "Luhans'k"):
+            ua_border[(int(p["lat"] * 2), int(p["lon"] * 2))].append(p)
+
+    def near_border(p, km=80):
+        a, b = int(p["lat"] * 2), int(p["lon"] * 2)
+        for da in (-2, -1, 0, 1, 2):
+            for db in (-2, -1, 0, 1, 2):
+                for q in ua_border.get((a + da, b + db), ()):
+                    if math.hypot((q["lat"] - p["lat"]) * 111.2, (q["lon"] - p["lon"]) * 111.2 * math.cos(math.radians(p["lat"]))) <= km:
+                        return True
+        return False
     keys = list(index)
     pid_idx = {p["id"]: i for i, p in enumerate(places)}
     today = dt.date.today()
@@ -202,18 +238,36 @@ def main():
             if day < "2022-02-24" or day > limit or NEG.search(post["text"]):
                 continue
             post_regions = [r for pat, r in REGION if re.search(pat, post["text"].lower())]
+            prev = ""
             for sent in re.split(r"(?<=[.!?…])\s+|\n+", post["text"]):
-                if not VERBS[src].search(sent) and not (len(candidates(sent)) >= 3 and VERBS[src].search(post["text"])):
+                # une liste sans verbe ne compte que si elle suit directement une phrase de prise terminée par « : »
+                listed = prev.rstrip().endswith(":") and bool(VERBS[src].search(prev))
+                prev = sent if sent.strip() else prev
+                if not VERBS[src].search(sent) and not listed:
+                    continue
+                if NOISE.search(sent):  # « libéré de captivité », « libéré du service », etc.
                     continue
                 low = sent.lower()
                 regions = [r for pat, r in REGION if re.search(pat, low)] or post_regions
                 russia = bool(re.search(RUSSIA, low))
+                ru_regions = [r for pat, r in RU_REGION if re.search(pat, low)]
                 resolved, pending = [], []
                 for cand in candidates(sent):
                     k = key(cand)
                     if k in STOP_KEYS:
                         continue
                     st["mentions"] += 1
+                    if ru_regions and not regions:
+                        # localité russe de la bande frontalière (Koursk, Belgorod, Briansk)
+                        hits = [i for i in ru_index.get(k, []) if ru_places[i]["adm1"] in ru_regions and near_border(ru_places[i])]
+                        if len(hits) != 1:
+                            st["Russie : ambigu ou introuvable"] += 1
+                            continue
+                        q = ru_places[hits[0]]
+                        rows.append((day, "ru" + q["id"], q["name"], q["lat"], q["lon"], "MoD RF" if src == "modru" else "État-major ukrainien"))
+                        st["géocodé (Russie)"] += 1
+                        st["géocodé"] += 1
+                        continue
                     hits = index.get(k)
                     if not hits and len(k) >= 6:
                         best = sorted((lev(k, kk), kk) for kk in keys if abs(len(kk) - len(k)) <= 2 and kk[:2] == k[:2])

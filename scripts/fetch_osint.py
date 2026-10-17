@@ -149,6 +149,17 @@ def ucdp(raw_dir):
     print("UCDP : à jour")
 
 
+def geonames_ru(raw_dir):
+    """Gazetier GeoNames de la Russie (CC BY 4.0), pour géocoder les annonces sur Koursk, Belgorod, Briansk."""
+    out = os.path.join(raw_dir, "geonames")
+    os.makedirs(out, exist_ok=True)
+    path = os.path.join(out, "RU.zip")
+    if not os.path.exists(path):
+        data = get("https://download.geonames.org/export/dump/RU.zip", timeout=600)
+        if data:
+            open(path, "wb").write(data)
+
+
 def main():
     raw_dir = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "raw"
     os.makedirs(raw_dir, exist_ok=True)
@@ -168,6 +179,7 @@ def main():
         print("Missiles et drones : OK")
     viina(raw_dir)
     ucdp(raw_dir)
+    geonames_ru(raw_dir)
     if "--skip-warspotting" not in sys.argv:
         warspotting(raw_dir)
 

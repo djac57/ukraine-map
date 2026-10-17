@@ -26,7 +26,7 @@
   <div class="maplegend" aria-hidden="true">
     <div><svg width="30" height="10"><defs><linearGradient id="lgm"><stop offset="0" stop-color="var(--front)" stop-opacity=".06"/><stop offset="1" stop-color="var(--front)" stop-opacity=".7"/></linearGradient></defs><rect width="30" height="10" fill="url(#lgm)"/></svg><span data-t="lgP">contrôle russe probable</span></div>
     <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/></svg><span data-t="lg50">ligne la plus probable (50 %)</span></div>
-    <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="1.1" stroke-dasharray="4 3"/></svg><span data-t="lgGrey">zone grise (10 – 90 %)</span></div>
+    <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="1.1" stroke-dasharray="4 3"/></svg><span data-t="lgGrey">zone grise (5 – 95 %)</span></div>
     <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--ink)" stroke-width="1" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgPre">occupé avant 2022</span></div>
   </div>
 </div>
@@ -40,7 +40,7 @@
 <div class="pgrid">
   <fieldset><legend data-t="gView">Vue</legend>
     <label class="chk"><input type="checkbox" id="lyrFront" checked> densité</label>
-    <label class="chk"><input type="checkbox" id="lyrLines" checked> lignes 10 / 50 / 90 %</label>
+    <label class="chk"><input type="checkbox" id="lyrLines" checked> lignes 5 / 50 / 95 %</label>
     <label class="chk"><input type="checkbox" id="lyrStates"> 3 états</label>
     <div class="seg" role="group" aria-label="Vue"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true">équilibrée</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">UA</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">RU</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false">tiers</button></div>
   </fieldset>
@@ -80,6 +80,7 @@
 
 <div class="bigrow" id="bigKm"></div>
 <div class="chart" id="areaChart"></div>
+<div class="chart" id="ruChart"></div>
 
 <p class="mapfoot"><span data-t="data">Données</span> : VIINA (ODbL) · NASA FIRMS · UCDP (CC BY 4.0) · WarSpotting (non commercial) · Oryx (CC BY 4.0) · P. Ivaniuk (CC BY-NC-SA 4.0) · OpenStreetMap (ODbL) · GeoNames (CC BY 4.0) · Natural Earth · <span data-t="lag">J-7 minimum, mensuel</span> · <a href="methode.html" data-t="method">méthode et sources</a></p>
 </div>
@@ -87,30 +88,30 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
-<script src="front_equilibre.js?v=0b3e866b89"></script>
-<script src="front.js?v=2f99a362d2"></script>
-<script src="osint.js?v=3ab1cfd5c9"></script>
+<script src="front_equilibre.js?v=e26c9634d0"></script>
+<script src="front.js?v=b18c652e16"></script>
+<script src="osint.js?v=f8b7973154"></script>
 <script>
 // quelques libellés en quatre langues (la carte elle-même reste en français)
 (function(){
   const T = {
     fr: {title: "Où passe le front ?", purpose: "Une probabilité de contrôle plutôt qu'une ligne : toutes les sources ouvertes réutilisables, ukrainiennes, russes et tierces, à poids égal par camp, pour lire la tendance plutôt que le détail.",
-         lgP: "contrôle russe probable", lg50: "ligne la plus probable (50 %)", lgGrey: "zone grise (10 – 90 %)", lgPre: "occupé avant 2022", layers: "calques", gView: "Vue", gSrc: "Sources du calcul", gRaw: "Tracés bruts", gCtx: "Contexte",
-         data: "Données", lag: "J-7 minimum, mensuel", method: "méthode et sources", km: "occupés"},
+         lgP: "contrôle russe probable", lg50: "ligne la plus probable (50 %)", lgGrey: "zone grise (5 – 95 %)", lgPre: "occupé avant 2022", layers: "calques", gView: "Vue", gSrc: "Sources du calcul", gRaw: "Tracés bruts", gCtx: "Contexte",
+         data: "Données", lag: "J-7 minimum, mensuel", method: "méthode et sources", km: "occupés", ru: "en Russie, sous contrôle ukrainien"},
     en: {title: "Where is the front line?", purpose: "A probability of control rather than a line: every reusable open source, Ukrainian, Russian and third-party, weighted equally per side, to read the trend rather than the detail.",
-         lgP: "likely Russian control", lg50: "most likely line (50%)", lgGrey: "grey zone (10–90%)", lgPre: "occupied before 2022", layers: "layers", gView: "View", gSrc: "Sources in the model", gRaw: "Raw lines", gCtx: "Context",
-         data: "Data", lag: "lagged ≥ 7 days, monthly", method: "method and sources", km: "occupied"},
+         lgP: "likely Russian control", lg50: "most likely line (50%)", lgGrey: "grey zone (5–95%)", lgPre: "occupied before 2022", layers: "layers", gView: "View", gSrc: "Sources in the model", gRaw: "Raw lines", gCtx: "Context",
+         data: "Data", lag: "lagged ≥ 7 days, monthly", method: "method and sources", km: "occupied", ru: "in Russia, under Ukrainian control"},
     uk: {title: "Де проходить лінія фронту?", purpose: "Імовірність контролю замість однієї лінії: усі відкриті джерела, які можна використовувати повторно, — українські, російські та сторонні — з однаковою вагою для кожної сторони, щоб бачити тенденцію, а не деталі.",
-         lgP: "імовірний російський контроль", lg50: "найімовірніша лінія (50 %)", lgGrey: "сіра зона (10–90 %)", lgPre: "окуповано до 2022 року", layers: "шари", gView: "Погляд", gSrc: "Джерела моделі", gRaw: "Вихідні лінії", gCtx: "Контекст",
-         data: "Дані", lag: "затримка ≥ 7 днів, щомісяця", method: "методика й джерела", km: "окуповано"},
+         lgP: "імовірний російський контроль", lg50: "найімовірніша лінія (50 %)", lgGrey: "сіра зона (5–95 %)", lgPre: "окуповано до 2022 року", layers: "шари", gView: "Погляд", gSrc: "Джерела моделі", gRaw: "Вихідні лінії", gCtx: "Контекст",
+         data: "Дані", lag: "затримка ≥ 7 днів, щомісяця", method: "методика й джерела", km: "окуповано", ru: "у Росії, під контролем України"},
     ru: {title: "Где проходит линия фронта?", purpose: "Вероятность контроля вместо одной линии: все открытые источники, допускающие повторное использование, — украинские, российские и сторонние — с равным весом для каждой стороны, чтобы видеть тенденцию, а не детали.",
-         lgP: "вероятный российский контроль", lg50: "наиболее вероятная линия (50 %)", lgGrey: "серая зона (10–90 %)", lgPre: "занято до 2022 года", layers: "слои", gView: "Вид", gSrc: "Источники модели", gRaw: "Исходные линии", gCtx: "Контекст",
-         data: "Данные", lag: "задержка ≥ 7 дней, помесячно", method: "методика и источники", km: "занято"},
+         lgP: "вероятный российский контроль", lg50: "наиболее вероятная линия (50 %)", lgGrey: "серая зона (5–95 %)", lgPre: "занято до 2022 года", layers: "слои", gView: "Вид", gSrc: "Источники модели", gRaw: "Исходные линии", gCtx: "Контекст",
+         data: "Данные", lag: "задержка ≥ 7 дней, помесячно", method: "методика и источники", km: "занято", ru: "в России, под контролем Украины"},
   };
   function set(l){
     const t = T[l] || T.fr;
     document.querySelectorAll("[data-t]").forEach(e => { if (t[e.dataset.t]) e.textContent = t[e.dataset.t]; });
-    document.documentElement.lang = l; document.documentElement.dataset.kmLabel = t.km;
+    document.documentElement.lang = l; document.documentElement.dataset.kmLabel = t.km; document.documentElement.dataset.ruLabel = t.ru;
     document.querySelectorAll("[data-l]").forEach(b => b.setAttribute("aria-pressed", b.dataset.l === l));
     try { localStorage.setItem("uaf-lang", l); } catch(e) {}
   }
@@ -119,6 +120,6 @@
   set(l);
 })();
 </script>
-<script src="app.js?v=3155488e0b"></script>
+<script src="app.js?v=808675d7b9"></script>
 </body>
 </html>
