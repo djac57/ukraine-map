@@ -4,1045 +4,121 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>La guerre vue du ciel</title>
-<meta name="description" content="Les feux détectés par satellite au-dessus de l'Ukraine et des régions russes frontalières depuis le 24 février 2022, comparés à la normale d'avant-guerre (NASA FIRMS, VIIRS).">
+<meta name="description" content="Où passe le front en Ukraine ? Probabilité de contrôle et kilomètres carrés occupés, mois par mois depuis février 2022, à partir des sources ouvertes ukrainiennes, russes et tierces.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0d0c'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23f2a33a' stroke-width='1.6' stroke-dasharray='3 2.2'/%3E%3Cpath d='M16 3v6M16 23v6M3 16h6M23 16h6' stroke='%23f2a33a' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='3.2' fill='%23ff5a1f'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  --bg:#f3f1ec;--panel:#fbfaf7;--ink:#1a1b19;--muted:#5d605a;--faint:#8d9089;--rule:#d9d6ce;
-  --accent:#b8650a;--ember:#c8361a;--cool:#2d6f86;
-  --map-bg:#e4e2db;--land:#d6d3ca;--ua:#ebe8e0;--admin:#b9b5aa;--border:#7a776e;--water:#a9c3cc;--label:#3a3b37;
-  --fire-now:#c8361a;--fire-old:#c27a1e;--chip:#ebe8e1;--loss-now:#14304a;--loss-old:#5a7486;--front:#a3122a;--front-rgb:163,18,42;--ucdp:#6b4fa0;--arc:#1f6f8b;
-  color-scheme:light;
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0b0d0c;--panel:#121513;--ink:#e8e6df;--muted:#9fa39a;--faint:#6b6f68;--rule:#262a27;
-  --accent:#f2a33a;--ember:#ff5a1f;--cool:#6fb3c8;
-  --map-bg:#070908;--land:#141816;--ua:#1b201d;--admin:#2c322e;--border:#59605a;--water:#1d3a44;--label:#b9bcb3;
-  --fire-now:#ff6a2a;--fire-old:#f2a33a;--chip:#1a1e1b;--loss-now:#dff3ff;--loss-old:#7fa6bd;--front:#ff4d6a;--front-rgb:255,77,106;--ucdp:#b39cff;--arc:#7fd3e6;
-  color-scheme:dark;
-}}
-:root[data-theme="dark"]{
-  --bg:#0b0d0c;--panel:#121513;--ink:#e8e6df;--muted:#9fa39a;--faint:#6b6f68;--rule:#262a27;
-  --accent:#f2a33a;--ember:#ff5a1f;--cool:#6fb3c8;
-  --map-bg:#070908;--land:#141816;--ua:#1b201d;--admin:#2c322e;--border:#59605a;--water:#1d3a44;--label:#b9bcb3;
-  --fire-now:#ff6a2a;--fire-old:#f2a33a;--chip:#1a1e1b;--loss-now:#dff3ff;--loss-old:#7fa6bd;--front:#ff4d6a;--front-rgb:255,77,106;--ucdp:#b39cff;--arc:#7fd3e6;
-  color-scheme:dark;
-}
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Inter Tight",system-ui,sans-serif}
-.mono,.kicker,.stat b,.btn,.readout,.legend,.tick,.rank,.ctx time,footer{font-family:"JetBrains Mono",ui-monospace,monospace}
-a{color:var(--accent)}
-.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
-header.top{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--rule);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.btn{font-size:12px;background:var(--chip);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:6px 10px;cursor:pointer;line-height:1.2}
-.btn:hover{border-color:var(--accent)}
-.btn[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
-.kicker{color:var(--accent);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:40px 0 10px}
-h1{font-size:clamp(34px,6vw,60px);line-height:1.02;margin:0 0 16px;font-weight:700;letter-spacing:-.02em}
-.dek{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:760px;margin:0 0 14px}
-.src{font-size:13px;color:var(--faint);max-width:760px}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin:28px 0}
-.stat{background:var(--bg);padding:14px}
-.stat b{display:block;font-size:clamp(20px,3vw,28px);color:var(--accent);font-weight:500}
-.stat span{font-size:13px;color:var(--muted)}
-h2{font-size:24px;margin:48px 0 6px;letter-spacing:-.01em}
-.sub{color:var(--muted);margin:0 0 16px;max-width:760px}
-.mapbox{position:relative;border:1px solid var(--rule);background:var(--map-bg);border-radius:4px;overflow:hidden}
-canvas{display:block;width:100%;touch-action:none;cursor:grab}
-.zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:4px}
-.zoom .btn{width:32px;height:32px;padding:0;font-size:16px}
-.month-big{position:absolute;left:12px;top:10px;pointer-events:none;font-family:"JetBrains Mono",monospace}
-.month-big b{display:block;font-size:clamp(20px,3.4vw,30px);font-weight:500;color:var(--ink);text-shadow:0 0 6px var(--map-bg)}
-.month-big span{font-size:12px;color:var(--muted);text-shadow:0 0 4px var(--map-bg)}
-.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
-.controls input[type=range]{flex:1 1 220px;accent-color:var(--accent);min-width:0}
-.seg{display:inline-flex}
-.seg .btn{border-radius:0}.seg .btn:first-child{border-radius:4px 0 0 4px}.seg .btn:last-child{border-radius:0 4px 4px 0}
-.readout{font-size:13px;color:var(--muted);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;border-top:1px solid var(--rule);padding-top:10px}
-.readout b{display:block;font-size:17px;color:var(--ink);font-weight:500}
-.readout .ex b{color:var(--ember)}
-.legend{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0 0}
-.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
-.note{border-left:3px solid var(--accent);padding:6px 12px;margin:12px 0 0;font-size:14px;color:var(--ink);min-height:1em}
-.note:empty{display:none}
-.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font:12px/1.45 "JetBrains Mono",monospace;color:var(--muted);min-width:190px;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;z-index:3}
-.tip b{color:var(--ink);font-weight:500}
-.tip .r{display:flex;justify-content:space-between;gap:12px}
-.chk{display:inline-flex;align-items:center;gap:6px;font:12px "JetBrains Mono",monospace;color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:5px 9px;cursor:pointer;background:var(--chip)}
-.chk input{accent-color:var(--accent);margin:0}
-.areabox{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:1px;background:var(--rule);border:1px solid var(--rule);margin:10px 0;font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted)}
-.areabox>div{background:var(--bg);padding:10px 12px}
-.areabox b{display:block;font-size:20px;font-weight:500;color:var(--front)}
-.areabox i{font-style:normal;color:var(--ink)}
-.osint{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:14px 0 0;font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted)}
-.osint>div{background:var(--bg);padding:12px}
-.osint h4{margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:500}
-.osint b{color:var(--ink);font-weight:500}
-.osint .big{font-size:18px;color:var(--ink);display:block;margin-bottom:6px}
-.osint .r{display:flex;justify-content:space-between;gap:8px;padding:1px 0}
-.osint .r svg{vertical-align:-2px;margin-right:6px}
-.osint .na{color:var(--faint);font-style:italic}
-.lchip{cursor:pointer;user-select:none;border:1px solid var(--rule);border-radius:3px;padding:2px 6px}
-.lchip[aria-pressed="false"]{opacity:.4}
-.lchip svg{vertical-align:-2px;margin-right:5px}
-table.oryx{width:100%;border-collapse:collapse;font-family:"JetBrains Mono",monospace;font-size:13px}
-table.oryx td,table.oryx th{padding:5px 6px;border-bottom:1px solid var(--rule);text-align:right}
-table.oryx th{color:var(--faint);font-weight:400;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
-table.oryx td:first-child,table.oryx th:first-child{text-align:left}
-.lic{font-size:14px;color:var(--muted)}
-.lic td{padding:6px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
-.lic td:first-child{color:var(--ink);white-space:nowrap}
-.tablewrap{overflow-x:auto}
-.chart svg{display:block;width:100%;overflow:visible}
-.tick{font-size:11px;fill:var(--faint)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:32px}
-.rank{font-size:13px}
-.rank .row{display:grid;grid-template-columns:120px 1fr 64px;gap:8px;align-items:center;padding:3px 0}
-.rank .bar{height:10px;background:var(--accent);border-radius:1px}
-.rank .ru .bar{background:var(--cool)}
-.rank .v{text-align:right;color:var(--muted)}
-.ctxs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.ctx{background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:6px}
-.ctx time{font-size:12px;color:var(--accent);letter-spacing:.06em}
-.ctx h3{margin:0;font-size:17px}
-.ctx p{margin:0;font-size:14px;color:var(--muted)}
-.ctx .flag{font-family:"JetBrains Mono",monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em}
-.ctx .flag.ok{color:var(--ember)}.ctx .flag.no{color:var(--cool)}.ctx .flag.mix{color:var(--accent)}
-.ctx .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px}
-.method{max-width:760px}
-.method h3{font-size:17px;margin:24px 0 6px}
-.method p,.method li{font-size:15px;color:var(--muted)}
-.method strong{color:var(--ink)}
-footer{border-top:1px solid var(--rule);margin-top:56px;padding:20px 0 40px;font-size:12px;color:var(--faint)}
-footer p{margin:0 0 8px}
-@media (max-width:760px){
-  .osint{grid-template-columns:1fr}
-  .osint>div{grid-column:auto!important}
-  .areabox{grid-template-columns:1fr}
-  .lic td:first-child{white-space:normal}
-  .stats{grid-template-columns:1fr 1fr}
-  .readout{grid-template-columns:1fr 1fr}
-  .grid{grid-template-columns:1fr}
-  .rank .row{grid-template-columns:96px 1fr 56px}
-  .ctxs{grid-template-columns:1fr}
-}
-</style>
+<link rel="stylesheet" href="style.css?v=cb8fc233db">
 </head>
-<body>
+<body class="lean">
 <div class="wrap">
-<header class="top"><span>Front · feux · satellite · 2022→</span><button class="btn" id="theme" type="button" aria-label="Changer de thème">◐ thème</button></header>
+<header class="top"><span>Ukraine · front · 2022→</span><span><span class="langs" role="group" aria-label="Langue"><button class="btn" data-l="fr" type="button" aria-pressed="true">FR</button><button class="btn" data-l="en" type="button" aria-pressed="false">EN</button><button class="btn" data-l="uk" type="button" aria-pressed="false">УКР</button><button class="btn" data-l="ru" type="button" aria-pressed="false">РУС</button></span> <button class="btn" id="theme" type="button" aria-label="Changer de thème">◐</button></span></header>
 
-<p class="kicker">Ukraine · front · OSINT · satellite</p>
-<h1>La guerre vue du ciel</h1>
-<p class="dek">Où passe le front ? DeepStateMap, l'Institute for the Study of War et les cartographes de Wikipédia ne tracent pas tout à fait la même ligne. Cette carte superpose leurs versions, mois par mois depuis février 2022, en une probabilité d'occupation et une estimation des kilomètres carrés tenus par la Russie. En couches : les feux qu'un satellite américain détecte en trop par rapport aux années de paix, et les pertes matérielles documentées.</p>
-<p class="src">Sources du front : <a href="https://github.com/zhukovyuri/VIINA">VIINA 2.0</a> (Zhukov et Ayers, licence ODbL), qui relève chaque jour le statut de 33 141 localités selon DeepStateMap, l'ISW et Wikipédia. Feux : détections VIIRS du satellite S-NPP, <a href="https://firms.modaps.eosdis.nasa.gov/">NASA FIRMS</a> (LANCE / ESDIS), archives annuelles 2012-2025, API FIRMS pour 2026 (traitement standard jusqu'au <span class="mono" id="spLast"></span>, puis quasi temps réel) ; fonds de carte <a href="https://www.naturalearthdata.com/">Natural Earth</a>. Dernière détection intégrée : <span class="mono" id="lastDay"></span>. Les dates de contexte proviennent de la presse, liens dans chaque encadré.</p>
+<h1 data-t="title">Où passe le front ?</h1>
+<p class="purpose" data-t="purpose">Une probabilité de contrôle plutôt qu'une ligne : toutes les sources ouvertes réutilisables, ukrainiennes, russes et tierces, à poids égal par camp, pour lire la tendance plutôt que le détail.</p>
 
-<div class="stats" id="stats"></div>
-
-<h2>Où est le front ?</h2>
-<p class="sub">Plus le rouge est dense, plus les sources s'accordent à dire que la Russie tient le terrain. Trait plein : la ligne médiane, où la moitié des sources basculent. Tirets fins : les lignes 10 % et 90 %, qui bornent la bande de désaccord. Survoler la carte pour voir ce que dit chaque source. Molette, pincement ou boutons pour zoomer.</p>
 <div class="mapbox">
-  <canvas id="map" aria-label="Carte de la probabilité d'occupation russe en Ukraine, avec feux en excès et pertes documentées en couches"></canvas>
+  <canvas id="map" aria-label="Carte de la probabilité de contrôle russe en Ukraine"></canvas>
   <div class="tip" id="tip"></div>
   <div class="month-big"><b id="mLabel"></b><span id="mSub"></span></div>
   <div class="zoom"><button class="btn" id="zin" type="button" aria-label="Zoomer">+</button><button class="btn" id="zout" type="button" aria-label="Dézoomer">−</button><button class="btn" id="zreset" type="button" aria-label="Recadrer">⌂</button></div>
+  <div class="maplegend" aria-hidden="true">
+    <div><svg width="30" height="10"><defs><linearGradient id="lgm"><stop offset="0" stop-color="var(--front)" stop-opacity=".06"/><stop offset="1" stop-color="var(--front)" stop-opacity=".7"/></linearGradient></defs><rect width="30" height="10" fill="url(#lgm)"/></svg><span data-t="lgP">contrôle russe probable</span></div>
+    <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/></svg><span data-t="lg50">ligne la plus probable (50 %)</span></div>
+    <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="1.1" stroke-dasharray="4 3"/></svg><span data-t="lgGrey">zone grise (10 – 90 %)</span></div>
+    <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--ink)" stroke-width="1" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgPre">occupé avant 2022</span></div>
+  </div>
 </div>
 <div class="controls">
-  <button class="btn" id="play" type="button" style="min-width:86px">▶ lecture</button>
+  <button class="btn" id="play" type="button" style="min-width:86px">▶</button>
   <input type="range" id="slider" min="0" max="0" value="0" aria-label="Mois">
 </div>
-<div class="controls" role="group" aria-label="Couches">
-  <label class="chk"><input type="checkbox" id="lyrFront" checked> probabilité d'occupation</label>
-  <label class="chk"><input type="checkbox" id="lyrLines" checked> lignes 10 / 50 / 90 %</label>
-  <label class="chk"><input type="checkbox" id="lyrFire"> feux anormaux</label>
-  <label class="chk"><input type="checkbox" id="lyrLoss"> pertes documentées</label>
-  <label class="chk"><input type="checkbox" id="lyrUcdp"> combats (UCDP)</label>
-  <label class="chk"><input type="checkbox" id="lyrArcs"> missiles et drones</label>
-</div>
-<div class="controls" role="group" aria-label="Vue">
-  <span class="mono" style="font-size:12px;color:var(--faint)">vue</span>
-  <span class="seg"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true">tous (équilibré)</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">vue ukrainienne</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">vue russe</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false">tiers</button></span>
-</div>
-<p class="src" style="margin:0 0 8px">Chaque camp pèse un tiers, quel que soit son nombre de sources. <strong>Couverture russe limitée</strong> : aucune carte pro-russe n'a de licence réutilisable ; la « vue russe » est un proxy (version la plus russe des cartes disponibles, complétée des prises annoncées par RIA Novosti, NTV, KP et Nezavissimaïa Gazeta, relevées par VIINA : quelques centaines d'annonces, presque toutes avant 2025). * proxy construit, voir la méthode.</p>
-<div class="controls" id="fireOpts" hidden>
-  <span class="mono" style="font-size:12px;color:var(--faint)">feux</span>
-  <span class="seg" role="group" aria-label="Représentation des feux">
-    <button class="btn" id="modePts" type="button" aria-pressed="true">points</button><button class="btn" id="modeDen" type="button" aria-pressed="false">densité</button>
-  </span>
-  <button class="btn" id="ref" type="button" aria-pressed="false">même mois 2021</button>
-</div>
-<div class="areabox" id="areaBox"></div>
-<div class="readout" id="readout"></div>
-<div class="legend" id="legend"></div>
-<p class="note" id="note"></p>
-<div class="osint" id="osint"></div>
-<p class="src" style="margin-top:10px">Règle de prudence : aucune donnée plus récente que le dernier mois complet terminé depuis au moins 7 jours (<span class="mono" id="cutoff"></span>) ; pertes géolocalisées regroupées en mailles de 7 × 11 km par mois, sans unité ni modèle. Front : instantané de fin de mois, au plus tard au <span class="mono" id="frontLimit"></span>, issu de cartes publiques déjà diffusées ; aucun suivi d'unité.</p>
 
-<h2>Surface occupée</h2>
-<p class="sub">Espérance (somme des probabilités × surface, trait plein), surface sous la ligne médiane (tirets) et fourchette entre les sources (bande). La Crimée et les zones du Donbass occupées avant 2022 peuvent être retirées pour ne garder que les conquêtes depuis le 24 février 2022.</p>
-<div class="controls"><span class="seg" role="group" aria-label="Périmètre">
-  <button class="btn" data-perim="tout" type="button" aria-pressed="true">tout</button><button class="btn" data-perim="horsCrimee" type="button" aria-pressed="false">hors Crimée</button><button class="btn" data-perim="depuis2022" type="button" aria-pressed="false">depuis le 24 février 2022</button>
-</span></div>
+<details class="panel layers" id="panel">
+<summary data-t="layers">calques</summary>
+<div class="pgrid">
+  <fieldset><legend data-t="gView">Vue</legend>
+    <label class="chk"><input type="checkbox" id="lyrFront" checked> densité</label>
+    <label class="chk"><input type="checkbox" id="lyrLines" checked> lignes 10 / 50 / 90 %</label>
+    <label class="chk"><input type="checkbox" id="lyrStates"> 3 états</label>
+    <div class="seg" role="group" aria-label="Vue"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true">équilibrée</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">UA</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">RU</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false">tiers</button></div>
+  </fieldset>
+  <fieldset><legend data-t="gSrc">Sources du calcul</legend>
+    <label class="chk"><input type="checkbox" data-var="sans_dsm" checked> DeepStateMap</label>
+    <label class="chk"><input type="checkbox" data-var="sans_isw" checked> ISW</label>
+    <label class="chk"><input type="checkbox" data-var="sans_wiki" checked> Wikipédia</label>
+    <label class="chk"><input type="checkbox" data-var="sans_modru" checked> MoD RF</label>
+    <label class="chk"><input type="checkbox" data-var="sans_gsua" checked> état-major UA</label>
+    <label class="chk"><input type="checkbox" data-var="sans_medias" checked> médias</label>
+    <label class="chk"><input type="checkbox" data-var="sans_enveloppes" checked> enveloppes</label>
+    <label class="chk"><input type="checkbox" data-var="sans_presence" checked> présence</label>
+    <label class="chk"><input type="checkbox" data-var="sans_indices" checked> indices de combats</label>
+    <p class="hint" id="varNote"></p>
+  </fieldset>
+  <fieldset><legend data-t="gRaw">Tracés bruts</legend>
+    <label class="chk"><input type="checkbox" data-raw="dsm"> DeepStateMap</label>
+    <label class="chk"><input type="checkbox" data-raw="isw"> ISW</label>
+    <label class="chk"><input type="checkbox" data-raw="wiki"> Wikipédia</label>
+    <label class="chk"><input type="checkbox" data-raw="modru"> annonces MoD RF</label>
+    <label class="chk"><input type="checkbox" data-raw="gsua"> annonces état-major UA</label>
+  </fieldset>
+  <fieldset><legend data-t="gCtx">Contexte</legend>
+    <label class="chk"><input type="checkbox" id="lyrFire"> feux anormaux</label>
+    <label class="chk"><input type="checkbox" id="lyrLoss"> pertes documentées</label>
+    <label class="chk"><input type="checkbox" id="lyrUcdp"> combats (UCDP)</label>
+    <label class="chk"><input type="checkbox" id="lyrArcs"> missiles et drones</label>
+    <label class="chk"><input type="checkbox" id="lyrBase"> routes / localités</label>
+    <div class="controls" id="fireOpts" hidden style="margin:4px 0 0">
+      <span class="seg" role="group"><button class="btn" id="modePts" type="button" aria-pressed="true">points</button><button class="btn" id="modeDen" type="button" aria-pressed="false">densité</button></span>
+      <button class="btn" id="ref" type="button" aria-pressed="false">2021</button>
+    </div>
+  </fieldset>
+</div>
+<div class="legend" id="legend" style="padding:0 12px 8px"></div>
+</details>
+
+<div class="bigrow" id="bigKm"></div>
 <div class="chart" id="areaChart"></div>
-<p class="legend"><span><i style="background:var(--front);height:3px;border-radius:0;vertical-align:3px"></i>espérance, vue choisie</span><span><i style="border-top:1.5px dashed var(--ink);height:0;border-radius:0;vertical-align:3px"></i>sous la ligne médiane</span><span><i style="background:var(--front);opacity:.3;border-radius:0"></i>fourchette des sources de la vue</span><span><i style="border-top:1.5px dotted var(--ink);height:0;border-radius:0;vertical-align:3px"></i>vue russe</span><span><i style="border-top:1.5px dotted var(--cool);height:0;border-radius:0;vertical-align:3px"></i>vue ukrainienne</span></p>
-<h2>Le désaccord</h2>
-<p class="sub">Surface où la vue russe et la vue ukrainienne s'écartent nettement (|p<sub>russe</sub> − p<sub>ukrainienne</sub>| > 0,5, trait plein), et somme des écarts de probabilité × surface (tirets), qui compte aussi les désaccords plus ténus. C'est un ordre de grandeur, pas une mesure : la vue russe repose sur un proxy (voir la méthode).</p>
-<div class="chart" id="disChart"></div>
 
-<section class="method" id="methode">
-<h2>Méthode : la carte des probabilités</h2>
-<p>La carte estime, pour chaque maille de 2 km (projection azimutale équivalente de Lambert, la même que la carte) et pour chaque fin de mois, <strong>p(x, t) = probabilité que la maille soit sous contrôle russe</strong>. Aucune source n'est tenue pour vraie : chacune est une observation bruitée, et leur désaccord devient de l'incertitude.</p>
-<h3>1. Chaque source, une observation bruitée</h3>
-<p><strong>Sources-cartes.</strong> VIINA relève chaque jour le statut de 33 141 localités selon DeepStateMap, l'ISW, Wikipédia et Wikipédia corrigé par ses dépêches. En étendant chaque localité à son pavage (la zone plus proche d'elle que de toute autre), on reconstitue la zone que chaque source tient pour russe. On calcule la distance signée d<sub>s</sub>(x) à la limite de cette zone, positive côté russe, puis p<sub>s</sub>(x) = sigmoïde(d<sub>s</sub>(x) / σ<sub>s</sub>). L'imprécision σ<sub>s</sub> = σ0<sub>s</sub> + v · âge<sub>s</sub> grandit quand une source n'a pas changé d'un mois sur l'autre : son instantané est probablement en retard.</p>
-<p><strong>Sources ponctuelles.</strong> Les annonces de prise relayées par les médias russes et les annonces de reprise relayées par les médias ukrainiens (relevées par VIINA) sont des noyaux gaussiens centrés sur la localité, de rayon égal à sa taille et valant p = 0,85 au centre. Elles comptent 90 jours, seulement à moins de 20 km d'une zone tenue ou contestée selon au moins une carte, et tombent si le camp adverse annonce ensuite le contraire.</p>
-<p><strong>Enveloppes.</strong> Faute de carte pro-russe réutilisable, le camp russe reçoit aussi « l'enveloppe la plus russe » : en chaque localité, le statut le plus russe parmi les cartes disponibles. Le camp ukrainien reçoit, symétriquement, « l'enveloppe la plus ukrainienne ». Ces deux proxys ne sont pas des sources indépendantes ; leur σ0 est fixé à 1,5 fois le pire σ0 calibré.</p>
-<h3>2. Fusion : pool logarithmique, un tiers par camp</h3>
-<p>logit p(x) = Σ<sub>s</sub> w<sub>s</sub> · logit p<sub>s</sub>(x). Chaque camp (ukrainien, russe, tiers) pèse un tiers ; à l'intérieur d'un camp, le poids est partagé entre ses sources. Une source absente à cette date, ou qui ne couvre pas la maille, ne vote pas : son poids passe aux autres. Les vues « ukrainienne », « russe » et « tiers » refont le même calcul avec un seul camp.</p>
-<div class="tablewrap"><table class="oryx" id="srcTab"></table></div>
-<h3>3. Indices de combats : plus d'incertitude, jamais un déplacement de ligne</h3>
-<p>Les pertes géolocalisées (WarSpotting), les feux en excès (FIRMS) et les combats recensés par l'UCDP disent qu'on se bat là, pas qui tient le terrain. Ils ne servent qu'à élargir l'incertitude : σ<sub>s</sub>(x) × (1 + α·h(x)), où h = 1 − exp(−densité / h0) est la densité d'indices du mois, lissée sur environ 6 km (α = <span class="mono" id="pAlpha"></span>, h0 = <span class="mono" id="pH0"></span>). Ce réglage se désactive (option <span class="mono">--sans-indices</span>) ; son effet figure dans le test de sensibilité.</p>
-<h3>4. Le temps : un contrôle persistant</h3>
-<p>D'un mois à l'autre, l'a priori est le champ du mois précédent, diffusé de v · 1 mois. Il entre pour β = <span class="mono" id="pBeta"></span> dans le logit, les observations du mois pour le reste. La vitesse typique du front, <strong>v = <span id="pV"></span> km/mois</strong>, est la médiane, depuis juin 2022, de la surface qui change de camp divisée par la longueur du front. Le filtre évite les sauts dus à une source ponctuellement en retard.</p>
-<h3>5. Calibration par validation croisée</h3>
-<p>On prédit tour à tour la carte de DeepStateMap, de l'ISW et de Wikipédia à partir des autres (sur <span id="pCalN"></span> mois répartis sur toute la période). L'écart moyen entre la limite de la source retirée et la ligne médiane des autres donne σ0 = écart / (2 ln 2), l'écart absolu moyen d'une loi logistique d'échelle σ0. Une première version était trop prudente : la pente de logit(observé) contre logit(prédit) valait <span id="pSlope"></span>. Les σ0 ont donc été divisés par cette pente. Le diagramme ci-dessous montre le résultat après ce recalage : il compare la probabilité prédite et la part de mailles que la source retirée classe russe, et un modèle bien calibré suit la diagonale. Le recalage et la vérification portent sur les mêmes mois : c'est une vérification interne, pas un test hors échantillon.</p>
-<div class="grid"><div class="chart" id="calibChart"></div><div class="lic" id="calibNote"></div></div>
-<h3>6. Incertitude sur les km²</h3>
-<p>L'espérance est Σ p × surface. L'intervalle à 90 % vient de <span id="pMC"></span> tirages Monte Carlo par mois. Dans chacun, chaque ligne de source est décalée d'une erreur N(0, σ<sub>s</sub>) tirée par blocs de 50 km (les erreurs sont corrélées localement, pas sur tout le front), et les sources sont rééchantillonnées avec remise à l'intérieur de chaque camp.</p>
-<h3>7. Choix arbitraires et sensibilité</h3>
-<p>Sont des choix, pas des mesures :</p>
-<ul>
-<li>un tiers par camp ;</li>
-<li>les poids internes (indiqués dans le tableau ci-dessus) ;</li>
-<li>les enveloppes et leur σ0 ;</li>
-<li>la force (p = 0,85), la durée (90 jours) et la portée (20 km) des annonces ;</li>
-<li>α, h0 et β ;</li>
-<li>la grille de 2 km et le pavage des localités ;</li>
-<li>contesté = 0 km de la ligne.</li>
-</ul>
-<p>Le tableau suivant refait les 12 derniers mois avec d'autres choix et donne la surface du dernier mois.</p>
-<div class="tablewrap"><table class="oryx" id="sensTab"></table></div>
-<h3>Limites</h3>
-<ul>
-<li><strong>Pas de carte russe.</strong> La vue russe est une approximation par le haut des cartes existantes, complétée de quelques centaines d'annonces des médias russes, presque toutes avant 2025. Le pluralisme est donc limité du côté russe.</li>
-<li><strong>Des sources qui se recopient.</strong> Les cartes s'observent entre elles, et Wikipédia s'inspire de DeepStateMap comme de l'ISW. Leur accord exagère sans doute la certitude réelle.</li>
-<li><strong>Couverture.</strong> Seul le territoire ukrainien est couvert : l'incursion de Koursk n'y figure pas. DeepStateMap n'apparaît dans VIINA qu'à partir d'avril 2022 ; l'ISW s'y arrête en juin 2026.</li>
-<li><strong>Prudence.</strong> Instantanés de fin de mois, jamais plus récents que J-7, sans aucune information sur des unités.</li>
-</ul>
-</section>
-
-<h2>Normale et excès, mois par mois</h2>
-<p class="sub">Toutes les détections de la zone (gris), normale 2012-2021 du même mois (tirets) et part jugée en excès (orange). L'essentiel des feux reste agricole et saisonnier : l'excès est une fraction, concentrée près du front. Cliquer sur un mois pour l'afficher sur la carte.</p>
-<div class="chart" id="chart"></div>
-
-<div class="grid">
-  <div>
-    <h2>Par région</h2>
-    <p class="sub">Détections au-dessus de la normale, cumulées jusqu'au mois affiché. <span style="color:var(--accent)">■</span> Ukraine <span style="color:var(--cool)">■</span> Russie.</p>
-    <div class="rank" id="rank"></div>
-  </div>
-  <div>
-    <h2>Année par année</h2>
-    <p class="sub">Détections annuelles de la zone (végétation, sources fixes exclues). Les années de forte sécheresse ou de brûlage agricole intense dépassent les années de guerre : le volume seul ne dit rien, seule la comparaison locale compte.</p>
-    <div class="chart" id="yearly"></div>
-  </div>
-</div>
-
-<h2>Le ciel ukrainien</h2>
-<p class="sub">Missiles et drones lancés contre l'Ukraine chaque mois, d'après les communiqués de l'armée de l'air ukrainienne compilés par Petro Ivaniuk. La part plus claire a été annoncée abattue ; les drones « perdus » par brouillage n'y figurent pas toujours. Série à partir de fin septembre 2022.</p>
-<div class="grid">
-  <div><h3 class="mono" style="font-size:12px;color:var(--faint);font-weight:400;margin:0 0 4px">DRONES</h3><div class="chart" id="drones"></div></div>
-  <div><h3 class="mono" style="font-size:12px;color:var(--faint);font-weight:400;margin:0 0 4px">MISSILES</h3><div class="chart" id="missiles"></div></div>
-</div>
-
-<h2>Pertes matérielles documentées (cumul)</h2>
-<p class="sub">Équipements dont la perte est prouvée par une photo ou une vidéo, d'après Oryx (via le jeu de données de D. Scarnecchia). Un minimum, pas un bilan : les pertes non filmées manquent, et les zones tenues par la Russie sont moins documentées. Série figée au <span class="mono" id="oryxDay"></span>, dernier relevé disponible. Le tableau reprend les totaux d'Oryx par type ; le panneau sous la carte compte les entrées par date de relevé (une par preuve, munitions et drones compris), d'où un cumul plus élevé.</p>
-<div class="tablewrap"><table class="oryx" id="oryxTab"></table></div>
-
-<h2>Repères</h2>
-<p class="sub">Quelques épisodes datés, et ce que la méthode en voit — ou n'en voit pas.</p>
-<div class="ctxs" id="ctxs"></div>
-
-<section class="method">
-<h2>Méthode et limites</h2>
-<h3>Ce qui est compté</h3>
-<p>Le capteur VIIRS du satellite S-NPP survole la région deux fois par jour et signale chaque pixel d'environ 375 m nettement plus chaud que son voisinage. On garde les détections classées « feu de végétation présumé » dans les archives NASA de l'Ukraine et de la Russie, sur un cadre allant de 44° à 53,6° N et de 22° à 41,5° E. Les <span class="mono" id="nFixed"></span> sites de moins d'un kilomètre où la NASA signale au moins trois fois une source fixe (torchères, aciéries) sont écartés, y compris du flux temps réel.</p>
-<h3>Ce qui est « en excès »</h3>
-<p>La zone est découpée en mailles de 0,1° (environ 7 × 11 km). Pour chaque maille et chaque mois calendaire, on calcule la moyenne et l'écart-type des détections sur 2012-2021. Un mois de guerre est retenu comme anormal si <strong>la maille compte au moins 3 détections, dépasse sa normale de plus de 4 écarts-types</strong> (écart-type plancher : 1) <strong>et si au moins 3 des 8 mailles voisines sont aussi anormales le même mois</strong>. Ce dernier filtre écarte les brûlages agricoles isolés : les feux de combat forment des grappes le long du front. Le chiffre affiché est la différence entre le compte et la normale, sommée sur les mailles retenues.</p>
-<h3>Ce que montre la validation</h3>
-<p>Appliquée aux années de paix (chaque année testée contre une normale qui l'exclut), la règle classe en excès <span class="mono" id="calib"></span> des détections. 2020 ressort par de vrais grands incendies (zone de Tchernobyl en avril, Louhansk à l'automne) : la méthode repère les feux anormaux, pas leur cause. Sur la guerre, elle retrouve nettement l'incursion de Koursk en 2024 et la bataille de Pokrovsk en 2025, et ne signale rien autour de Lviv ou de Vinnytsia. Elle <strong>ne détecte pas</strong> la contre-offensive de Kherson à l'automne 2022 ni la bataille de Bakhmout de l'hiver 2022-2023 : la région de Kherson brûlait beaucoup avant la guerre (brûlages agricoles), et l'hiver nuageux, les petits feux et un sol déjà dévasté échappent au capteur.</p>
-<h3>Sources OSINT et licences</h3>
-<div class="tablewrap"><table class="lic">
-<tr><td>Front (utilisé)</td><td><a href="https://github.com/zhukovyuri/VIINA">VIINA 2.0</a>, Zhukov et Ayers, <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a> : statuts quotidiens par localité, dérivés de DeepStateMap, de l'ISW et de Wikipédia. La page n'en publie qu'un agrégat (grille de probabilité, surfaces), redistribué sous la même licence ; aucun polygone source n'est reproduit.</td></tr>
-<tr><td>Camps</td><td>Pro-ukrainien : DeepStateMap ; annonces de l'état-major et des médias ukrainiens. Tiers : ISW (américain), Wikipédia (participatif). Pro-russe : cartes du ministère russe de la Défense, Rybar, Suriyak, « militarymaps » — aucune n'offre de géodonnées sous licence réutilisable ni d'historique exploitable ; seules les annonces de médias russes relevées par VIINA (ODbL) entrent dans le calcul.</td></tr>
-<tr><td>Front (écartés)</td><td>Polygones bruts de <a href="https://deepstatemap.live/license-en.html">DeepStateMap</a> (API soumise à accord préalable, redistribution interdite) et ses archives GitHub tierces (mêmes données, licence tierce sans valeur) ; cartes ISW/CTP (pas de licence de réutilisation publiée) ; Project Owl, Suriyak, Militaryland (pas de licence) ; OpenStreetMap ne cartographie pas le front ; le ministère russe de la Défense ne publie pas de données géographiques.</td></tr>
-<tr><td>Pertes géolocalisées</td><td><a href="https://ukr.warspotting.net/">WarSpotting</a>, API publique. Réutilisation autorisée pour un usage non lucratif avec crédit (<a href="https://ukr.warspotting.net/about/">FAQ et conditions</a>), limite de 10 requêtes par 10 secondes respectée. Ne recense que les pertes russes.</td></tr>
-<tr><td>Pertes par type</td><td><a href="https://www.oryxspioenkop.com/2022/02/attack-on-europe-documenting-equipment.html">Oryx</a>, chiffres agrégés uniquement, via <a href="https://github.com/scarnecchia/oryx_data">scarnecchia/oryx_data</a> (CC BY 4.0). Mis à jour pour la dernière fois le 21 août 2025.</td></tr>
-<tr><td>Missiles et drones</td><td><a href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine">Massive missile attacks on Ukraine</a>, Petro Ivaniuk, d'après l'armée de l'air ukrainienne. Licence CC BY-NC-SA 4.0 : les agrégats mensuels de cette page sont redistribués sous la même licence.</td></tr>
-<tr><td>Ligne de front</td><td>Non affichée. <a href="https://deepstatemap.live/license-en.html">DeepStateMap</a> réserve ses données et son API (accord préalable) ; les cartes de l'ISW et les archives Project Owl ne publient pas de licence de réutilisation.</td></tr>
-<tr><td>Bombes planantes</td><td>Non affichées : seuls des chiffres mensuels épars existent dans la presse (le ministère ukrainien de la Défense en annonçait près de 44 000 de janvier à novembre 2025, <a href="https://unn.ua/en/news/in-the-11-months-of-2025-russia-dropped-almost-44000-kabs-on-ukraine">UNN</a>), pas une série complète.</td></tr>
-<tr><td>Combats</td><td><a href="https://ucdp.uu.se/downloads/">UCDP GED 26.1 et versions « candidate » mensuelles</a> (université d'Uppsala, CC BY 4.0) : événements de violence organisée géocodés, précision de 25 km ou mieux, jusqu'à août 2026. Affichés par maille de 0,1° ; ils servent aussi d'indice de proximité du front.</td></tr>
-<tr><td>Pertes (écartées)</td><td><a href="https://lostarmour.info/">Lostarmour</a> (pertes ukrainiennes, pro-russe) : aucune licence ni condition de réutilisation publiée, donc écarté. <a href="https://geoconfirmed.org/">GeoConfirmed</a> : son API exige désormais un compte avec un rôle par conflit, et le site ne publie pas de licence. Le point de vue russe sur les pertes manque donc à la carte.</td></tr>
-<tr><td>Missiles : point de vue russe</td><td>Les communiqués du ministère russe de la Défense (drones ukrainiens annoncés abattus) n'existent pas sous forme de jeu de données ouvert et daté : non intégrés.</td></tr>
-<tr><td>ACLED</td><td>Non utilisé. Le contrat autorise la publication d'agrégats transformés pour un usage non commercial, mais l'accès passe par un compte et l'acceptation de conditions : il faut que l'utilisateur crée lui-même ce compte.</td></tr>
-</table></div>
-<h3>Limites</h3>
-<ul>
-<li><strong>Un excès n'est pas un bombardement.</strong> Un feu né d'un obus, une forêt minée que personne n'éteint, des champs abandonnés qui brûlent à la fin d'un été sec : tout compte pareil. 2024, année record d'incendies selon le Centre commun de recherche européen, gonfle fortement l'excès de septembre.</li>
-<li><strong>Le front assèche aussi la normale.</strong> Là où l'agriculture s'est arrêtée, les brûlages disparaissent : quelques feux de guerre peuvent alors rester sous le niveau d'avant. L'excès est donc un minimum.</li>
-<li><strong>Nuages et hiver.</strong> Le satellite ne voit pas à travers les nuages ; les mois d'hiver sont sous-représentés.</li>
-<li><strong>La normale contient déjà une guerre.</strong> Les combats du Donbass de 2014-2015 font partie de la période 2012-2021, ce qui relève la normale autour de Donetsk et Louhansk.</li>
-<li><strong>2026, données provisoires.</strong> L'archive annuelle 2026 n'est pas publiée : l'année vient de l'API FIRMS, en traitement standard jusqu'à fin juin, puis en quasi temps réel à partir du <span class="mono" id="nrtStart"></span>. Ce dernier n'indique pas le type de source ; les sites industriels connus sont écartés, mais les chiffres peuvent légèrement changer à la publication de l'archive. Le satellite S-NPP n'a rien transmis pendant <span class="mono" id="gapN"></span> jours en 2026, dont tout le mois de mai : mai est laissé vide, et la normale des mois incomplets est ramenée au nombre de jours observés. Les autres satellites VIIRS (NOAA-20, NOAA-21) ne servent pas de bouche-trou : leur normale d'avant-guerre n'existe pas sur la même période.</li>
-<li><strong>Périmètre.</strong> Seules les archives Ukraine et Russie sont lues : le Bélarus, en bordure nord, n'est pas couvert. Les détections en mer d'Azov ou en mer Noire (plates-formes, navires) ne sont pas filtrées spécifiquement.</li>
-</ul>
-</section>
-
-<footer>
-<p><strong>Crédits et licences.</strong></p>
-<p>Front : « Contains information from VIINA, which is made available here under the Open Database License (ODbL). » Zhukov, Yuri and Natalie Ayers (2023), VIINA 2.0, Harvard University, <a href="https://github.com/zhukovyuri/VIINA">github.com/zhukovyuri/VIINA</a>, consulté en octobre 2026. DeepStateMap, ISW et Wikipédia n'interviennent que par leur statut par localité, relevé par VIINA ; aucun de leurs polygones n'est reproduit. La grille de probabilité et les surfaces dérivées (front*.js, data/front_*.csv) sont proposées sous <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a> (attribution, partage à l'identique).</p>
-<p>Feux : NASA FIRMS, VIIRS S-NPP 375 m. « We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS), part of NASA's Earth Science Data and Information System (ESDIS). »</p>
-<p>Pertes russes géolocalisées : <a href="https://ukr.warspotting.net/">WarSpotting</a>, réutilisation non commerciale avec crédit. Compteurs de pertes : <a href="https://www.oryxspioenkop.com/">Oryx</a>, via <a href="https://github.com/scarnecchia/oryx_data">scarnecchia/oryx_data</a> (CC BY 4.0).</p>
-<p>Missiles et drones : « Massive missile attacks on Ukraine », Petro Ivaniuk (<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>), d'après l'armée de l'air ukrainienne. Les agrégats mensuels et les arcs dérivés de ce jeu (osint.js) restent sous CC BY-NC-SA 4.0.</p>
-<p>Combats : UCDP Georeferenced Event Dataset (Sundberg et Melander 2013 ; Davies et al. 2025), université d'Uppsala, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</p>
-<p>Fond de carte : Natural Earth (domaine public). Code et méthode indépendants, inspirés du suivi des feux de guerre de The Economist (2023). Généré le <span id="gen"></span>.</p>
-</footer>
+<p class="mapfoot"><span data-t="data">Données</span> : VIINA (ODbL) · NASA FIRMS · UCDP (CC BY 4.0) · WarSpotting (non commercial) · Oryx (CC BY 4.0) · P. Ivaniuk (CC BY-NC-SA 4.0) · OpenStreetMap (ODbL) · GeoNames (CC BY 4.0) · Natural Earth · <span data-t="lag">J-7 minimum, mensuel</span> · <a href="methode.html" data-t="method">méthode et sources</a></p>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
-<script src="front_equilibre.js?v=1656b47fd5"></script>
-<script src="front.js?v=1d2ffae65b"></script>
+<script src="front_equilibre.js?v=0b3e866b89"></script>
+<script src="front.js?v=2f99a362d2"></script>
 <script src="osint.js?v=3ab1cfd5c9"></script>
 <script>
+// quelques libellés en quatre langues (la carte elle-même reste en français)
 (function(){
-"use strict";
-const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"equilibre": "1656b47fd5", "ua": "c64edfa401", "ru": "cb9fe139cd", "tiers": "8ed5a40a6e"};
-const $ = id => document.getElementById(id);
-const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
-const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
-const MOIS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
-const MC = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
-const monthLabel = i => { const [y,m] = D.months[i].split("-"); return MOIS[+m-1] + " " + y; };
-const dateFr = s => { const [y,m,d] = s.split("-"); return (+d) + " " + MOIS[+m-1] + " " + y; };
-
-// ---------- thème ----------
-const root = document.documentElement;
-try { const t = localStorage.getItem("uaf-theme"); if (t) root.dataset.theme = t; } catch(e) {}
-$("theme").onclick = () => {
-  const dark = getComputedStyle(root).colorScheme.indexOf("dark") >= 0;
-  root.dataset.theme = dark ? "light" : "dark";
-  try { localStorage.setItem("uaf-theme", root.dataset.theme); } catch(e) {}
-  readColors(); legend(); draw(); drawChart(); drawYearly(); drawSky(); oryxTable(); setMonth(cur);
-};
-let C = {};
-function readColors(){
-  const cs = getComputedStyle(root);
-  ["bg","front","front-rgb","ucdp","arc","map-bg","loss-now","loss-old","land","ua","admin","border","water","label","fire-now","fire-old","cool","ember","accent","faint","rule","muted","ink"].forEach(k => C[k] = cs.getPropertyValue("--"+k).trim());
-  C.dark = cs.colorScheme.indexOf("dark") >= 0;
-}
-readColors();
-
-// ---------- données dérivées ----------
-const NM = D.months.length;
-const covered = D.series.map(s => s[3] > 0);
-const steps = d3.range(NM);
-const lastIdx = steps[steps.length-1];
-const partial = D.lastDay.slice(0,7) === D.months[lastIdx];
-const P = D.pts, NP = P.length / 5;
-const regC = Object.fromEntries(Object.entries(D.regionNames).map(([k,v]) => [k, v[1]]));
-const exTot = D.series.reduce((a,s) => a + s[2], 0);
-let exUA = 0, exRU = 0;
-for (const [k,v] of Object.entries(D.regions)) { const s = d3.sum(v); if (regC[k] === "RUS") exRU += s; else if (regC[k] === "UKR") exUA += s; }
-const peak = d3.greatestIndex(D.series, s => s[2]);
-const nCells = D.cells.reduce((a,c) => a + c.length/4, 0);
-
-$("lastDay").textContent = dateFr(D.lastDay);
-$("gen").textContent = D.generated.replace("T"," ").replace("Z"," UTC");
-$("nFixed").textContent = fmt(D.fixedSources);
-$("calib").textContent = Object.entries(D.calibration).map(([y,v]) => y + " : " + pct(v)).join(", ");
-$("nrtStart").textContent = dateFr(D.nrtFirst || D.lastDay);
-$("spLast").textContent = D.spLast ? dateFr(D.spLast) : "—";
-$("gapN").textContent = D.gapDays.length;
-
-const fLast = FR.months.filter(Boolean).pop();
-$("stats").innerHTML = [
-  [fmt(Math.round(fLast.a.equilibre.tout[0]/100)*100) + "\u00a0km²", "occupés au " + dateFr(fLast.date) + " (intervalle à 90 % : " + fmt(Math.round(fLast.mc.tout[0]/100)*100) + " – " + fmt(Math.round(fLast.mc.tout[1]/100)*100) + " ; vue russe " + fmt(Math.round(fLast.a.ru.tout[0]/100)*100) + ", vue ukrainienne " + fmt(Math.round(fLast.a.ua.tout[0]/100)*100) + ")"],
-  [fmt(Math.round(exTot/100)*100), "détections de feux au-dessus de la normale depuis le 24 février 2022"],
-  [Math.round(exUA/(exUA+exRU)*100) + " %", "de l'excès en Ukraine, le reste dans les régions russes frontalières"],
-  [MC[+D.months[peak].slice(5)-1] + " " + D.months[peak].slice(0,4), "mois record : " + fmt(D.series[peak][2]) + " détections en excès"]
-].map(([b,s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
-
-// ---------- carte ----------
-const canvas = $("map"), ctx = canvas.getContext("2d");
-let W = 0, H = 0, dpr = 1, proj, paths = {}, px, py, cellXY, cities = [];
-let tr = d3.zoomIdentity, cur = lastIdx, mode = "pts", showRef = false, showFire = false, showLoss = false, showFront = true, showLines = true, showUcdp = false, showArcs = false, perim = "tout";
-const lossOn = O.groups.map(() => true);
-const cutIdx = D.months.indexOf(O.cutoff);
-if (cutIdx >= 0 && cutIdx < cur) cur = cutIdx;  // par défaut : dernier mois où toutes les couches sont publiées
-const WSP = O.ws.pts, NW = WSP.length / 5;
-let wx, wy, gAff = [0, 0, 1];
-
-// ---------- front : décodage ----------
-const GX = FR.grid.nx, GY = FR.grid.ny;
-const cellPlace = new Int32Array(GX * GY);
-{ const b = atob(FR.runs); let o = 0;
-  for (let i = 0; i < b.length; i += 3) { const v = b.charCodeAt(i) | b.charCodeAt(i+1) << 8, n = b.charCodeAt(i+2); cellPlace.fill(v === 65535 ? -1 : v, o, o + n); o += n; } }
-const pFlags = Uint8Array.from(atob(FR.flags), c => c.charCodeAt(0));
-const SRCN = {dsm:"DeepStateMap", isw:"ISW / CTP", wiki:"Wikipédia", boost:"Wikipédia + VIINA"};
-const SRCCAMP = {dsm:"ukrainien", isw:"tiers", wiki:"tiers", boost:"tiers"};
-const MODEN = {equilibre:"tous (équilibré)", ua:"vue ukrainienne seule", ru:"vue russe seule", tiers:"sources tierces seules"};
-const STN = ["—", "ukrainien", "russe", "contesté"];
-let fmode = "equilibre";
-const monthCodes = []; { let codes = new Uint16Array(FR.nPlaces);
-  for (const m of FR.months) { if (!m) { monthCodes.push(null); continue; } codes = codes.slice(); const d = m.d; for (let i = 0; i < d.length; i += 2) codes[d[i]] = d[i+1]; monthCodes.push(codes); } }
-const lastFront = FR.months.reduce((a, m, i) => m ? i : a, -1);
-// après le dernier instantané (règle des 7 jours), on garde le dernier front connu plutôt qu'une carte vide
-const frontIdx = () => FR.months[cur] ? cur : (cur > lastFront ? lastFront : -1);
-if (lastFront >= 0) cur = lastFront;  // ouverture : dernier mois disponible pour le front
-// champs de probabilité : un fichier par vue (la vue équilibrée est chargée d'office), différences mois à mois
-const UCELLS = []; for (let c = 0; c < GX * GY; c++) if (cellPlace[c] >= 0) UCELLS.push(c);
-const fieldCache = {};
-function viewFields(view){
-  if (fieldCache[view]) return fieldCache[view];
-  const enc = window.FRONTP && window.FRONTP[view]; if (!enc) return null;
-  const out = []; let prev = new Uint8Array(UCELLS.length);
-  for (const e of enc) {
-    if (!e) { out.push(null); continue; }
-    const b = atob(e), q = new Uint8Array(UCELLS.length); let o = 0, i = 0;
-    while (i < b.length) { const v = b.charCodeAt(i++); let n = 0, sh = 0, c; do { c = b.charCodeAt(i++); n |= (c & 127) << sh; sh += 7; } while (c & 128);
-      if (v === 255) q.set(prev.subarray(o, o + n), o); else q.fill(v, o, o + n); o += n; }
-    out.push(q); prev = q;
+  const T = {
+    fr: {title: "Où passe le front ?", purpose: "Une probabilité de contrôle plutôt qu'une ligne : toutes les sources ouvertes réutilisables, ukrainiennes, russes et tierces, à poids égal par camp, pour lire la tendance plutôt que le détail.",
+         lgP: "contrôle russe probable", lg50: "ligne la plus probable (50 %)", lgGrey: "zone grise (10 – 90 %)", lgPre: "occupé avant 2022", layers: "calques", gView: "Vue", gSrc: "Sources du calcul", gRaw: "Tracés bruts", gCtx: "Contexte",
+         data: "Données", lag: "J-7 minimum, mensuel", method: "méthode et sources", km: "occupés"},
+    en: {title: "Where is the front line?", purpose: "A probability of control rather than a line: every reusable open source, Ukrainian, Russian and third-party, weighted equally per side, to read the trend rather than the detail.",
+         lgP: "likely Russian control", lg50: "most likely line (50%)", lgGrey: "grey zone (10–90%)", lgPre: "occupied before 2022", layers: "layers", gView: "View", gSrc: "Sources in the model", gRaw: "Raw lines", gCtx: "Context",
+         data: "Data", lag: "lagged ≥ 7 days, monthly", method: "method and sources", km: "occupied"},
+    uk: {title: "Де проходить лінія фронту?", purpose: "Імовірність контролю замість однієї лінії: усі відкриті джерела, які можна використовувати повторно, — українські, російські та сторонні — з однаковою вагою для кожної сторони, щоб бачити тенденцію, а не деталі.",
+         lgP: "імовірний російський контроль", lg50: "найімовірніша лінія (50 %)", lgGrey: "сіра зона (10–90 %)", lgPre: "окуповано до 2022 року", layers: "шари", gView: "Погляд", gSrc: "Джерела моделі", gRaw: "Вихідні лінії", gCtx: "Контекст",
+         data: "Дані", lag: "затримка ≥ 7 днів, щомісяця", method: "методика й джерела", km: "окуповано"},
+    ru: {title: "Где проходит линия фронта?", purpose: "Вероятность контроля вместо одной линии: все открытые источники, допускающие повторное использование, — украинские, российские и сторонние — с равным весом для каждой стороны, чтобы видеть тенденцию, а не детали.",
+         lgP: "вероятный российский контроль", lg50: "наиболее вероятная линия (50 %)", lgGrey: "серая зона (10–90 %)", lgPre: "занято до 2022 года", layers: "слои", gView: "Вид", gSrc: "Источники модели", gRaw: "Исходные линии", gCtx: "Контекст",
+         data: "Данные", lag: "задержка ≥ 7 дней, помесячно", method: "методика и источники", km: "занято"},
+  };
+  function set(l){
+    const t = T[l] || T.fr;
+    document.querySelectorAll("[data-t]").forEach(e => { if (t[e.dataset.t]) e.textContent = t[e.dataset.t]; });
+    document.documentElement.lang = l; document.documentElement.dataset.kmLabel = t.km;
+    document.querySelectorAll("[data-l]").forEach(b => b.setAttribute("aria-pressed", b.dataset.l === l));
+    try { localStorage.setItem("uaf-lang", l); } catch(e) {}
   }
-  return fieldCache[view] = out;
-}
-function ensureView(view, then){
-  if (window.FRONTP && window.FRONTP[view]) return then();
-  const sc = document.createElement("script"); sc.src = `front_${view}.js?v=${FRONT_V[view] || ""}`; sc.onload = then; document.head.appendChild(sc);
-}
-const oc = document.createElement("canvas"); oc.width = GX; oc.height = GY;
-const octx = oc.getContext("2d");
-let pgrid = new Float32Array(GX * GY), frontFor = -2, frontTheme = "", isoPaths = [], prePath = null;
-function ringsPath(polys){
-  const p = new Path2D();
-  for (const poly of polys) for (const ring of poly) { ring.forEach(([x,y], i) => i ? p.lineTo(x, y) : p.moveTo(x, y)); p.closePath(); }
-  return p;
-}
-function buildFront(){
-  const fi = frontIdx(), key = (C.dark ? "d" : "l") + fmode, F = viewFields(fmode);
-  if (fi === frontFor && key === frontTheme) return;
-  frontFor = fi; frontTheme = key;
-  const img = octx.createImageData(GX, GY), px4 = img.data;
-  const [r, g, b] = C["front-rgb"].split(",").map(Number);
-  pgrid.fill(0);
-  if (fi >= 0 && F && F[fi]) {
-    const q = F[fi];
-    for (let u = 0; u < UCELLS.length; u++) {
-      const c = UCELLS[u], p = q[u] / 63; pgrid[c] = p;
-      if (p > 0.004) { const o = c * 4; px4[o] = r; px4[o+1] = g; px4[o+2] = b; px4[o+3] = Math.round(255 * (C.dark ? 0.06 + 0.54 * p : 0.05 + 0.5 * p)); }
-    }
-    const cs = d3.contours().size([GX, GY]).thresholds([0.1, 0.5, 0.9])(pgrid);
-    isoPaths = cs.map(c => ringsPath(c.coordinates));
-  } else isoPaths = [];
-  octx.putImageData(img, 0, 0);
-}
-{ const m = new Float32Array(GX * GY); for (let c = 0; c < GX * GY; c++) { const k = cellPlace[c]; if (k >= 0 && pFlags[k]) m[c] = 1; }
-  prePath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates); }
-function drawFront(k){
-  buildFront();
-  ctx.save();
-  ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]);
-  const u = 1 / (k * gAff[2]);
-  if (showFront && frontFor >= 0) { ctx.imageSmoothingEnabled = true; ctx.drawImage(oc, 0, 0); }
-  ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.55; ctx.lineWidth = 1 * u; ctx.setLineDash([2*u, 3*u]);
-  ctx.stroke(prePath);
-  if (showLines && isoPaths.length) {
-    ctx.strokeStyle = C.front; ctx.globalAlpha = 0.9; ctx.setLineDash([4*u, 3*u]); ctx.lineWidth = 0.9 * u;
-    ctx.stroke(isoPaths[0]); ctx.stroke(isoPaths[2]);
-    ctx.setLineDash([]); ctx.lineWidth = 1.8 * u; ctx.globalAlpha = 1; ctx.stroke(isoPaths[1]);
-  }
-  ctx.restore();
-}
-// ---------- couches UCDP et arcs de missiles ----------
-const UC = O.ucdp.pts, NU = UC.length / 5;
-function drawUcdp(k){
-  const last = Math.min(cur, cutIdx); if (last < cur) return;
-  ctx.fillStyle = C.ucdp;
-  for (let j = 0; j < NU; j++) {
-    if (UC[j*5+2] !== cur) continue;
-    const r = cellRect(UC[j*5], UC[j*5+1]);
-    ctx.globalAlpha = Math.min(0.85, 0.25 + 0.12 * Math.sqrt(UC[j*5+3]));
-    ctx.fillRect(r[0], r[1], r[2], r[3]);
-  }
-  ctx.globalAlpha = 1;
-}
-const regionCentroid = {};
-for (const f of G.regions) if (f.properties.id) regionCentroid[f.properties.id] = d3.geoCentroid(f);
-function drawArcs(k){
-  if (cur > cutIdx) return;
-  const arcs = O.launch.arcs, pl = O.launch.places;
-  ctx.strokeStyle = C.arc; ctx.lineCap = "round";
-  for (const [mi, li, tid, n] of arcs) {
-    if (mi !== cur || !regionCentroid[tid]) continue;
-    const a = proj([pl[li][1], pl[li][2]]), b = proj(regionCentroid[tid]);
-    if (!a || !b) continue;
-    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1];
-    const cx = mx - dy * 0.18, cy = my + dx * 0.18;
-    ctx.globalAlpha = 0.55; ctx.lineWidth = Math.min(9, 0.6 + Math.sqrt(n) * 0.35) / k;
-    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.quadraticCurveTo(cx, cy, b[0], b[1]); ctx.stroke();
-    ctx.globalAlpha = 0.9; ctx.fillStyle = C.arc; ctx.beginPath(); ctx.arc(b[0], b[1], 2.2 / k, 0, 7); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-const zoneM = {type:"MultiPoint", coordinates:[[23,44.4],[40.2,44.4],[40.2,52.4],[23,52.4]]};
-const zone = {type:"MultiPoint", coordinates:[[22,44],[41.5,44],[41.5,53.6],[22,53.6],[31.75,53.6],[31.75,44]]};
-
-function layout(){
-  const w = canvas.parentElement.clientWidth;
-  W = w; H = Math.round(w < 560 ? w * 1.05 : Math.max(340, Math.min(w * 0.68, 720)));
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + "px";
-  proj = d3.geoAzimuthalEqualArea().rotate([-FR.grid.lon0, -FR.grid.lat0]).fitExtent([[10, W < 560 ? 60 : 10],[W-10,H-10]], W < 560 ? zoneM : zone);
-  const gp = d3.geoPath(proj);
-  const mk = fs => new Path2D(fs.map(f => gp(f) || "").join(""));
-  paths.land = mk(G.land);
-  paths.ua = mk(G.countries.filter(f => f.properties.iso === "UA"));
-  paths.regions = mk(G.regions);
-  paths.borders = mk(G.borders);
-  paths.rivers = mk(G.rivers);
-  paths.lakes = mk(G.lakes);
-  px = new Float32Array(NP); py = new Float32Array(NP);
-  for (let j = 0; j < NP; j++) { const q = proj([P[j*5+1]/100, P[j*5]/100]); px[j] = q[0]; py[j] = q[1]; }
-  cellXY = new Map();
-  wx = new Float32Array(NW); wy = new Float32Array(NW);
-  for (let j = 0; j < NW; j++) { const q = proj([(WSP[j*5+1]+0.5)*D.cell, (WSP[j*5]+0.5)*D.cell]); wx[j] = q[0]; wy[j] = q[1]; }
-  cities = G.cities.map(c => { const q = proj([c[0],c[1]]); return {x:q[0], y:q[1], n:c[2], r:c[3], cap:c[4]}; });
-  // la grille du front est en projection azimutale équivalente (même centre) : simple homothétie
-  const [tx, ty] = proj.translate(), sc = proj.scale(), g = FR.grid;
-  gAff = [tx + sc * g.x0 / g.R, ty - sc * g.y1 / g.R, sc * g.size / g.R];
-}
-function cellRect(i, j){
-  const k = i*10000 + j; let r = cellXY.get(k);
-  if (!r) { const a = proj([j*D.cell, (i+1)*D.cell]), b = proj([(j+1)*D.cell, i*D.cell]); r = [a[0], a[1], b[0]-a[0], b[1]-a[1]]; cellXY.set(k, r); }
-  return r;
-}
-
-function draw(){
-  const k = tr.k;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.fillStyle = C["map-bg"]; ctx.fillRect(0,0,W,H);
-  ctx.setTransform(dpr*k,0,0,dpr*k,dpr*tr.x,dpr*tr.y);
-  ctx.fillStyle = C.land; ctx.fill(paths.land);
-  ctx.fillStyle = C.ua; ctx.fill(paths.ua);
-  ctx.fillStyle = C.water; ctx.fill(paths.lakes);
-  drawFront(k);
-  ctx.lineWidth = 0.8/k; ctx.strokeStyle = C.water; ctx.stroke(paths.rivers);
-  ctx.lineWidth = 0.5/k; ctx.strokeStyle = C.admin; ctx.stroke(paths.regions);
-  ctx.lineWidth = 1.1/k; ctx.strokeStyle = C.border; ctx.stroke(paths.borders);
-
-  if (showRef) drawRef(k);
-  if (showFire) { if (mode === "pts") drawPoints(k); else drawDensity(k); }
-  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
-  if (showUcdp) drawUcdp(k);
-  if (showLoss) drawLosses(k);
-  if (showArcs) drawArcs(k);
-  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
-
-  // villes : en coordonnées écran, seuil selon le zoom
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  const lim = W < 500 ? 4 + Math.log2(k)*2 : 4.5 + Math.log2(k)*2;
-  ctx.font = "11px 'JetBrains Mono', monospace"; ctx.textBaseline = "middle";
-  const placed = [[0, 0, W < 560 ? 290 : 420, (W < 560 ? 62 : 70) + 15 * Math.max(0, layerNotes().length - 1)], [W-48, 0, W, 130]];
-  for (const c of cities) {
-    if (c.r > lim && !c.cap) continue;
-    const x = c.x*k + tr.x, y = c.y*k + tr.y;
-    if (x < -40 || x > W+40 || y < 0 || y > H) continue;
-    const w = ctx.measureText(c.n).width, box = [x+5, y-7, x+7+w, y+7];
-    if (placed.some(b => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]))) continue;
-    placed.push(box);
-    ctx.fillStyle = C.label; ctx.beginPath(); ctx.arc(x, y, c.cap ? 2.6 : 1.8, 0, 7); ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = C["map-bg"]; ctx.globalAlpha = .75; ctx.strokeText(c.n, x+6, y); ctx.globalAlpha = 1;
-    ctx.fillText(c.n, x+6, y);
-  }
-}
-function drawPoints(k){
-  ctx.globalCompositeOperation = C.dark ? "lighter" : "source-over";
-  const r = Math.max(0.55, 1.1 / Math.sqrt(k)) * (W < 500 ? 0.8 : 1);
-  // traînée : mois précédents, plus pâles avec l'âge
-  ctx.fillStyle = C["fire-old"];
-  const byAge = new Map();
-  for (let j = 0; j < NP; j++) { const m = P[j*5+2]; if (m >= cur) continue; const a = cur - m; (byAge.get(a) || byAge.set(a, []).get(a)).push(j); }
-  for (const [a, js] of byAge) {
-    ctx.globalAlpha = Math.max(C.dark ? 0.16 : 0.16, (C.dark ? 0.6 : 0.55) * Math.exp(-a/10));
-    ctx.beginPath();
-    for (const j of js) ctx.rect(px[j]-r/2, py[j]-r/2, r, r);
-    ctx.fill();
-  }
-  // mois affiché
-  const r2 = r * 2.1;
-  ctx.fillStyle = C["fire-now"]; ctx.globalAlpha = C.dark ? 0.85 : 0.8;
-  ctx.beginPath();
-  for (let j = 0; j < NP; j++) if (P[j*5+2] === cur) { ctx.moveTo(px[j]+r2/2, py[j]); ctx.arc(px[j], py[j], r2/2, 0, 7); }
-  ctx.fill();
-}
-const denColor = v => d3.interpolateRgbBasis(C.dark ? ["#3a1d08","#b0560f","#f2a33a","#ffd9a0","#fff6e8"] : ["#f3d6a8","#e39a3d","#c8361a","#7a1a0c","#3a0a04"])(v);
-function drawDensity(k){
-  const acc = new Map();
-  for (let m = 0; m <= cur; m++) { const c = D.cells[m]; for (let j = 0; j < c.length; j += 4) { const key = c[j]*10000 + c[j+1]; acc.set(key, (acc.get(key) || 0) + c[j+2] - c[j+3]); } }
-  const now = new Set(); { const c = D.cells[cur]; for (let j = 0; j < c.length; j += 4) now.add(c[j]*10000 + c[j+1]); }
-  const s = d3.scaleLog().domain([3, 400]).range([0.15, 1]).clamp(true);
-  ctx.globalAlpha = 0.92;
-  for (const [key, v] of acc) {
-    const i = Math.floor(key/10000), jj = key - i*10000, r = cellRect(i, jj);
-    ctx.fillStyle = denColor(s(Math.max(3, v))); ctx.fillRect(r[0], r[1], r[2], r[3]);
-  }
-  ctx.globalAlpha = 1; ctx.lineWidth = 1/k; ctx.strokeStyle = C.ember;
-  for (const key of now) { const i = Math.floor(key/10000), r = cellRect(i, key - i*10000); ctx.strokeRect(r[0], r[1], r[2], r[3]); }
-}
-// pictogrammes des pertes : un par grand type
-function picto(c, g, x, y, s){
-  c.beginPath();
-  if (g === 0) { c.rect(x-s/2, y-s/2, s, s); c.fill(); }
-  else if (g === 1) { c.rect(x-s/2, y-s/2, s, s); c.stroke(); }
-  else if (g === 2) { c.moveTo(x, y-s*0.6); c.lineTo(x+s*0.55, y+s*0.45); c.lineTo(x-s*0.55, y+s*0.45); c.closePath(); c.fill(); }
-  else if (g === 3) { c.moveTo(x, y-s*0.65); c.lineTo(x+s*0.65, y); c.lineTo(x, y+s*0.65); c.lineTo(x-s*0.65, y); c.closePath(); c.stroke(); }
-  else if (g === 4) { c.arc(x, y, s*0.4, 0, 7); c.fill(); }
-  else { c.moveTo(x-s/2, y-s/2); c.lineTo(x+s/2, y+s/2); c.moveTo(x+s/2, y-s/2); c.lineTo(x-s/2, y+s/2); c.stroke(); }
-}
-function pictoSvg(g, col){
-  const c = col || "currentColor", sh = [
-    `<rect x="2" y="2" width="8" height="8" fill="${c}"/>`, `<rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="${c}" stroke-width="1.4"/>`,
-    `<path d="M6 1.5L11 10.5H1Z" fill="${c}"/>`, `<path d="M6 1L11 6L6 11L1 6Z" fill="none" stroke="${c}" stroke-width="1.4"/>`,
-    `<circle cx="6" cy="6" r="3.6" fill="${c}"/>`, `<path d="M2 2L10 10M10 2L2 10" stroke="${c}" stroke-width="1.6"/>`][g];
-  return `<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">${sh}</svg>`;
-}
-function drawLosses(k){
-  const last = Math.min(cur, cutIdx);
-  ctx.lineWidth = 1.2/k;
-  for (let j = 0; j < NW; j++) {
-    const m = WSP[j*5+2], g = WSP[j*5+3];
-    if (m > last || !lossOn[g]) continue;
-    const now = m === cur, a = cur - m;
-    ctx.globalAlpha = now ? 0.95 : Math.max(0.12, 0.4 * Math.exp(-a/6));
-    ctx.fillStyle = ctx.strokeStyle = now ? C["loss-now"] : C["loss-old"];
-    const sz = Math.min(13, (now ? 4 : 3) + 1.4 * Math.sqrt(WSP[j*5+4])) / k;
-    picto(ctx, g, wx[j], wy[j], sz);
-  }
-  ctx.globalAlpha = 1;
-}
-function drawRef(k){
-  const m = +D.months[cur].slice(5) - 1, c = D.ref2021[m];
-  ctx.strokeStyle = C.cool; ctx.lineWidth = 0.8/k; ctx.globalAlpha = C.dark ? 0.8 : 0.7;
-  ctx.beginPath();
-  for (let j = 0; j < c.length; j += 3) {
-    const q = proj([(c[j+1]+0.5)*D.cell, (c[j]+0.5)*D.cell]), rr = Math.min(6, 0.9 + Math.sqrt(c[j+2]) * 0.55) / Math.sqrt(k);
-    ctx.moveTo(q[0]+rr, q[1]); ctx.arc(q[0], q[1], rr, 0, 7);
-  }
-  ctx.stroke(); ctx.globalAlpha = 1;
-}
-
-// zoom
-const zoom = d3.zoom().scaleExtent([1, 14]).on("zoom", e => { tr = e.transform; draw(); });
-const sel = d3.select(canvas).call(zoom);
-function setExtent(){ zoom.translateExtent([[-40,-40],[W+40,H+40]]).extent([[0,0],[W,H]]); }
-$("zin").onclick = () => sel.transition().duration(300).call(zoom.scaleBy, 1.8);
-$("zout").onclick = () => sel.transition().duration(300).call(zoom.scaleBy, 1/1.8);
-$("zreset").onclick = () => sel.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
-function zoomTo(lon, lat, k){
-  const q = proj([lon, lat]);
-  sel.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(W/2, H/2).scale(k).translate(-q[0], -q[1]));
-}
-
-// ---------- contrôles ----------
-const slider = $("slider");
-slider.max = steps.length - 1;
-function setMonth(i){
-  cur = i; slider.value = steps.indexOf(i);
-  draw(); updateReadout(); updateRank(); markChart(); marks.forEach(f => f());
-}
-slider.oninput = () => { stop(); setMonth(steps[+slider.value]); };
-let timer = null;
-function stop(){ if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ lecture"; }
-$("play").onclick = () => {
-  if (timer) return stop();
-  let s = steps.indexOf(cur); if (s >= steps.length - 1) s = -1;
-  $("play").textContent = "❚❚ pause";
-  const tick = () => { s++; if (s >= steps.length) return stop(); setMonth(steps[s]); if (s === steps.length - 1) stop(); };
-  tick(); timer = setInterval(tick, 650);
-};
-function setMode(m){ mode = m; $("modePts").setAttribute("aria-pressed", m === "pts"); $("modeDen").setAttribute("aria-pressed", m === "den"); legend(); draw(); }
-$("modePts").onclick = () => setMode("pts"); $("modeDen").onclick = () => setMode("den");
-$("ref").onclick = () => { showRef = !showRef; $("ref").setAttribute("aria-pressed", showRef); legend(); draw(); updateReadout(); };
-$("lyrFront").onchange = e => { showFront = e.target.checked; legend(); draw(); };
-$("lyrLines").onchange = e => { showLines = e.target.checked; legend(); draw(); };
-$("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
-$("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
-$("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
-$("lyrArcs").onchange = e => { showArcs = e.target.checked; legend(); draw(); };
-const tip = $("tip");
-function hover(e){
-  const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
-  const bx = (mx - tr.x) / tr.k, by = (my - tr.y) / tr.k;
-  const i = Math.floor((bx - gAff[0]) / gAff[2]), j = Math.floor((by - gAff[1]) / gAff[2]);
-  const fi = frontIdx(), k = i >= 0 && j >= 0 && i < GX && j < GY ? cellPlace[j * GX + i] : -1;
-  if (k < 0 || fi < 0) { tip.style.display = "none"; return; }
-  const b = monthCodes[fi][k], fl = pFlags[k], F = viewFields(fmode);
-  const u = d3.bisectLeft(UCELLS, j * GX + i), p = F && F[fi] ? F[fi][u] / 63 : NaN;
-  tip.innerHTML = `<div class="r"><span>p(occupé) · ${MODEN[fmode]}</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div>` +
-    FR.viina.map((s, n) => `<div class="r"><span>${SRCN[s]} <span style="color:var(--faint)">(${SRCCAMP[s]})</span></span><b>${STN[(b >> (2*n) & 3) || 1]}</b></div>`).join("") +
-    (b & 256 ? `<div style="margin-top:4px">reprise annoncée par des médias ukrainiens (90 derniers jours)</div>` : "") +
-    (b & 512 ? `<div style="margin-top:4px">prise annoncée par des médias russes (90 derniers jours)</div>` : "") +
-    (fl & 1 ? `<div style="margin-top:4px">Crimée, occupée depuis 2014</div>` : fl & 2 ? `<div style="margin-top:4px">occupé avant 2022</div>` : "");
-  tip.style.display = "block";
-  const tw = tip.offsetWidth, th = tip.offsetHeight;
-  tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
-}
-canvas.addEventListener("mousemove", hover);
-canvas.addEventListener("click", hover);
-canvas.addEventListener("mouseleave", () => tip.style.display = "none");
-$("legend").addEventListener("click", e => {
-  const b = e.target.closest("[data-g]"); if (!b) return;
-  const g = +b.dataset.g; lossOn[g] = !lossOn[g]; legend(); draw();
-});
-
-function legend(){
-  if (typeof layerNotes === "function" && $("mSub")) $("mSub").innerHTML = layerNotes().join("<br>");
-  const front = showFront || showLines ? `<span><i style="background:rgba(${C["front-rgb"]},.75);border-radius:0"></i>probabilité d'occupation russe</span>` +
-    (showLines ? `<span><i style="background:${C.front};height:2px;border-radius:0;vertical-align:3px"></i>ligne médiane (p = 50 %)</span><span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>10 % et 90 %</span>` : "") +
-    `<span><i style="border-top:1px dotted ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>occupé avant 2022</span><span style="flex-basis:100%;height:0"></span>` : "";
-  const items = mode === "pts"
-    ? [[C["fire-now"], "feu en excès, mois affiché"], [C["fire-old"], "mois précédents (traînée)"]]
-    : [[denColor(1), "excès cumulé élevé"], [denColor(.25), "faible"], ["transparent;border:1px solid " + C.ember + ";border-radius:0", "maille anormale ce mois"]];
-  if (!showFire) items.length = 0;
-  if (showRef) items.push(["transparent;border:1.5px solid " + C.cool, "tous les feux du même mois en 2021"]);
-  let html = front + items.map(([c,t]) => `<span><i style="background:${c}"></i>${t}</span>`).join("");
-  if (showLoss) html += `<span style="flex-basis:100%;height:0"></span><span>pertes russes documentées (WarSpotting), cliquer pour filtrer :</span>` +
-    O.groups.map((g,i) => `<span class="lchip" role="button" tabindex="0" data-g="${i}" aria-pressed="${lossOn[i]}">${pictoSvg(i, C["loss-now"])}${g}</span>`).join("");
-  if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)</span>`;
-  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>missiles et drones lancés du lieu annoncé vers l'oblast visé, agrégés sur le mois (${O.launch.specificShare}\u00a0% des lancements ont une cible précisée ; source : armée de l'air ukrainienne)</span>`;
-  $("legend").innerHTML = html;
-}
-
-const ref2021Tot = D.ref2021.map(c => { let s = 0; for (let j = 2; j < c.length; j += 3) s += c[j]; return s; });
-function updateReadout(){
-  const s = D.series[cur], m = +D.months[cur].slice(5) - 1;
-  let cum = 0; for (let i = 0; i <= cur; i++) cum += D.series[i][2];
-  $("mLabel").textContent = monthLabel(cur);
-  $("mSub").innerHTML = layerNotes().join("<br>");
-  const nd = v => covered[cur] ? fmt(v) : "—";
-  $("readout").innerHTML = [
-    ["feux détectés ce mois-ci", nd(s[0])],
-    ["normale du mois (2012-2021)", fmt(s[1])],
-    ["même mois en 2021", fmt(ref2021Tot[m])],
-    ["en excès ce mois-ci", nd(s[2]), "ex"]
-  ].map(([t,v,c]) => `<div class="${c||""}">${t}<b>${v}</b></div>`).join("") +
-  `<div style="grid-column:1/-1">cumul depuis le 24 février 2022 : <span style="color:var(--ember)">${fmt(cum)}</span> détections au-dessus de la normale</div>`;
-  const c = CTX.filter(x => x.month === D.months[cur]);
-  $("note").innerHTML = c.map(x => `<b>${x.title}.</b> ${x.short}`).join(" ");
-  updateOsint();
-}
-// une ligne par couche affichée : ce qu'elle montre ce mois-ci, ou pourquoi elle est vide
-function layerNotes(){
-  const n = [], fi = frontIdx();
-  if (showFront || showLines) {
-    if (fi < 0) n.push("front : pas d'instantané pour ce mois");
-    else if (fi !== cur) n.push(`front : ${monthLabel(fi)} (dernier disponible, J-7 minimum)`);
-  }
-  if (showFire) {
-    if (!covered[cur]) n.push("feux : aucune donnée S-NPP ce mois-ci");
-    else if (!D.series[cur][2]) n.push("feux : aucun excès détecté ce mois-ci" + (cur === lastIdx && partial ? ` (mois en cours, jusqu'au ${+D.lastDay.slice(8)})` : ""));
-    else if (cur === lastIdx && partial) n.push(`feux : mois en cours, jusqu'au ${+D.lastDay.slice(8)}`);
-    else if (D.series[cur][3] < 1) n.push(`feux : ${Math.round(D.series[cur][3]*100)}\u00a0% des jours observés`);
-  } else if (cur === 0) n.push("à partir du 24 février");
-  if (showLoss && cur > cutIdx) n.push("pertes : pas encore publiées (mois complet + 7 jours)");
-  else if (showLoss && !O.ws.perMonth[cur].some(Boolean)) n.push("pertes : aucune ce mois-ci");
-  if (showUcdp) { let any = false; for (let j = 0; j < NU; j++) if (UC[j*5+2] === cur) { any = true; break; }
-    if (!any) n.push(cur > cutIdx || D.months[cur] > (O.ucdp.last || "") ? "combats UCDP : pas encore publiés pour ce mois" : "combats UCDP : aucun événement localisé"); }
-  if (showArcs && !O.launch.arcs.some(a => a[0] === cur)) n.push(cur > cutIdx ? "missiles : pas encore publiés (mois complet + 7 jours)" : D.months[cur] < "2022-10" ? "missiles : série à partir d'octobre 2022" : "missiles : aucune cible précisée ce mois-ci");
-  return n;
-}
-function updateArea(){
-  const fi = frontIdx(), el = $("areaBox");
-  if (fi < 0) { el.innerHTML = `<div style="grid-column:1/-1"><span class="na">front : pas d'instantané pour ce mois</span></div>`; return; }
-  const mo = FR.months[fi], a = mo.a[fmode], sh = v => (v / UA_KM2 * 100).toFixed(1).replace(".", ",") + "\u00a0%";
-  const r10 = v => fmt(Math.round(v/10)*10), mc = mo.mc, eq = fmode === "equilibre";
-  const crimea = a.tout[0] - a.horsCrimee[0], pre = a.horsCrimee[0] - a.depuis2022[0];
-  el.innerHTML = `<div>occupé au ${dateFr(mo.date)} · ${MODEN[fmode]}<b>${r10(a.tout[0])} km²</b>${sh(a.tout[0])} de l'Ukraine · ` +
-      (eq ? `intervalle à 90\u00a0% : ${r10(mc.tout[0])} – ${r10(mc.tout[1])} km²` : `vue partielle (intervalle calculé pour la vue équilibrée)`) + ` · sous la ligne médiane : ${r10(a.tout[1])} km²</div>` +
-    `<div>pris depuis le 24 février 2022<b>${r10(a.depuis2022[0])} km²</b>` + (eq ? `90\u00a0% : ${r10(mc.depuis2022[0])} – ${r10(mc.depuis2022[1])} km² · ` : "") + `Crimée ${r10(crimea)} et Donbass d'avant 2022 ${r10(pre)} km² comptés à part</div>` +
-    `<div>désaccord des vues russe et ukrainienne<b style="color:var(--accent)">${r10(mo.dis.tout[0])} km²</b>où |p<sub>russe</sub> − p<sub>ukr.</sub>| > 0,5 · vue russe ${r10(mo.a.ru.tout[0])}, vue ukrainienne ${r10(mo.a.ua.tout[0])} km²</div>`;
-}
-const UA_KM2 = (() => { let n = 0; for (let c = 0; c < GX * GY; c++) if (cellPlace[c] >= 0) n++; return n * (FR.grid.size/1000) ** 2; })();
-function lineChart(el, rows, opt){
-  const w = el.clientWidth, h = w < 500 ? 200 : 240, m = {t:10, r:8, b:26, l: w < 500 ? 46 : 58};
-  const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w-m.r]).paddingInner(0.18), cx = i => x(i) + x.bandwidth()/2;
-  const ext = d3.extent(rows.flatMap(r => r.slice(1).filter(v => v != null)));
-  const y = d3.scaleLinear().domain(opt.zero ? [0, ext[1] * 1.05] : [ext[0] * 0.98, ext[1] * 1.01]).nice().range([h-m.b, m.t]);
-  const svg = d3.create("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("height", h);
-  svg.append("g").selectAll("line").data(y.ticks(4)).join("line").attr("x1",m.l).attr("x2",w-m.r).attr("y1",y).attr("y2",y).attr("stroke",C.rule);
-  svg.append("g").selectAll("text").data(y.ticks(4)).join("text").attr("class","tick").attr("x",m.l-6).attr("y",y).attr("dy","0.32em").attr("text-anchor","end").text(v => L.format(",d")(v));
-  if (opt.band) svg.append("path").attr("d", d3.area().defined(r => r[opt.band[0]] != null).x(r => cx(r[0])).y0(r => y(r[opt.band[0]])).y1(r => y(r[opt.band[1]])).curve(d3.curveMonotoneX)(rows)).attr("fill", opt.color).attr("opacity", .16);
-  for (const ln of opt.lines) svg.append("path").attr("d", d3.line().defined(r => r[ln.i] != null).x(r => cx(r[0])).y(r => y(r[ln.i])).curve(d3.curveMonotoneX)(rows))
-    .attr("fill","none").attr("stroke", ln.color).attr("stroke-width", ln.w || 1.6).attr("stroke-dasharray", ln.dash || null).attr("opacity", ln.op || 1);
-  svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class","tick").attr("x", i => x(i)).attr("y", h-m.b+16).text(i => D.months[i].slice(0,4));
-  const mk = svg.append("line").attr("y1", m.t).attr("y2", h-m.b).attr("stroke", C.accent).attr("stroke-width", 1.5);
-  svg.append("g").selectAll("rect").data(d3.range(NM)).join("rect").attr("x", i => x(i) - x.step()*x.paddingInner()/2).attr("width", x.step())
-    .attr("y", m.t).attr("height", h-m.b-m.t).attr("fill","transparent").style("cursor","pointer")
-    .on("click", (e,i) => { stop(); setMonth(i); }).append("title").text(i => opt.title(i));
-  marks.push(() => mk.attr("x1", cx(cur)).attr("x2", cx(cur)).attr("opacity", FR.months[cur] ? 1 : .3));
-  el.replaceChildren(svg.node());
-}
-function drawAreaChart(){
-  const eq = fmode === "equilibre";
-  const rows = FR.months.map((v, i) => v ? [i, v.a[fmode][perim][0], v.a[fmode][perim][1], eq ? v.mc[perim][0] : null, eq ? v.mc[perim][1] : null,
-    v.a.ru[perim][0], v.a.ua[perim][0]] : null).filter(Boolean);
-  lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], lines: [
-      {i: 5, color: C.ink, w: 1, dash: "2 3", op: .55}, {i: 6, color: C.cool, w: 1, dash: "2 3", op: .8},
-      {i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.front, w: 2.2}],
-    title: i => FR.months[i] ? `${monthLabel(i)} — ${MODEN[fmode]} : ${fmt(FR.months[i].a[fmode][perim][0])} km² (90 % : ${fmt(FR.months[i].mc[perim][0])} – ${fmt(FR.months[i].mc[perim][1])}) ; vue russe ${fmt(FR.months[i].a.ru[perim][0])}, vue ukrainienne ${fmt(FR.months[i].a.ua[perim][0])}` : `${monthLabel(i)} — pas d'instantané`});
-  const drows = FR.months.map((v, i) => v ? [i, v.dis[perim][0], v.dis[perim][1]] : null).filter(Boolean);
-  lineChart($("disChart"), drows, {zero: true, color: C.accent, lines: [{i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.accent, w: 2.2}],
-    title: i => FR.months[i] ? `${monthLabel(i)} — |Δp| > 0,5 sur ${fmt(FR.months[i].dis[perim][0])} km² ; Σ|Δp| × surface ${fmt(FR.months[i].dis[perim][1])} km²` : `${monthLabel(i)} — pas d'instantané`});
-}
-document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
-  fmode = b.dataset.mode;
-  document.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", x === b));
-  ensureView(fmode, () => { frontFor = -2; draw(); });
-  draw(); updateArea(); drawSky(); marks.forEach(f => f()); legend();
-});
-document.querySelectorAll("[data-perim]").forEach(b => b.onclick = () => {
-  perim = b.dataset.perim;
-  document.querySelectorAll("[data-perim]").forEach(x => x.setAttribute("aria-pressed", x === b));
-  drawSky(); marks.forEach(f => f());
-});
-function methodTables(){
-  const P = FR.params;
-  $("pAlpha").textContent = String(P.alpha).replace(".", ","); $("pH0").textContent = String(P.h0).replace(".", ",");
-  $("pBeta").textContent = String(P.beta).replace(".", ","); $("pV").textContent = String(FR.v).replace(".", ",");
-  $("pCalN").textContent = FR.calibMonths; $("pMC").textContent = FR.mcDraws; $("pSlope").textContent = String(FR.calibSlope).replace(".", ",");
-  const period = s => { const ms = FR.months.filter(m => m && m.sigma && m.sigma[s] != null); return ms.length ? `${ms[0].date.slice(0,7)} → ${ms[ms.length-1].date.slice(0,7)}` : "—"; };
-  const f1 = v => v == null ? "—" : String(Math.round(v * 10) / 10).replace(".", ",");
-  const rows = [
-    ["DeepStateMap", "ukrainien", FR.weights.dsm, "ODbL (via VIINA)", period("dsm"), f1(FR.sigma0.dsm), FR.mae.dsm],
-    ["enveloppe la plus ukrainienne*", "ukrainien", FR.weights.uamin, "dérivée (ODbL)", period("uamin"), f1(FR.sigma0.uamin), null],
-    ["annonces de reprise, médias ukrainiens*", "ukrainien", FR.weights.uaclaims, "ODbL (VIINA)", "2022 →", "noyau", null],
-    ["ISW / CTP", "tiers (américain)", FR.weights.isw, "ODbL (via VIINA)", period("isw"), f1(FR.sigma0.isw), FR.mae.isw],
-    ["Wikipédia", "tiers", FR.weights.wiki, "ODbL (via VIINA)", period("wiki"), f1(FR.sigma0.wiki), FR.mae.wiki],
-    ["Wikipédia corrigé par VIINA", "tiers", FR.weights.boost, "ODbL (VIINA)", period("boost"), f1(FR.sigma0.boost), null],
-    ["enveloppe la plus russe*", "russe", FR.weights.rumax, "dérivée (ODbL)", period("rumax"), f1(FR.sigma0.rumax), null],
-    ["annonces de prise, médias russes*", "russe", FR.weights.ruclaims, "ODbL (VIINA)", "2022 → 2026, surtout avant 2025", "noyau", null],
-  ];
-  $("srcTab").innerHTML = `<tr><th>source</th><th>camp</th><th>poids dans le camp</th><th>licence</th><th>période</th><th>σ0 (km)</th><th>écart moyen calibré</th></tr>` +
-    rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${String(r[2]).replace(".", ",")}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6] == null ? "—" : f1(r[6]) + " km"}</td></tr>`).join("");
-  const S = FR.sensitivity;
-  $("sensTab").innerHTML = `<tr><th>variante</th><th>équilibré</th><th>dont depuis 2022</th><th>vue ukr.</th><th>vue russe</th><th>tiers</th></tr>` +
-    S.map((r, i) => `<tr${i ? "" : ' style="font-weight:600"'}><td>${r[0]}</td><td>${fmt(r[1])}</td><td>${fmt(r[2])}</td><td>${fmt(r[3])}</td><td>${fmt(r[5])}</td><td>${fmt(r[7])}</td></tr>`).join("");
-  // diagramme de calibration
-  const el = $("calibChart"), w = Math.min(el.clientWidth || 320, 360), h = w, m = {t:10, r:10, b:34, l:40};
-  const x = d3.scaleLinear([0, 1], [m.l, w - m.r]), y = d3.scaleLinear([0, 1], [h - m.b, m.t]);
-  const pts = FR.calibration.filter(b => b[1] != null);
-  const rmax = d3.max(pts, b => b[2]) || 1;
-  const svg = d3.create("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("width", w).attr("height", h);
-  svg.append("g").selectAll("line").data([0, .25, .5, .75, 1]).join("line").attr("x1", m.l).attr("x2", w - m.r).attr("y1", y).attr("y2", y).attr("stroke", C.rule);
-  svg.append("line").attr("x1", x(0)).attr("y1", y(0)).attr("x2", x(1)).attr("y2", y(1)).attr("stroke", C.faint).attr("stroke-dasharray", "4 3");
-  svg.append("path").attr("d", d3.line().x(b => x(b[0])).y(b => y(b[1]))(pts)).attr("fill", "none").attr("stroke", C.front).attr("stroke-width", 1.8);
-  svg.append("g").selectAll("circle").data(pts).join("circle").attr("cx", b => x(b[0])).attr("cy", b => y(b[1])).attr("r", b => 2 + 6 * Math.sqrt(b[2] / rmax)).attr("fill", C.front).attr("opacity", .8)
-    .append("title").text(b => `p prédite ≈ ${String(b[0]).replace(".", ",")} : ${Math.round(b[1] * 100)} % occupé selon la source retirée (${fmt(b[2])} mailles)`);
-  svg.append("g").selectAll("text").data([0, .5, 1]).join("text").attr("class", "tick").attr("x", x).attr("y", h - m.b + 14).attr("text-anchor", "middle").text(v => String(v).replace(".", ","));
-  svg.append("g").selectAll("text").data([0, .5, 1]).join("text").attr("class", "tick").attr("x", m.l - 6).attr("y", y).attr("dy", ".32em").attr("text-anchor", "end").text(v => String(v).replace(".", ","));
-  svg.append("text").attr("class", "tick").attr("x", (m.l + w - m.r) / 2).attr("y", h - 4).attr("text-anchor", "middle").text("p prédite par les autres sources");
-  el.replaceChildren(svg.node());
-  const b7 = FR.calibration.find(b => Math.abs(b[0] - 0.75) < 0.01);
-  $("calibNote").innerHTML = `<p>Chaque point regroupe les mailles d'une tranche de probabilité prédite ; sa hauteur donne la part que la source retirée classe russe, sa taille le nombre de mailles. ` +
-    (b7 && b7[1] != null ? `Parmi les mailles prédites entre 70 et 80 %, ${Math.round(b7[1] * 100)} % sont russes selon la source retirée.` : "") + ` Écarts moyens entre la limite de chaque source et la ligne des autres : ` +
-    Object.entries(FR.mae).map(([s, v]) => `${SRCN[s]} ${f1(v)} km`).join(", ") + `.</p>`;
-}
-function updateOsint(){
-  updateArea();
-  const after = cur > cutIdx, wait = `<span class="na">pas encore publié (mois complet + 7 jours)</span>`;
-  // WarSpotting : cumul depuis le 24 février 2022 en grand, mois et cumul par catégorie, Oryx en regard
-  const lastWs = Math.min(cur, cutIdx), mlab = MC[+D.months[cur].slice(5)-1] + " " + D.months[cur].slice(0,4);
-  const cumG = O.groups.map(() => 0);
-  for (let i = 0; i <= lastWs; i++) O.ws.perMonth[i].forEach((v, g) => cumG[g] += v);
-  const pmG = after ? null : O.ws.perMonth[cur];
-  const orx = O.oryx.snapshot, oryxDay = dateFr(O.oryx.lastDay);
-  let a = `<h4>Pertes russes documentées · WarSpotting · cumul depuis le 24 février 2022</h4>` +
-    `<span class="big">${fmt(d3.sum(cumG))}</span><span>engins perdus (détruits, endommagés, abandonnés ou capturés) jusqu'à fin ${monthLabel(lastWs)}</span>` +
-    `<div class="tablewrap"><table class="oryx" style="margin-top:8px;font-size:12px"><tr><th>catégorie</th><th>ce mois-ci (${mlab})</th><th>cumul WarSpotting</th><th>cumul Oryx, Russie (arrêté au ${oryxDay})</th></tr>` +
-    O.groups.map((g, i) => `<tr><td>${pictoSvg(i, C["loss-now"])} ${g}</td><td>${pmG ? fmt(pmG[i]) : "—"}</td><td>${fmt(cumG[i])}</td><td>${fmt(orx[i][0])}</td></tr>`).join("") +
-    `</table></div><p style="margin:8px 0 0">WarSpotting et Oryx ne comptent que les pertes prouvées par photo ou vidéo : ce sont des minimums. Les derniers mois sont sous-estimés, car la documentation arrive avec retard.` +
-    (after ? ` Ce mois-ci : pas encore publié (mois complet + 7 jours).` : "") + ` La série Oryx n'est pas prolongée au-delà du ${oryxDay}.</p>`;
-  // Oryx : cumul des deux camps à la fin du mois affiché
-  let b = `<h4>Pertes documentées des deux camps · Oryx · cumul</h4>`;
-  const ox = O.oryx.total[cur];
-  const od = v => v ? fmt(v) : "—";
-  if (ox && (ox[0] || ox[1])) b += `<div class="r"><span>Russie</span><b>${od(ox[0])}</b></div><div class="r"><span>Ukraine</span><b>${od(ox[1])}</b></div>` + (ox[0] && ox[1] ? `<div class="r"><span>rapport</span><b>${(ox[0]/ox[1]).toFixed(1).replace(".",",")} pour 1</b></div>` : "") + `<p style="margin:8px 0 0">cumul à la fin de ${monthLabel(cur)}, en entrées documentées (une par preuve photo ou vidéo, à la date de relevé)</p>`;
-  else if (ox) b += `<span class="na">pas encore de relevé dans le jeu de données</span>`;
-  else { const l = O.oryx.total.filter(Boolean).pop(); b += `<span class="na">série arrêtée au ${oryxDay}, non prolongée</span><div class="r" style="margin-top:6px"><span>Russie</span><b>${fmt(l[0])}</b></div><div class="r"><span>Ukraine</span><b>${fmt(l[1])}</b></div><p style="margin:8px 0 0">cumul au ${oryxDay}</p>`; }
-  // Missiles et drones
-  let c = `<h4>Missiles et drones lancés · armée de l'air · ce mois-ci (${mlab})</h4>`;
-  const mm = O.missiles.perMonth[cur];
-  if (after) c += wait;
-  else if (!d3.sum(mm)) c += `<span class="na">série disponible à partir de fin septembre 2022</span>`;
-  else c += `<div class="r"><span>drones lancés</span><b>${fmt(mm[2])}</b></div><div class="r"><span>dont annoncés abattus</span><b>${fmt(mm[3])}</b></div>` +
-    `<div class="r" style="margin-top:6px"><span>missiles lancés</span><b>${fmt(mm[0])}</b></div><div class="r"><span>dont annoncés abattus</span><b>${fmt(mm[1])}</b></div>`;
-  $("osint").innerHTML = `<div style="grid-column:1/-1">${a}</div><div>${b}</div><div style="grid-column:span 2">${c}</div>`;
-}
-
-// petits graphiques mensuels synchronisés (drones, missiles)
-const marks = [];
-function barChart(el, launched, downed, color){
-  const w = el.clientWidth, h = 150, m = {t:8, r:4, b:22, l:36};
-  const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w-m.r]).paddingInner(0.18);
-  const y = d3.scaleLinear().domain([0, d3.max(launched) || 1]).nice().range([h-m.b, m.t]);
-  const svg = d3.create("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("height", h);
-  svg.append("g").selectAll("line").data(y.ticks(3)).join("line").attr("x1",m.l).attr("x2",w-m.r).attr("y1",y).attr("y2",y).attr("stroke",C.rule);
-  svg.append("g").selectAll("text").data(y.ticks(3)).join("text").attr("class","tick").attr("x",m.l-5).attr("y",y).attr("dy","0.32em").attr("text-anchor","end").text(v => L.format("~s")(v).replace("k","\u202fk"));
-  svg.append("g").selectAll("rect").data(launched).join("rect").attr("x",(v,i) => x(i)).attr("width",x.bandwidth()).attr("y",v => y(v)).attr("height",v => y(0)-y(v)).attr("fill",color).attr("opacity",.95);
-  svg.append("g").selectAll("rect").data(downed).join("rect").attr("x",(v,i) => x(i)).attr("width",x.bandwidth()).attr("y",v => y(v)).attr("height",v => y(0)-y(v)).attr("fill",C.bg || "#000").attr("opacity",.45);
-  svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class","tick").attr("x", i => x(i)).attr("y", h-m.b+14).text(i => D.months[i].slice(0,4));
-  const mk = svg.append("rect").attr("y", m.t).attr("height", h-m.b-m.t).attr("fill","none").attr("stroke",C.accent).attr("stroke-width",1.5);
-  svg.append("g").selectAll("rect").data(d3.range(NM)).join("rect").attr("x", i => x(i) - x.step()*x.paddingInner()/2).attr("width", x.step())
-    .attr("y", m.t).attr("height", h-m.b-m.t).attr("fill","transparent").style("cursor","pointer")
-    .on("click", (e,i) => { stop(); setMonth(i); })
-    .append("title").text(i => `${monthLabel(i)} — ${fmt(launched[i])} lancés, ${fmt(downed[i])} annoncés abattus`);
-  marks.push(() => mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3));
-  el.replaceChildren(svg.node());
-}
-function drawSky(){
-  marks.length = 0;
-  const pm = O.missiles.perMonth.map((v,i) => i > cutIdx ? [0,0,0,0] : v);
-  barChart($("drones"), pm.map(v => v[2]), pm.map(v => v[3]), C.accent);
-  barChart($("missiles"), pm.map(v => v[0]), pm.map(v => v[1]), C.ember);
-  drawAreaChart();
-}
-function oryxTable(){
-  const sn = O.oryx.snapshot, tr2 = (n, r, u, b) => `<tr${b ? ' style="font-weight:600"' : ""}><td>${n}</td><td>${fmt(r)}</td><td>${fmt(u)}</td><td>${(r/Math.max(1,u)).toFixed(1).replace(".",",")}</td></tr>`;
-  $("oryxTab").innerHTML = `<tr><th>type</th><th>Russie</th><th>Ukraine</th><th>rapport</th></tr>` +
-    O.groups.map((g,i) => tr2(`${pictoSvg(i, C.muted)} ${g}`, sn[i][0], sn[i][1])).join("") +
-    tr2("total", d3.sum(sn, v => v[0]), d3.sum(sn, v => v[1]), true);
-  $("oryxDay").textContent = dateFr(O.oryx.lastDay);
-}
-
-// ---------- graphique mensuel ----------
-let markChart = () => {};
-function drawChart(){
-  const el = $("chart"), w = el.clientWidth, h = w < 500 ? 220 : 260, m = {t:10, r:6, b:28, l: w < 500 ? 34 : 44};
-  const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w-m.r]).paddingInner(0.18);
-  const y = d3.scaleLinear().domain([0, d3.max(D.series, s => Math.max(s[0], s[1]))]).nice().range([h-m.b, m.t]);
-  const yf = L.format("~s");
-  const svg = d3.create("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("height", h);
-  const defs = svg.append("defs");
-  defs.append("pattern").attr("id","hatch").attr("width",5).attr("height",5).attr("patternUnits","userSpaceOnUse").attr("patternTransform","rotate(45)")
-    .append("line").attr("y2",5).attr("stroke",C.faint).attr("stroke-width",1).attr("opacity",.5);
-  svg.append("g").selectAll("line").data(y.ticks(4)).join("line").attr("x1",m.l).attr("x2",w-m.r).attr("y1",y).attr("y2",y).attr("stroke",C.rule);
-  svg.append("g").selectAll("text").data(y.ticks(4)).join("text").attr("class","tick").attr("x",m.l-6).attr("y",y).attr("dy","0.32em").attr("text-anchor","end").text(v => yf(v).replace("k"," k"));
-  // mois non couverts
-  const gaps = d3.range(NM).filter(i => !covered[i]);
-  if (gaps.length) {
-    const g0 = x(gaps[0]), g1 = x(gaps[gaps.length-1]) + x.bandwidth();
-    svg.append("rect").attr("x",g0).attr("y",m.t).attr("width",g1-g0).attr("height",h-m.b-m.t).attr("fill","url(#hatch)");
-    if (g1 - g0 > 70) svg.append("text").attr("class","tick").attr("x",(g0+g1)/2).attr("y",m.t+12).attr("text-anchor","middle").text("satellite muet");
-  }
-  svg.append("g").selectAll("rect").data(D.series).join("rect").attr("x",(s,i) => x(i)).attr("width",x.bandwidth())
-    .attr("y", s => y(s[0])).attr("height", s => y(0)-y(s[0])).attr("fill", C.faint).attr("opacity",.45);
-  svg.append("g").selectAll("rect").data(D.series).join("rect").attr("x",(s,i) => x(i)).attr("width",x.bandwidth())
-    .attr("y", s => y(s[2])).attr("height", s => y(0)-y(s[2])).attr("fill", C.ember);
-  const line = d3.line().x((s,i) => x(i) + x.bandwidth()/2).y(s => y(s[1])).curve(d3.curveStep);
-  svg.append("path").attr("d", line(D.series)).attr("fill","none").attr("stroke",C.ink).attr("stroke-width",1.2).attr("stroke-dasharray","3 2").attr("opacity",.8);
-  const years = d3.range(NM).filter(i => D.months[i].endsWith("-01") || i === 0);
-  svg.append("g").selectAll("text").data(years).join("text").attr("class","tick").attr("x", i => x(i)).attr("y", h-m.b+16).text(i => D.months[i].slice(0,4));
-  const mark = svg.append("rect").attr("y", m.t).attr("height", h-m.b-m.t).attr("fill","none").attr("stroke",C.accent).attr("stroke-width",1.5);
-  svg.append("g").selectAll("rect").data(d3.range(NM)).join("rect").attr("x", i => x(i) - x.step()*x.paddingInner()/2).attr("width", x.step())
-    .attr("y", m.t).attr("height", h-m.b-m.t).attr("fill","transparent").style("cursor", "pointer")
-    .on("click", (e,i) => { stop(); setMonth(i); })
-    .append("title").text(i => covered[i] ? `${monthLabel(i)} — ${fmt(D.series[i][0])} détections, normale ${fmt(D.series[i][1])}, excès ${fmt(D.series[i][2])}` : `${monthLabel(i)} — pas de données`);
-  markChart = () => mark.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3);
-  markChart();
-  el.replaceChildren(svg.node());
-}
-
-// ---------- années ----------
-function drawYearly(){
-  const el = $("yearly"), w = el.clientWidth, h = 200, m = {t:16, r:4, b:24, l:4};
-  const ys = Object.keys(D.yearly).filter(y => +y < 2026), v = ys.map(y => D.yearly[y]);
-  const x = d3.scaleBand().domain(ys).range([m.l, w-m.r]).padding(0.2);
-  const y = d3.scaleLinear().domain([0, d3.max(v)]).range([h-m.b, m.t]);
-  const svg = d3.create("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("height", h);
-  svg.append("g").selectAll("rect").data(ys).join("rect").attr("x", x).attr("width", x.bandwidth())
-    .attr("y", d => y(D.yearly[d])).attr("height", d => y(0) - y(D.yearly[d])).attr("fill", d => +d >= 2022 ? C.ember : C.faint).attr("opacity", d => +d >= 2022 ? .9 : .55);
-  svg.append("g").selectAll("text").data(ys).join("text").attr("class","tick").attr("x", d => x(d) + x.bandwidth()/2).attr("y", h-m.b+14).attr("text-anchor","middle")
-    .text(d => w < 420 ? "’" + d.slice(2) : d);
-  svg.append("g").selectAll("text").data(ys.filter(d => ["2014","2021","2024"].includes(d))).join("text").attr("class","tick").attr("x", d => x(d) + x.bandwidth()/2)
-    .attr("y", d => y(D.yearly[d]) - 4).attr("text-anchor","middle").text(d => L.format(".3~s")(D.yearly[d]).replace("k"," k"));
-  el.replaceChildren(svg.node());
-}
-
-// ---------- classement ----------
-function updateRank(){
-  const rows = Object.entries(D.regions).filter(([k]) => k !== "autre").map(([k,v]) => [k, d3.sum(v.slice(0, cur+1))]).filter(r => r[1] > 0).sort((a,b) => b[1]-a[1]).slice(0, 14);
-  const mx = d3.max(rows, r => r[1]) || 1;
-  $("rank").innerHTML = rows.map(([k,v]) => `<div class="row ${regC[k] === "RUS" ? "ru" : ""}"><span>${D.regionNames[k][0]}</span><div><div class="bar" style="width:${(v/mx*100).toFixed(1)}%"></div></div><span class="v">${fmt(v)}</span></div>`).join("") || `<p class="sub">Aucun excès à cette date.</p>`;
-}
-
-// ---------- repères (dates vérifiées dans la presse) ----------
-const CTX = [
-  {month:"2022-03", lon:30.0, lat:50.6, k:3, title:"Offensive sur Kyiv", flag:"ok", short:"Les grappes à l'ouest de Kyiv et dans la zone de Tchernobyl suivent l'avancée russe ; au sud-est, le siège de Marioupol.",
-   text:"Les forces russes avancent vers Kyiv par le nord et l'ouest. Le 2 avril 2022, l'Ukraine annonce avoir repris toute la région de Kyiv après le retrait russe. En mars, les excès se concentrent à l'ouest de la capitale et autour de Marioupol.",
-   src:"AFP via ABS-CBN, 3 avril 2022", url:"https://www.abs-cbn.com/overseas/04/03/22/ukraine-regains-control-of-kyiv-region"},
-  {month:"2022-06", lon:38.4, lat:48.9, k:4, title:"Sievierodonetsk", flag:"ok", short:"Louhansk concentre l'excès du mois.",
-   text:"Après des semaines parmi les plus meurtrières du conflit, le maire annonce le 25 juin 2022 que Sievierodonetsk est « entièrement occupée ». Les excès de mai-juin dans l'oblast de Louhansk correspondent à cette bataille.",
-   src:"Reuters via BusinessLIVE, 24 juin 2022", url:"https://www.businesslive.co.za/amp/bd/world/europe/2022-06-24-ukrainian-troops-set-to-withdraw-from-sievierodonetsk/"},
-  {month:"2022-11", lon:33.0, lat:46.8, k:4, title:"Libération de Kherson", flag:"no", short:"Non détectée par la méthode : la région brûlait déjà beaucoup avant guerre.",
-   text:"Les troupes ukrainiennes entrent dans Kherson le 11 novembre 2022 après le retrait russe sur la rive gauche du Dnipro. La contre-offensive d'août-novembre ne ressort pas : les détections restent dans la fourchette des brûlages agricoles des années 2012-2021.",
-   src:"NPR, 11 novembre 2022", url:"https://www.boisestatepublicradio.org/2022-11-11/ukrainian-troops-enter-kherson-city-after-russia-retreats"},
-  {month:"2023-05", lon:38.0, lat:48.6, k:5, title:"Bakhmout", flag:"no", short:"Bataille d'hiver presque invisible depuis l'espace.",
-   text:"Le 20 mai 2023, le chef de Wagner revendique la prise totale de Bakhmout, contestée par Kyiv. La bataille, menée surtout en hiver, ne produit pas d'excès net : nuages, petits feux et terrain déjà détruit limitent la détection.",
-   src:"The Moscow Times, 20 mai 2023", url:"https://themoscowtimes.com/2023/05/20/wagner-chief-claims-complete-capture-of-bakhmut-a81217"},
-  {month:"2023-09", lon:33.0, lat:46.6, k:4, title:"Le Dnipro comme front", flag:"mix", short:"Rive gauche de la région de Kherson : excès récurrents chaque été depuis 2023.",
-   text:"Depuis novembre 2022, le Dnipro sépare les deux armées dans la région de Kherson. À partir de l'été 2023, la rive gauche occupée (Oleshky, delta, côte) ressort chaque année : feux d'artillerie, mais aussi végétation abandonnée qui brûle sans être éteinte.",
-   src:"NPR, 11 novembre 2022 (retrait russe)", url:"https://www.boisestatepublicradio.org/2022-11-11/ukrainian-troops-enter-kherson-city-after-russia-retreats"},
-  {month:"2024-02", lon:37.75, lat:48.14, k:6, title:"Avdiïvka", flag:"mix", short:"Excès modeste mais localisé autour de la ville.",
-   text:"L'armée ukrainienne se retire d'Avdiïvka le 17 février 2024 pour éviter l'encerclement, après quatre mois de combats. La méthode y relève un excès faible mais groupé entre octobre 2023 et février 2024.",
-   src:"AP via PBS NewsHour, 17 février 2024", url:"https://www.pbs.org/newshour/world/ukraine-to-withdraw-from-avdiivka-where-outnumbered-defenders-held-out-for-4-months"},
-  {month:"2024-05", lon:36.9, lat:50.3, k:5, title:"Offensive sur Vovtchansk", flag:"ok", short:"Nouveau front au nord de Kharkiv.",
-   text:"Le 10 mai 2024, la Russie ouvre une offensive dans le nord de l'oblast de Kharkiv, en direction de Vovtchansk. Une bande d'excès apparaît le long de la frontière, absente les mois précédents.",
-   src:"Kyiv Independent, mai 2024", url:"https://kyivindependent.com/defense-ministry-confirms-russian-units-entered-vovchansk-battles-ongoing/"},
-  {month:"2024-08", lon:35.2, lat:51.3, k:5, title:"Incursion dans la région de Koursk", flag:"ok", short:"Le front passe en Russie : la région de Koursk s'allume.",
-   text:"Le 6 août 2024, l'armée ukrainienne franchit la frontière russe près de Soudja. C'est le cas le plus net de la série : environ 2 400 détections en excès d'août à décembre 2024 dans un rayon autour de Soudja, quasi aucune auparavant.",
-   src:"RFE/RL, août 2024", url:"https://www.rferl.org/a/russia-ukraine-kursk-incursion-invasion/33070123.html"},
-  {month:"2024-09", lon:34.5, lat:50.5, k:1.6, title:"2024, année record d'incendies", flag:"mix", short:"Sécheresse et guerre : le pic de la série mêle feux de combat et incendies qui s'étendent.",
-   text:"Selon le Centre commun de recherche européen, environ 965 000 hectares ont brûlé en Ukraine en 2024, plus de deux fois la surface brûlée dans toute l'UE, avec des feux alignés sur le front. Septembre 2024 est le mois record de la série ; la grande grappe à la frontière Briansk-Tchernihiv n'a pas de cause établie ici.",
-   src:"Reuters via Arab News, mars 2025", url:"https://www.arabnews.com/node/2594918/amp"},
-  {month:"2025-07", lon:37.2, lat:48.4, k:5, title:"Pokrovsk", flag:"ok", short:"L'oblast de Donetsk atteint son excès mensuel maximal.",
-   text:"En juillet 2025, l'excès de l'oblast de Donetsk culmine autour de Pokrovsk et Kostiantynivka. Moscou revendique la prise de Pokrovsk le 1er décembre 2025, ce que l'Ukraine dément alors ; l'ISW juge ensuite la capture probablement achevée début 2026.",
-   src:"The Moscow Times, 2 décembre 2025 · ISW via NV", url:"https://www.themoscowtimes.com/2025/12/02/russian-army-claims-capture-of-key-city-of-pokrovsk-in-eastern-ukraine-a91299/pdf", url2:"https://english.nv.ua/amp/pokrovsk-falls-to-russia-but-kremlin-fails-to-exploit-its-capture-50587178.html"}
-];
-const FLAG = {ok:["détecté","ok"], no:["non détecté","no"], mix:["partiel ou ambigu","mix"]};
-$("ctxs").innerHTML = CTX.map((c,i) => {
-  const [d,y] = [MC[+c.month.slice(5)-1], c.month.slice(0,4)];
-  return `<article class="ctx"><time>${d} ${y}</time><h3>${c.title}</h3><span class="flag ${FLAG[c.flag][1]}">● ${FLAG[c.flag][0]}</span><p>${c.text}</p>
-  <div class="foot"><a href="${c.url}" target="_blank" rel="noopener">${c.src}</a>${c.url2 ? ` <a href="${c.url2}" target="_blank" rel="noopener">ISW</a>` : ""}<button class="btn" type="button" data-i="${i}">voir ↗</button></div></article>`;
-}).join("");
-$("ctxs").addEventListener("click", e => {
-  const b = e.target.closest("button[data-i]"); if (!b) return;
-  const c = CTX[+b.dataset.i], i = D.months.indexOf(c.month);
-  stop(); setMonth(i); zoomTo(c.lon, c.lat, c.k);
-  $("map").scrollIntoView({behavior:"smooth", block:"center"});
-});
-
-// ---------- init ----------
-function full(){ layout(); setExtent(); tr = d3.zoomIdentity; sel.call(zoom.transform, d3.zoomIdentity); drawChart(); drawYearly(); drawSky(); oryxTable(); methodTables(); setMonth(cur); }
-$("cutoff").textContent = monthLabel(cutIdx);
-$("frontLimit").textContent = lastFront >= 0 ? dateFr(FR.months[lastFront].date) : "—";
-legend(); full();
-let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (canvas.parentElement.clientWidth !== W) full(); }, 150); });
-document.fonts && document.fonts.ready.then(() => draw());
+  document.querySelectorAll("[data-l]").forEach(b => b.onclick = () => { set(b.dataset.l); document.dispatchEvent(new Event("uaf-lang")); });
+  let l = "fr"; try { l = localStorage.getItem("uaf-lang") || "fr"; } catch(e) {}
+  set(l);
 })();
 </script>
+<script src="app.js?v=3155488e0b"></script>
 </body>
 </html>

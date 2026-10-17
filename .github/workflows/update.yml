@@ -17,7 +17,7 @@ jobs:
   update:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,6 +35,10 @@ jobs:
         run: python scripts/fetch_osint.py raw
         timeout-minutes: 45
         continue-on-error: true
+      - name: Annonces officielles (MoD RF, état-major ukrainien — reprise incrémentale)
+        run: python scripts/fetch_claims.py raw
+        timeout-minutes: 60
+        continue-on-error: true
       - name: Sauvegarder le cache (même en cas d'échec ou d'expiration)
         if: always()
         uses: actions/cache/save@v4
@@ -48,11 +52,18 @@ jobs:
         run: python scripts/build_osint.py raw
         timeout-minutes: 5
         continue-on-error: true
+      - name: Extraire et géocoder les annonces (faits seulement)
+        run: python scripts/build_claims.py raw raw/viina
+        timeout-minutes: 15
+        continue-on-error: true
       - name: Construire la carte du front
         run: python scripts/build_front.py raw/viina
-        timeout-minutes: 30
+        timeout-minutes: 90
         continue-on-error: true
 
+      - name: Empreintes anti-cache de toutes les pages
+        run: python scripts/stamp.py
+        continue-on-error: true
       - name: Versionner les sorties
         continue-on-error: true
         run: |

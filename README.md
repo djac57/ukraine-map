@@ -10,7 +10,11 @@ Une carte unique, mois par mois depuis février 2022 :
   - arcs de missiles et de drones (lieu de lancement → oblast visé).
 - **sous la carte** : compteurs Oryx, missiles et drones lancés.
 
-Page : `site/index.html`, à ouvrir en local ou à publier tel quel. Elle utilise d3 7.9.0 depuis cdnjs.
+Pages :
+- `site/index.html` : la carte et la courbe des km², rien d'autre. Les options sont rangées dans le menu « calques », fermé par défaut.
+- `site/methode.html` : méthode, calibration, sensibilité, sources et licences, désaccord, panneaux annexes (pertes, Oryx, feux, missiles).
+
+Le code est commun aux deux pages (`site/app.js`, `site/style.css`). Il utilise d3 7.9.0 depuis cdnjs. Après une modification de `app.js` ou de `style.css`, il faut lancer `python3 scripts/stamp.py`.
 
 ## Mise à jour
 
@@ -62,7 +66,11 @@ Du fait des licences NC (WarSpotting, Ivaniuk), le site et ses données dérivé
 | Wikipédia, carte participative (via VIINA, `status_wiki` et `status_boost`) | front | tiers | CC BY-SA | **utilisé via VIINA** |
 | Annonces des médias ukrainiens (24tv, Espreso, LIGA, NV, Pravda, UNIAN, Militarnyi, Interfax-Ukraine, Forbes UA), relevées par VIINA | front, proxy « annonces ukrainiennes » | pro-ukrainien | ODbL (VIINA) | **utilisé** : 6 970 annonces de contrôle ukrainien sur la période |
 | Annonces des médias russes (RIA Novosti, NTV, KP, Nezavissimaïa Gazeta), relevées par VIINA | front, proxy « annonces russes » | pro-russe | ODbL (VIINA) | **utilisé** : 324 annonces, presque toutes avant 2025, car RIA et NTV sortent du corpus après 2024 |
-| Ministère russe de la Défense (cartes, communiqués) | — | pro-russe | pas de géodonnées publiées ; les communiqués ne sont que du texte | **non intégré directement**. Couvert en partie par les annonces relayées par RIA et NTV |
+| Communiqués du ministère russe de la Défense (aperçu public t.me/s/mod_russia) | front : annonces de prise (noyaux persistants) | pro-russe | faits non protégeables ; le Code civil russe (art. 1259 §6) exclut du droit d'auteur les documents officiels et les simples informations sur des faits | **utilisé**. Seuls les faits sont publiés (date, localité GeoNames, coordonnées, source) dans `data/claims_modru.csv` ; aucun texte n'est repris |
+| Communiqués de l'état-major ukrainien (aperçu public t.me/s/GeneralStaffZSU) | front : annonces de reprise | pro-ukrainien | mêmes règles (faits seulement) | **utilisé** : `data/claims_gsua.csv` |
+| Cartes du ministère russe de la Défense, Rybar (images) | — | pro-russe | droit d'auteur sur les cartes elles-mêmes | **ni numérisées ni redistribuées** |
+| UAControlMap, cartes de M0nstas, Playfra | — | variable | aucune licence de réutilisation publiée | **cités comme références seulement** |
+| Fortifications | — | — | aucun jeu ouvert trouvé | **pas de couche** |
 | Rybar, Suriyak, « militarymaps », Militaryland, Project Owl (UA Control Map) | — | pro-russes (Rybar, Suriyak, militarymaps) ; autres variables | aucune licence publiée | **écartés** |
 | OpenStreetMap | — | — | ODbL | **sans objet** : OSM ne cartographie pas le front |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/), VIIRS S-NPP : archives 2012-2025, API zone 2026 (traitement standard jusqu'au 30 juin 2026, puis quasi temps réel) | feux | — | données NASA libres, avec mention | **utilisé** |
@@ -81,7 +89,13 @@ Du fait des licences NC (WarSpotting, Ivaniuk), le site et ses données dérivé
 
 - **Définition** : p(x, t) est la probabilité qu'une maille de 2 km (projection azimutale équivalente de Lambert) soit sous contrôle russe à la fin du mois t.
 - **Sources-cartes** : DeepStateMap, ISW, Wikipédia et Wikipédia corrigé, reconstitués à partir des statuts par localité de VIINA, plus deux enveloppes (la plus russe et la plus ukrainienne). Pour chacune, p_s = sigmoïde(d_s / σ_s), avec d_s la distance signée à sa limite et σ_s = (σ0_s + v·âge_s)·(1 + α·h).
-- **Sources ponctuelles** : annonces des médias russes (prises) et ukrainiens (reprises), traitées comme des noyaux gaussiens. Une annonce compte 90 jours, à moins de 20 km du front, et tombe si le camp adverse annonce le contraire.
+- **Sources ponctuelles** :
+  - annonces des médias russes et ukrainiens relevées par VIINA : 90 jours, à moins de 20 km du front ;
+  - annonces officielles du ministère russe de la Défense et de l'état-major ukrainien : persistantes jusqu'à ce que les cartes du même camp les démentent trois mois de suite.
+  - Toutes sont traitées comme des noyaux gaussiens dont la force est calibrée par leur taux de confirmation par les sources tierces.
+- **Présence** : les pertes russes géolocalisées (WarSpotting) prouvent une présence russe. Côté ukrainien de la ligne, elles élargissent σ (γ) sans faire basculer le contrôle. Rien d'équivalent n'est réutilisable côté ukrainien.
+- **Trois états** : contrôle russe (p > 0,9), zone grise (0,1 – 0,9), contrôle ukrainien (p < 0,1). La surface et la largeur moyenne de la zone grise sont publiées par mois et par secteur. Le concept vient de l'analyste OSINT Clément Molin (@clement_molin).
+- **Variantes « sans X »** : elles sont précalculées pour chaque source, et la page permet de retirer une source à la fois du calcul.
 - **Fusion** : pool logarithmique. Chaque camp (ukrainien, russe, tiers) pèse un tiers ; une source absente ne vote pas.
 - **Temps** : β = 0,3 sur l'a priori du mois précédent, diffusé de v = 0,67 km par mois.
 - **Indices de combats** (pertes, feux, UCDP) : ils élargissent σ, sans jamais déplacer la ligne.

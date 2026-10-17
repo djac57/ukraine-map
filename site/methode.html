@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Méthode et sources</title>
+<meta name="description" content="Les feux détectés par satellite au-dessus de l'Ukraine et des régions russes frontalières depuis le 24 février 2022, comparés à la normale d'avant-guerre (NASA FIRMS, VIIRS).">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0d0c'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23f2a33a' stroke-width='1.6' stroke-dasharray='3 2.2'/%3E%3Cpath d='M16 3v6M16 23v6M3 16h6M23 16h6' stroke='%23f2a33a' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='3.2' fill='%23ff5a1f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=cb8fc233db">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><span><a href="index.html" style="color:inherit">← la carte</a> · méthode et sources</span><button class="btn" id="theme" type="button" aria-label="Changer de thème">◐ thème</button></header>
+
+<p class="kicker">Ukraine · front · OSINT · satellite</p>
+<h1>La guerre vue du ciel</h1>
+<p class="dek">Où passe le front ? DeepStateMap, l'Institute for the Study of War et les cartographes de Wikipédia ne tracent pas tout à fait la même ligne. Cette carte superpose leurs versions, mois par mois depuis février 2022, en une probabilité d'occupation et une estimation des kilomètres carrés tenus par la Russie. En couches : les feux qu'un satellite américain détecte en trop par rapport aux années de paix, et les pertes matérielles documentées.</p>
+<p class="src">Sources du front : <a href="https://github.com/zhukovyuri/VIINA">VIINA 2.0</a> (Zhukov et Ayers, licence ODbL), qui relève chaque jour le statut de 33 141 localités selon DeepStateMap, l'ISW et Wikipédia. Feux : détections VIIRS du satellite S-NPP, <a href="https://firms.modaps.eosdis.nasa.gov/">NASA FIRMS</a> (LANCE / ESDIS), archives annuelles 2012-2025, API FIRMS pour 2026 (traitement standard jusqu'au <span class="mono" id="spLast"></span>, puis quasi temps réel) ; fonds de carte <a href="https://www.naturalearthdata.com/">Natural Earth</a>. Dernière détection intégrée : <span class="mono" id="lastDay"></span>. Les dates de contexte proviennent de la presse, liens dans chaque encadré.</p>
+
+<section class="intro" aria-label="Présentation">
+<div class="langs" role="group" aria-label="Langue"><button class="btn" data-lang-btn="fr" type="button" aria-pressed="true">FR</button><button class="btn" data-lang-btn="en" type="button" aria-pressed="false">EN</button><button class="btn" data-lang-btn="uk" type="button" aria-pressed="false">УКР</button><button class="btn" data-lang-btn="ru" type="button" aria-pressed="false">РУС</button></div>
+<div class="i18n" data-lang="fr" lang="fr"><div class="why"><h3>Pourquoi cette carte</h3><p>Il existe beaucoup de cartes du front, et c'est justement le problème : on débat beaucoup, ces derniers temps, de qui tient quoi. La « zone grise » s'élargit, et chaque camp revendique parfois des avancées invraisemblables. Cette page adopte une approche par les données : plutôt qu'une ligne unique, elle donne une probabilité de contrôle, calculée à partir de toutes les sources ouvertes réutilisables, ukrainiennes, russes et tierces, avec un poids égal par camp. Le but n'est pas de situer le front au mètre près, mais de dégager une tendance générale, à peu près juste et chiffrée, pour comprendre les dynamiques. Prochaine étape : déduire qui pousse, et où. Page destinée aux personnes qui suivent le sujet ; données décalées d'au moins 7 jours, résolution mensuelle.</p></div><div class="howto"><h3>Comment lire la carte</h3><ul><li><svg width="34" height="12"><defs><linearGradient id="lgfr"><stop offset="0" stop-color="var(--front)" stop-opacity=".08"/><stop offset="1" stop-color="var(--front)" stop-opacity=".75"/></linearGradient></defs><rect width="34" height="12" fill="url(#lgfr)"/></svg><span>Couleur : probabilité que la Russie contrôle la zone ; plus le rouge est dense, plus c'est probable.</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="2.2"/></svg><span>Trait plein : la ligne la plus probable (50 %).</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="1.2" stroke-dasharray="4 3"/></svg><span>Pointillés : les lignes 10 % et 90 %.</span></li><li><svg width="34" height="12"><defs><pattern id="hpfr" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="rgba(var(--grey-rgb),.35)"/><rect width="1.5" height="1.5" fill="rgba(var(--grey-rgb),.8)"/></pattern></defs><rect width="34" height="12" fill="url(#hpfr)"/></svg><span>Entre les deux : la zone grise, où les sources divergent ou où les deux camps sont présents.</span></li><li><svg width="34" height="12"><line x1="2" y1="6" x2="32" y2="6" stroke="var(--faint)" stroke-width="2"/><circle cx="22" cy="6" r="4" fill="var(--accent)"/></svg><span>Curseur : le mois affiché ; ▶ rejoue l'historique.</span></li><li><svg width="34" height="12"><rect x="0" y="1" width="16" height="10" rx="2" fill="var(--accent)"/><rect x="18" y="1" width="16" height="10" rx="2" fill="none" stroke="var(--faint)"/></svg><span>Sélecteur : vue équilibrée, ukrainienne, russe ou tierce.</span></li><li><svg width="34" height="12"><rect x="11" y="0.5" width="11" height="11" rx="2" fill="var(--accent)"/><path d="M13.5 6l2 2 4-4" stroke="var(--bg)" stroke-width="1.6" fill="none"/></svg><span>Cases : sources prises en compte et calques affichés.</span></li></ul></div></div>
+<div class="i18n" data-lang="en" lang="en" hidden><div class="why"><h3>Why this map</h3><p>There are many front-line maps, and that is precisely the problem: who holds what has been hotly debated lately. The “grey zone” is widening, and each side sometimes claims implausible advances. This page takes a data-driven approach: instead of a single line, it gives a probability of control, computed from every reusable open source, Ukrainian, Russian and third-party, with equal weight per side. The aim is not to locate the front to the metre, but to bring out a broad, roughly accurate and quantified trend, in order to understand the dynamics. Next step: inferring who is pushing, and where. Intended for people who follow the subject; data lagged by at least 7 days, monthly resolution.</p></div><div class="howto"><h3>How to read the map</h3><ul><li><svg width="34" height="12"><defs><linearGradient id="lgen"><stop offset="0" stop-color="var(--front)" stop-opacity=".08"/><stop offset="1" stop-color="var(--front)" stop-opacity=".75"/></linearGradient></defs><rect width="34" height="12" fill="url(#lgen)"/></svg><span>Colour: probability that Russia controls the area; the denser the red, the more likely.</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="2.2"/></svg><span>Solid line: the most likely line (50%).</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="1.2" stroke-dasharray="4 3"/></svg><span>Dashed lines: the 10% and 90% lines.</span></li><li><svg width="34" height="12"><defs><pattern id="hpen" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="rgba(var(--grey-rgb),.35)"/><rect width="1.5" height="1.5" fill="rgba(var(--grey-rgb),.8)"/></pattern></defs><rect width="34" height="12" fill="url(#hpen)"/></svg><span>In between: the grey zone, where sources disagree or both sides are present.</span></li><li><svg width="34" height="12"><line x1="2" y1="6" x2="32" y2="6" stroke="var(--faint)" stroke-width="2"/><circle cx="22" cy="6" r="4" fill="var(--accent)"/></svg><span>Slider: the month shown; ▶ replays the history.</span></li><li><svg width="34" height="12"><rect x="0" y="1" width="16" height="10" rx="2" fill="var(--accent)"/><rect x="18" y="1" width="16" height="10" rx="2" fill="none" stroke="var(--faint)"/></svg><span>Selector: balanced, Ukrainian, Russian or third-party view.</span></li><li><svg width="34" height="12"><rect x="11" y="0.5" width="11" height="11" rx="2" fill="var(--accent)"/><path d="M13.5 6l2 2 4-4" stroke="var(--bg)" stroke-width="1.6" fill="none"/></svg><span>Checkboxes: sources included and layers shown.</span></li></ul></div></div>
+<div class="i18n" data-lang="uk" lang="uk" hidden><div class="why"><h3>Чому ця мапа</h3><p>Мап лінії фронту існує багато, і саме в цьому проблема: останнім часом точаться жваві суперечки про те, хто що контролює. «Сіра зона» розширюється, а кожна сторона часом заявляє про неправдоподібні просування. Ця сторінка спирається на дані: замість однієї лінії вона показує ймовірність контролю, обчислену за всіма відкритими джерелами, які дозволено використовувати повторно, — українськими, російськими та сторонніми — з однаковою вагою для кожної сторони. Мета — не визначити лінію фронту з точністю до метра, а виявити загальну тенденцію, приблизно точну й виражену в цифрах, щоб зрозуміти динаміку. Наступний крок — визначити, хто наступає і де. Сторінка розрахована на тих, хто стежить за темою; дані щонайменше з 7-денною затримкою, щомісячна роздільність.</p></div><div class="howto"><h3>Як читати мапу</h3><ul><li><svg width="34" height="12"><defs><linearGradient id="lguk"><stop offset="0" stop-color="var(--front)" stop-opacity=".08"/><stop offset="1" stop-color="var(--front)" stop-opacity=".75"/></linearGradient></defs><rect width="34" height="12" fill="url(#lguk)"/></svg><span>Колір: імовірність того, що територію контролює Росія; що насиченіший червоний, то вища ймовірність.</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="2.2"/></svg><span>Суцільна лінія: найімовірніша лінія (50 %).</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="1.2" stroke-dasharray="4 3"/></svg><span>Пунктир: лінії 10 % і 90 %.</span></li><li><svg width="34" height="12"><defs><pattern id="hpuk" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="rgba(var(--grey-rgb),.35)"/><rect width="1.5" height="1.5" fill="rgba(var(--grey-rgb),.8)"/></pattern></defs><rect width="34" height="12" fill="url(#hpuk)"/></svg><span>Між ними: сіра зона, де джерела розходяться або присутні обидві сторони.</span></li><li><svg width="34" height="12"><line x1="2" y1="6" x2="32" y2="6" stroke="var(--faint)" stroke-width="2"/><circle cx="22" cy="6" r="4" fill="var(--accent)"/></svg><span>Повзунок: показаний місяць; ▶ відтворює історію.</span></li><li><svg width="34" height="12"><rect x="0" y="1" width="16" height="10" rx="2" fill="var(--accent)"/><rect x="18" y="1" width="16" height="10" rx="2" fill="none" stroke="var(--faint)"/></svg><span>Перемикач: збалансований, український, російський або сторонній погляд.</span></li><li><svg width="34" height="12"><rect x="11" y="0.5" width="11" height="11" rx="2" fill="var(--accent)"/><path d="M13.5 6l2 2 4-4" stroke="var(--bg)" stroke-width="1.6" fill="none"/></svg><span>Прапорці: враховані джерела та показані шари.</span></li></ul></div></div>
+<div class="i18n" data-lang="ru" lang="ru" hidden><div class="why"><h3>Зачем эта карта</h3><p>Карт линии фронта существует много, и именно в этом проблема: в последнее время идут оживлённые споры о том, кто что контролирует. «Серая зона» расширяется, а каждая сторона порой заявляет о неправдоподобных продвижениях. Эта страница опирается на данные: вместо одной линии она показывает вероятность контроля, рассчитанную по всем открытым источникам, допускающим повторное использование, — украинским, российским и сторонним — с равным весом для каждой стороны. Цель — не определить линию фронта с точностью до метра, а выявить общую тенденцию, приблизительно верную и выраженную в цифрах, чтобы понять динамику. Следующий шаг — определить, кто наступает и где. Страница рассчитана на тех, кто следит за темой; данные публикуются с задержкой не менее 7 дней, помесячно.</p></div><div class="howto"><h3>Как читать карту</h3><ul><li><svg width="34" height="12"><defs><linearGradient id="lgru"><stop offset="0" stop-color="var(--front)" stop-opacity=".08"/><stop offset="1" stop-color="var(--front)" stop-opacity=".75"/></linearGradient></defs><rect width="34" height="12" fill="url(#lgru)"/></svg><span>Цвет: вероятность того, что территорию контролирует Россия; чем насыщеннее красный, тем выше вероятность.</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="2.2"/></svg><span>Сплошная линия: наиболее вероятная линия (50 %).</span></li><li><svg width="34" height="12"><line x1="0" y1="6" x2="34" y2="6" stroke="var(--front)" stroke-width="1.2" stroke-dasharray="4 3"/></svg><span>Пунктир: линии 10 % и 90 %.</span></li><li><svg width="34" height="12"><defs><pattern id="hpru" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="rgba(var(--grey-rgb),.35)"/><rect width="1.5" height="1.5" fill="rgba(var(--grey-rgb),.8)"/></pattern></defs><rect width="34" height="12" fill="url(#hpru)"/></svg><span>Между ними: серая зона, где источники расходятся или присутствуют обе стороны.</span></li><li><svg width="34" height="12"><line x1="2" y1="6" x2="32" y2="6" stroke="var(--faint)" stroke-width="2"/><circle cx="22" cy="6" r="4" fill="var(--accent)"/></svg><span>Ползунок: показанный месяц; ▶ воспроизводит историю.</span></li><li><svg width="34" height="12"><rect x="0" y="1" width="16" height="10" rx="2" fill="var(--accent)"/><rect x="18" y="1" width="16" height="10" rx="2" fill="none" stroke="var(--faint)"/></svg><span>Переключатель: сбалансированный, украинский, российский или сторонний взгляд.</span></li><li><svg width="34" height="12"><rect x="11" y="0.5" width="11" height="11" rx="2" fill="var(--accent)"/><path d="M13.5 6l2 2 4-4" stroke="var(--bg)" stroke-width="1.6" fill="none"/></svg><span>Флажки: учтённые источники и показанные слои.</span></li></ul></div></div>
+</section>
+<div class="stats" id="stats"></div>
+
+<h2>Où est le front ?</h2>
+<p class="sub">Plus le rouge est dense, plus les sources s'accordent à dire que la Russie tient le terrain. Trait plein : la ligne médiane, où la moitié des sources basculent. Tirets fins : les lignes 10 % et 90 %, qui bornent la bande de désaccord. Survoler la carte pour voir ce que dit chaque source. Molette, pincement ou boutons pour zoomer.</p>
+<div class="mapbox">
+  <canvas id="map" aria-label="Carte de la probabilité d'occupation russe en Ukraine, avec feux en excès et pertes documentées en couches"></canvas>
+  <div class="tip" id="tip"></div>
+  <div class="month-big"><b id="mLabel"></b><span id="mSub"></span></div>
+  <div class="zoom"><button class="btn" id="zin" type="button" aria-label="Zoomer">+</button><button class="btn" id="zout" type="button" aria-label="Dézoomer">−</button><button class="btn" id="zreset" type="button" aria-label="Recadrer">⌂</button></div>
+</div>
+<div class="controls">
+  <button class="btn" id="play" type="button" style="min-width:86px">▶ lecture</button>
+  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Mois">
+</div>
+<details class="panel" id="panel" open>
+<summary>Couches et sources</summary>
+<div class="pgrid">
+  <fieldset><legend>Résultat</legend>
+    <label class="chk"><input type="checkbox" id="lyrFront" checked> densité p(occupé)</label>
+    <label class="chk"><input type="checkbox" id="lyrStates"> 3 états (russe · zone grise · ukrainien)</label>
+    <label class="chk"><input type="checkbox" id="lyrLines" checked> lignes 10 / 50 / 90 %</label>
+    <div class="seg" role="group" aria-label="Vue"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true">tous (équilibré)</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">vue ukr.</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">vue russe</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false">tiers</button></div>
+  </fieldset>
+  <fieldset><legend>Sources du modèle <span class="hint">(décocher = retirer du calcul)</span></legend>
+    <label class="chk"><input type="checkbox" data-var="sans_dsm" checked> DeepStateMap <i class="camp ua">ukr.</i></label>
+    <label class="chk"><input type="checkbox" data-var="sans_gsua" checked> annonces état-major ukr. <i class="camp ua">ukr.</i></label>
+    <label class="chk"><input type="checkbox" data-var="sans_isw" checked> ISW <i class="camp ti">tiers</i></label>
+    <label class="chk"><input type="checkbox" data-var="sans_wiki" checked> Wikipédia <i class="camp ti">tiers</i></label>
+    <label class="chk"><input type="checkbox" data-var="sans_modru" checked> annonces MoD RF <i class="camp ru">russe</i></label>
+    <label class="chk"><input type="checkbox" data-var="sans_medias" checked> annonces des médias <i class="camp">ukr. + russe</i></label>
+    <label class="chk"><input type="checkbox" data-var="sans_enveloppes" checked> enveloppes des cartes <i class="camp">ukr. + russe</i></label>
+    <label class="chk"><input type="checkbox" data-var="sans_presence" checked> présence documentée (pertes)</label>
+    <label class="chk"><input type="checkbox" data-var="sans_indices" checked> indices de combats (feux, UCDP)</label>
+    <p class="hint" id="varNote">Une source à la fois : les variantes « sans X » sont précalculées.</p>
+  </fieldset>
+  <fieldset><legend>Calques bruts</legend>
+    <label class="chk"><input type="checkbox" data-raw="dsm"> tracé DeepStateMap</label>
+    <label class="chk"><input type="checkbox" data-raw="isw"> tracé ISW</label>
+    <label class="chk"><input type="checkbox" data-raw="wiki"> tracé Wikipédia</label>
+    <label class="chk"><input type="checkbox" data-raw="modru"> annonces MoD RF</label>
+    <label class="chk"><input type="checkbox" data-raw="gsua"> annonces état-major ukr.</label>
+  </fieldset>
+  <fieldset><legend>Contexte</legend>
+    <label class="chk"><input type="checkbox" id="lyrFire"> feux anormaux</label>
+    <label class="chk"><input type="checkbox" id="lyrLoss"> pertes documentées</label>
+    <label class="chk"><input type="checkbox" id="lyrUcdp"> combats (UCDP)</label>
+    <label class="chk"><input type="checkbox" id="lyrArcs"> missiles et drones</label>
+    <label class="chk"><input type="checkbox" id="lyrBase" checked> fond : routes / localités</label>
+    <div class="controls" id="fireOpts" hidden style="margin:4px 0 0">
+      <span class="seg" role="group" aria-label="Représentation des feux"><button class="btn" id="modePts" type="button" aria-pressed="true">points</button><button class="btn" id="modeDen" type="button" aria-pressed="false">densité</button></span>
+      <button class="btn" id="ref" type="button" aria-pressed="false">même mois 2021</button>
+    </div>
+  </fieldset>
+</div>
+<p class="src" style="margin:6px 0 0">Chaque camp pèse un tiers, quel que soit son nombre de sources. <strong>Ce qui reste asymétrique</strong> : aucune carte pro-russe n'a de licence réutilisable ; le camp russe repose sur les annonces du ministère russe de la Défense, celles des médias russes et l'enveloppe la plus russe des cartes existantes, et la présence documentée (pertes géolocalisées) n'existe que pour l'armée russe. Voir la méthode.</p>
+</details>
+<div class="areabox" id="areaBox"></div>
+<div class="readout" id="readout"></div>
+<div class="legend" id="legend"></div>
+<p class="note" id="note"></p>
+<div class="osint" id="osint"></div>
+<p class="src" style="margin-top:10px">Règle de prudence : aucune donnée plus récente que le dernier mois complet terminé depuis au moins 7 jours (<span class="mono" id="cutoff"></span>) ; pertes géolocalisées regroupées en mailles de 7 × 11 km par mois, sans unité ni modèle. Front : instantané de fin de mois, au plus tard au <span class="mono" id="frontLimit"></span>, issu de cartes publiques déjà diffusées ; aucun suivi d'unité.</p>
+
+<h2>Surface occupée</h2>
+<p class="sub">Espérance (somme des probabilités × surface, trait plein), surface sous la ligne médiane (tirets) et fourchette entre les sources (bande). La Crimée et les zones du Donbass occupées avant 2022 peuvent être retirées pour ne garder que les conquêtes depuis le 24 février 2022.</p>
+<div class="controls"><span class="seg" role="group" aria-label="Périmètre">
+  <button class="btn" data-perim="tout" type="button" aria-pressed="true">tout</button><button class="btn" data-perim="horsCrimee" type="button" aria-pressed="false">hors Crimée</button><button class="btn" data-perim="depuis2022" type="button" aria-pressed="false">depuis le 24 février 2022</button>
+</span></div>
+<div class="chart" id="areaChart"></div>
+<p class="legend"><span><i style="background:var(--front);height:3px;border-radius:0;vertical-align:3px"></i>espérance, vue choisie</span><span><i style="border-top:1.5px dashed var(--ink);height:0;border-radius:0;vertical-align:3px"></i>sous la ligne médiane</span><span><i style="background:var(--front);opacity:.3;border-radius:0"></i>fourchette des sources de la vue</span><span><i style="border-top:1.5px dotted var(--ink);height:0;border-radius:0;vertical-align:3px"></i>vue russe</span><span><i style="border-top:1.5px dotted var(--cool);height:0;border-radius:0;vertical-align:3px"></i>vue ukrainienne</span></p>
+<h2>Le désaccord</h2>
+<p class="sub">Surface où la vue russe et la vue ukrainienne s'écartent nettement (|p<sub>russe</sub> − p<sub>ukrainienne</sub>| > 0,5, trait plein), et somme des écarts de probabilité × surface (tirets), qui compte aussi les désaccords plus ténus. C'est un ordre de grandeur, pas une mesure : la vue russe repose sur un proxy (voir la méthode).</p>
+<div class="chart" id="disChart"></div>
+
+<h2>La zone grise</h2>
+<p class="sub">Le front n'est pas une ligne. Entre le contrôle russe établi (p > 0,9) et le contrôle ukrainien établi (p < 0,1) s'étend une bande où les sources divergent : infiltrations, positions avancées, terrain disputé. Surface de cette zone grise (trait plein) et largeur moyenne le long du front (tirets, échelle de droite), puis par secteur pour le mois affiché.</p>
+<div class="chart" id="greyChart"></div>
+<div class="tablewrap"><table class="oryx" id="greyTab"></table></div>
+
+<section class="method" id="methode">
+<h2>Méthode : la carte des probabilités</h2>
+<p>La carte estime, pour chaque maille de 2 km (projection azimutale équivalente de Lambert, la même que la carte) et pour chaque fin de mois, <strong>p(x, t) = probabilité que la maille soit sous contrôle russe</strong>. Aucune source n'est tenue pour vraie : chacune est une observation bruitée, et leur désaccord devient de l'incertitude.</p>
+<h3>1. Chaque source, une observation bruitée</h3>
+<p><strong>Sources-cartes.</strong> VIINA relève chaque jour le statut de 33 141 localités selon DeepStateMap, l'ISW, Wikipédia et Wikipédia corrigé par ses dépêches. En étendant chaque localité à son pavage (la zone plus proche d'elle que de toute autre), on reconstitue la zone que chaque source tient pour russe. On calcule la distance signée d<sub>s</sub>(x) à la limite de cette zone, positive côté russe, puis p<sub>s</sub>(x) = sigmoïde(d<sub>s</sub>(x) / σ<sub>s</sub>). L'imprécision σ<sub>s</sub> = σ0<sub>s</sub> + v · âge<sub>s</sub> grandit quand une source n'a pas changé d'un mois sur l'autre : son instantané est probablement en retard.</p>
+<p><strong>Sources ponctuelles.</strong> Les annonces de prise relayées par les médias russes et les annonces de reprise relayées par les médias ukrainiens (relevées par VIINA) sont des noyaux gaussiens centrés sur la localité, de rayon égal à sa taille et valant p = 0,85 au centre. Elles comptent 90 jours, seulement à moins de 20 km d'une zone tenue ou contestée selon au moins une carte, et tombent si le camp adverse annonce ensuite le contraire.</p>
+<p><strong>Enveloppes.</strong> Faute de carte pro-russe réutilisable, le camp russe reçoit aussi « l'enveloppe la plus russe » : en chaque localité, le statut le plus russe parmi les cartes disponibles. Le camp ukrainien reçoit, symétriquement, « l'enveloppe la plus ukrainienne ». Ces deux proxys ne sont pas des sources indépendantes ; leur σ0 est fixé à 1,5 fois le pire σ0 calibré.</p>
+<p><strong>Annonces officielles.</strong> Les communiqués quotidiens du ministère russe de la Défense (« localité X libérée ») et ceux de l'état-major ukrainien (« localité X reprise ») sont réduits à des faits : une date, une localité, des coordonnées, une source. Aucun texte n'est repris. En droit russe, l'article 1259, paragraphe 6, du Code civil exclut du droit d'auteur les documents officiels des organes de l'État et les simples informations sur des événements et des faits. Les noms sont géocodés sur GeoNames : formes russes et ukrainiennes ramenées à un radical commun, recherche limitée aux oblasts du front et à l'oblast cité. Une mention ambiguë (plusieurs homonymes près du front) est rejetée : <span id="pClaimStats"></span>. Une annonce officielle reste active à partir de sa date, comme un noyau autour de la localité, jusqu'à ce que les cartes du même camp la démentent trois mois de suite. Sa force est calibrée : c'est la part des localités annoncées que les sources tierces classent effectivement dans le camp annonceur le mois suivant (<span id="pClaimRel"></span>).</p>
+<p><strong>Présence et combats.</strong> Une perte russe documentée par photo ou vidéo (WarSpotting) prouve une présence russe à cet endroit ce mois-là, pas un contrôle. Côté ukrainien de la ligne, elle élargit l'incertitude (σ × (1 + γ·présence)) sans faire basculer la maille. Les feux en excès et les combats UCDP élargissent l'incertitude partout où ils se concentrent. Aucune source réutilisable ne documente la présence ukrainienne de la même façon : c'est une asymétrie.</p>
+<h3>2. Fusion : pool logarithmique, un tiers par camp</h3>
+<p>logit p(x) = Σ<sub>s</sub> w<sub>s</sub> · logit p<sub>s</sub>(x). Chaque camp (ukrainien, russe, tiers) pèse un tiers ; à l'intérieur d'un camp, le poids est partagé entre ses sources. Une source absente à cette date, ou qui ne couvre pas la maille, ne vote pas : son poids passe aux autres. Les vues « ukrainienne », « russe » et « tiers » refont le même calcul avec un seul camp.</p>
+<div class="tablewrap"><table class="oryx" id="srcTab"></table></div>
+<h3>Trois états plutôt qu'une ligne</h3>
+<p>Le front n'est pas une ligne. Comme le souligne l'analyste OSINT français Clément Molin (@clement_molin), entre la limite du contrôle ukrainien et celle du contrôle russe s'étend une zone grise : de 5 à 20 km de terrain, selon lui, où se mêlent contrôle diffus et affrontements, et non un no man's land. Une grosse part de l'écart entre cartes russes et ukrainiennes tient à la définition : les sources pro-russes placent souvent l'avancée au point d'infiltration le plus profond, les sources pro-ukrainiennes au contrôle consolidé. La carte distingue donc trois états :</p>
+<ul>
+<li><strong>contrôle russe</strong> : p > 0,9 ;</li>
+<li><strong>zone grise</strong> : p entre 0,1 et 0,9 ;</li>
+<li><strong>contrôle ukrainien</strong> : p < 0,1.</li>
+</ul>
+<p>La surface de la zone grise et sa largeur moyenne (surface rapportée à la longueur de la ligne médiane) sont publiées mois par mois et par secteur. Ici, la zone grise mesure le désaccord et l'imprécision des sources, pas seulement le terrain physiquement disputé : elle est plus large que la zone grise de terrain décrite par les analystes. Molin s'appuie surtout sur des dizaines de milliers de vidéos géolocalisées par des volontaires et sur l'imagerie satellite. Faute de licence, aucune de ces bases n'entre ici dans le calcul.</p>
+<h3>3. Indices de combats : plus d'incertitude, jamais un déplacement de ligne</h3>
+<p>Les pertes géolocalisées (WarSpotting), les feux en excès (FIRMS) et les combats recensés par l'UCDP disent qu'on se bat là, pas qui tient le terrain. Ils ne servent qu'à élargir l'incertitude : σ<sub>s</sub>(x) × (1 + α·h(x)), où h = 1 − exp(−densité / h0) est la densité d'indices du mois, lissée sur environ 6 km (α = <span class="mono" id="pAlpha"></span>, h0 = <span class="mono" id="pH0"></span>). Ce réglage se désactive (option <span class="mono">--sans-indices</span>) ; son effet figure dans le test de sensibilité.</p>
+<h3>4. Le temps : un contrôle persistant</h3>
+<p>D'un mois à l'autre, l'a priori est le champ du mois précédent, diffusé de v · 1 mois. Il entre pour β = <span class="mono" id="pBeta"></span> dans le logit, les observations du mois pour le reste. La vitesse typique du front, <strong>v = <span id="pV"></span> km/mois</strong>, est la médiane, depuis juin 2022, de la surface qui change de camp divisée par la longueur du front. Le filtre évite les sauts dus à une source ponctuellement en retard.</p>
+<h3>5. Calibration par validation croisée</h3>
+<p>On prédit tour à tour la carte de DeepStateMap, de l'ISW et de Wikipédia à partir des autres (sur <span id="pCalN"></span> mois répartis sur toute la période). L'écart moyen entre la limite de la source retirée et la ligne médiane des autres donne σ0 = écart / (2 ln 2), l'écart absolu moyen d'une loi logistique d'échelle σ0. Une première version était trop prudente : la pente de logit(observé) contre logit(prédit) valait <span id="pSlope"></span>. Les σ0 ont donc été divisés par cette pente. Le diagramme ci-dessous montre le résultat après ce recalage : il compare la probabilité prédite et la part de mailles que la source retirée classe russe, et un modèle bien calibré suit la diagonale. Le recalage et la vérification portent sur les mêmes mois : c'est une vérification interne, pas un test hors échantillon.</p>
+<div class="grid"><div class="chart" id="calibChart"></div><div class="lic" id="calibNote"></div></div>
+<h3>6. Incertitude sur les km²</h3>
+<p>L'espérance est Σ p × surface. L'intervalle à 90 % vient de <span id="pMC"></span> tirages Monte Carlo par mois. Dans chacun, chaque ligne de source est décalée d'une erreur N(0, σ<sub>s</sub>) tirée par blocs de 50 km (les erreurs sont corrélées localement, pas sur tout le front), et les sources sont rééchantillonnées avec remise à l'intérieur de chaque camp.</p>
+<h3>7. Choix arbitraires et sensibilité</h3>
+<p>Sont des choix, pas des mesures :</p>
+<ul>
+<li>un tiers par camp ;</li>
+<li>les poids internes (indiqués dans le tableau ci-dessus) ;</li>
+<li>les enveloppes et leur σ0 ;</li>
+<li>la force (p = 0,85), la durée (90 jours) et la portée (20 km) des annonces ;</li>
+<li>α, h0 et β ;</li>
+<li>la grille de 2 km et le pavage des localités ;</li>
+<li>contesté = 0 km de la ligne.</li>
+</ul>
+<p>Le tableau suivant refait les 12 derniers mois avec d'autres choix et donne la surface du dernier mois.</p>
+<div class="tablewrap"><table class="oryx" id="sensTab"></table></div>
+<h3>Limites</h3>
+<ul>
+<li><strong>Cartes du ministère russe et de Rybar.</strong> Ce sont des images protégées par le droit d'auteur : elles ne sont ni numérisées ni redistribuées. Seules les annonces du ministère, réduites à des faits, entrent dans le calcul.</li>
+<li><strong>Pas de carte russe.</strong> La vue russe est une approximation par le haut des cartes existantes, complétée de quelques centaines d'annonces des médias russes, presque toutes avant 2025. Le pluralisme est donc limité du côté russe.</li>
+<li><strong>Des sources qui se recopient.</strong> Les cartes s'observent entre elles, et Wikipédia s'inspire de DeepStateMap comme de l'ISW. Leur accord exagère sans doute la certitude réelle.</li>
+<li><strong>Couverture.</strong> Seul le territoire ukrainien est couvert : l'incursion de Koursk n'y figure pas. DeepStateMap n'apparaît dans VIINA qu'à partir d'avril 2022 ; l'ISW s'y arrête en juin 2026.</li>
+<li><strong>Prudence.</strong> Instantanés de fin de mois, jamais plus récents que J-7, sans aucune information sur des unités.</li>
+</ul>
+</section>
+
+<h2>Normale et excès, mois par mois</h2>
+<p class="sub">Toutes les détections de la zone (gris), normale 2012-2021 du même mois (tirets) et part jugée en excès (orange). L'essentiel des feux reste agricole et saisonnier : l'excès est une fraction, concentrée près du front. Cliquer sur un mois pour l'afficher sur la carte.</p>
+<div class="chart" id="chart"></div>
+
+<div class="grid">
+  <div>
+    <h2>Par région</h2>
+    <p class="sub">Détections au-dessus de la normale, cumulées jusqu'au mois affiché. <span style="color:var(--accent)">■</span> Ukraine <span style="color:var(--cool)">■</span> Russie.</p>
+    <div class="rank" id="rank"></div>
+  </div>
+  <div>
+    <h2>Année par année</h2>
+    <p class="sub">Détections annuelles de la zone (végétation, sources fixes exclues). Les années de forte sécheresse ou de brûlage agricole intense dépassent les années de guerre : le volume seul ne dit rien, seule la comparaison locale compte.</p>
+    <div class="chart" id="yearly"></div>
+  </div>
+</div>
+
+<h2>Le ciel ukrainien</h2>
+<p class="sub">Missiles et drones lancés contre l'Ukraine chaque mois, d'après les communiqués de l'armée de l'air ukrainienne compilés par Petro Ivaniuk. La part plus claire a été annoncée abattue ; les drones « perdus » par brouillage n'y figurent pas toujours. Série à partir de fin septembre 2022.</p>
+<div class="grid">
+  <div><h3 class="mono" style="font-size:12px;color:var(--faint);font-weight:400;margin:0 0 4px">DRONES</h3><div class="chart" id="drones"></div></div>
+  <div><h3 class="mono" style="font-size:12px;color:var(--faint);font-weight:400;margin:0 0 4px">MISSILES</h3><div class="chart" id="missiles"></div></div>
+</div>
+
+<h2>Pertes matérielles documentées (cumul)</h2>
+<p class="sub">Équipements dont la perte est prouvée par une photo ou une vidéo, d'après Oryx (via le jeu de données de D. Scarnecchia). Un minimum, pas un bilan : les pertes non filmées manquent, et les zones tenues par la Russie sont moins documentées. Série figée au <span class="mono" id="oryxDay"></span>, dernier relevé disponible. Le tableau reprend les totaux d'Oryx par type ; le panneau sous la carte compte les entrées par date de relevé (une par preuve, munitions et drones compris), d'où un cumul plus élevé.</p>
+<div class="tablewrap"><table class="oryx" id="oryxTab"></table></div>
+
+<h2>Repères</h2>
+<p class="sub">Quelques épisodes datés, et ce que la méthode en voit — ou n'en voit pas.</p>
+<div class="ctxs" id="ctxs"></div>
+
+<section class="method">
+<h2>Méthode et limites</h2>
+<h3>Ce qui est compté</h3>
+<p>Le capteur VIIRS du satellite S-NPP survole la région deux fois par jour et signale chaque pixel d'environ 375 m nettement plus chaud que son voisinage. On garde les détections classées « feu de végétation présumé » dans les archives NASA de l'Ukraine et de la Russie, sur un cadre allant de 44° à 53,6° N et de 22° à 41,5° E. Les <span class="mono" id="nFixed"></span> sites de moins d'un kilomètre où la NASA signale au moins trois fois une source fixe (torchères, aciéries) sont écartés, y compris du flux temps réel.</p>
+<h3>Ce qui est « en excès »</h3>
+<p>La zone est découpée en mailles de 0,1° (environ 7 × 11 km). Pour chaque maille et chaque mois calendaire, on calcule la moyenne et l'écart-type des détections sur 2012-2021. Un mois de guerre est retenu comme anormal si <strong>la maille compte au moins 3 détections, dépasse sa normale de plus de 4 écarts-types</strong> (écart-type plancher : 1) <strong>et si au moins 3 des 8 mailles voisines sont aussi anormales le même mois</strong>. Ce dernier filtre écarte les brûlages agricoles isolés : les feux de combat forment des grappes le long du front. Le chiffre affiché est la différence entre le compte et la normale, sommée sur les mailles retenues.</p>
+<h3>Ce que montre la validation</h3>
+<p>Appliquée aux années de paix (chaque année testée contre une normale qui l'exclut), la règle classe en excès <span class="mono" id="calib"></span> des détections. 2020 ressort par de vrais grands incendies (zone de Tchernobyl en avril, Louhansk à l'automne) : la méthode repère les feux anormaux, pas leur cause. Sur la guerre, elle retrouve nettement l'incursion de Koursk en 2024 et la bataille de Pokrovsk en 2025, et ne signale rien autour de Lviv ou de Vinnytsia. Elle <strong>ne détecte pas</strong> la contre-offensive de Kherson à l'automne 2022 ni la bataille de Bakhmout de l'hiver 2022-2023 : la région de Kherson brûlait beaucoup avant la guerre (brûlages agricoles), et l'hiver nuageux, les petits feux et un sol déjà dévasté échappent au capteur.</p>
+<h3>Sources OSINT et licences</h3>
+<div class="tablewrap"><table class="lic">
+<tr><td>Front (utilisé)</td><td><a href="https://github.com/zhukovyuri/VIINA">VIINA 2.0</a>, Zhukov et Ayers, <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a> : statuts quotidiens par localité, dérivés de DeepStateMap, de l'ISW et de Wikipédia. La page n'en publie qu'un agrégat (grille de probabilité, surfaces), redistribué sous la même licence ; aucun polygone source n'est reproduit.</td></tr>
+<tr><td>Camps</td><td>Pro-ukrainien : DeepStateMap ; annonces de l'état-major et des médias ukrainiens. Tiers : ISW (américain), Wikipédia (participatif). Pro-russe : cartes du ministère russe de la Défense, Rybar, Suriyak, « militarymaps » — aucune n'offre de géodonnées sous licence réutilisable ni d'historique exploitable ; seules les annonces de médias russes relevées par VIINA (ODbL) entrent dans le calcul.</td></tr>
+<tr><td>Annonces MoD RF</td><td>Communiqués du ministère russe de la Défense (aperçu public de sa chaîne Telegram), 2022 → J-7. Seuls les faits sont extraits : date, localité, coordonnées GeoNames (CC BY 4.0), source (Code civil russe, article 1259 §6). Camp russe. Fichier <span class="mono">data/claims_modru.csv</span>.</td></tr>
+<tr><td>Annonces état-major ukr.</td><td>Communiqués de l'état-major ukrainien (aperçu public de sa chaîne Telegram), mêmes règles. Camp ukrainien. Fichier <span class="mono">data/claims_gsua.csv</span>.</td></tr>
+<tr><td>Présence (pertes)</td><td>WarSpotting : pertes russes géolocalisées, usage non commercial avec crédit. Indice de présence russe, pas de contrôle. Aucune source équivalente réutilisable côté ukrainien (Lostarmour sans licence).</td></tr>
+<tr><td>Références seulement</td><td>UAControlMap (vidéos géolocalisées, tracés), cartes de M0nstas, Playfra, GeoConfirmed, Rybar, cartes du MoD russe : aucune licence de réutilisation publiée, donc cités sans être intégrés. Aucun jeu ouvert de fortifications n'a été trouvé : pas de couche de fortifications.</td></tr>
+<tr><td>Front (écartés)</td><td>Polygones bruts de <a href="https://deepstatemap.live/license-en.html">DeepStateMap</a> (API soumise à accord préalable, redistribution interdite) et ses archives GitHub tierces (mêmes données, licence tierce sans valeur) ; cartes ISW/CTP (pas de licence de réutilisation publiée) ; Project Owl, Suriyak, Militaryland (pas de licence) ; OpenStreetMap ne cartographie pas le front ; le ministère russe de la Défense ne publie pas de données géographiques.</td></tr>
+<tr><td>Pertes géolocalisées</td><td><a href="https://ukr.warspotting.net/">WarSpotting</a>, API publique. Réutilisation autorisée pour un usage non lucratif avec crédit (<a href="https://ukr.warspotting.net/about/">FAQ et conditions</a>), limite de 10 requêtes par 10 secondes respectée. Ne recense que les pertes russes.</td></tr>
+<tr><td>Pertes par type</td><td><a href="https://www.oryxspioenkop.com/2022/02/attack-on-europe-documenting-equipment.html">Oryx</a>, chiffres agrégés uniquement, via <a href="https://github.com/scarnecchia/oryx_data">scarnecchia/oryx_data</a> (CC BY 4.0). Mis à jour pour la dernière fois le 21 août 2025.</td></tr>
+<tr><td>Missiles et drones</td><td><a href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine">Massive missile attacks on Ukraine</a>, Petro Ivaniuk, d'après l'armée de l'air ukrainienne. Licence CC BY-NC-SA 4.0 : les agrégats mensuels de cette page sont redistribués sous la même licence.</td></tr>
+<tr><td>Ligne de front</td><td>Non affichée. <a href="https://deepstatemap.live/license-en.html">DeepStateMap</a> réserve ses données et son API (accord préalable) ; les cartes de l'ISW et les archives Project Owl ne publient pas de licence de réutilisation.</td></tr>
+<tr><td>Bombes planantes</td><td>Non affichées : seuls des chiffres mensuels épars existent dans la presse (le ministère ukrainien de la Défense en annonçait près de 44 000 de janvier à novembre 2025, <a href="https://unn.ua/en/news/in-the-11-months-of-2025-russia-dropped-almost-44000-kabs-on-ukraine">UNN</a>), pas une série complète.</td></tr>
+<tr><td>Combats</td><td><a href="https://ucdp.uu.se/downloads/">UCDP GED 26.1 et versions « candidate » mensuelles</a> (université d'Uppsala, CC BY 4.0) : événements de violence organisée géocodés, précision de 25 km ou mieux, jusqu'à août 2026. Affichés par maille de 0,1° ; ils servent aussi d'indice de proximité du front.</td></tr>
+<tr><td>Pertes (écartées)</td><td><a href="https://lostarmour.info/">Lostarmour</a> (pertes ukrainiennes, pro-russe) : aucune licence ni condition de réutilisation publiée, donc écarté. <a href="https://geoconfirmed.org/">GeoConfirmed</a> : son API exige désormais un compte avec un rôle par conflit, et le site ne publie pas de licence. Le point de vue russe sur les pertes manque donc à la carte.</td></tr>
+<tr><td>Missiles : point de vue russe</td><td>Les communiqués du ministère russe de la Défense (drones ukrainiens annoncés abattus) n'existent pas sous forme de jeu de données ouvert et daté : non intégrés.</td></tr>
+<tr><td>ACLED</td><td>Non utilisé. Le contrat autorise la publication d'agrégats transformés pour un usage non commercial, mais l'accès passe par un compte et l'acceptation de conditions : il faut que l'utilisateur crée lui-même ce compte.</td></tr>
+</table></div>
+<h3>Limites</h3>
+<ul>
+<li><strong>Un excès n'est pas un bombardement.</strong> Un feu né d'un obus, une forêt minée que personne n'éteint, des champs abandonnés qui brûlent à la fin d'un été sec : tout compte pareil. 2024, année record d'incendies selon le Centre commun de recherche européen, gonfle fortement l'excès de septembre.</li>
+<li><strong>Le front assèche aussi la normale.</strong> Là où l'agriculture s'est arrêtée, les brûlages disparaissent : quelques feux de guerre peuvent alors rester sous le niveau d'avant. L'excès est donc un minimum.</li>
+<li><strong>Nuages et hiver.</strong> Le satellite ne voit pas à travers les nuages ; les mois d'hiver sont sous-représentés.</li>
+<li><strong>La normale contient déjà une guerre.</strong> Les combats du Donbass de 2014-2015 font partie de la période 2012-2021, ce qui relève la normale autour de Donetsk et Louhansk.</li>
+<li><strong>2026, données provisoires.</strong> L'archive annuelle 2026 n'est pas publiée : l'année vient de l'API FIRMS, en traitement standard jusqu'à fin juin, puis en quasi temps réel à partir du <span class="mono" id="nrtStart"></span>. Ce dernier n'indique pas le type de source ; les sites industriels connus sont écartés, mais les chiffres peuvent légèrement changer à la publication de l'archive. Le satellite S-NPP n'a rien transmis pendant <span class="mono" id="gapN"></span> jours en 2026, dont tout le mois de mai : mai est laissé vide, et la normale des mois incomplets est ramenée au nombre de jours observés. Les autres satellites VIIRS (NOAA-20, NOAA-21) ne servent pas de bouche-trou : leur normale d'avant-guerre n'existe pas sur la même période.</li>
+<li><strong>Périmètre.</strong> Seules les archives Ukraine et Russie sont lues : le Bélarus, en bordure nord, n'est pas couvert. Les détections en mer d'Azov ou en mer Noire (plates-formes, navires) ne sont pas filtrées spécifiquement.</li>
+</ul>
+</section>
+
+<footer>
+<p><strong>Crédits et licences.</strong></p>
+<p>Front : « Contains information from VIINA, which is made available here under the Open Database License (ODbL). » Zhukov, Yuri and Natalie Ayers (2023), VIINA 2.0, Harvard University, <a href="https://github.com/zhukovyuri/VIINA">github.com/zhukovyuri/VIINA</a>, consulté en octobre 2026. DeepStateMap, ISW et Wikipédia n'interviennent que par leur statut par localité, relevé par VIINA ; aucun de leurs polygones n'est reproduit. La grille de probabilité et les surfaces dérivées (front*.js, data/front_*.csv) sont proposées sous <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a> (attribution, partage à l'identique).</p>
+<p>Feux : NASA FIRMS, VIIRS S-NPP 375 m. « We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS), part of NASA's Earth Science Data and Information System (ESDIS). »</p>
+<p>Pertes russes géolocalisées : <a href="https://ukr.warspotting.net/">WarSpotting</a>, réutilisation non commerciale avec crédit. Compteurs de pertes : <a href="https://www.oryxspioenkop.com/">Oryx</a>, via <a href="https://github.com/scarnecchia/oryx_data">scarnecchia/oryx_data</a> (CC BY 4.0).</p>
+<p>Missiles et drones : « Massive missile attacks on Ukraine », Petro Ivaniuk (<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>), d'après l'armée de l'air ukrainienne. Les agrégats mensuels et les arcs dérivés de ce jeu (osint.js) restent sous CC BY-NC-SA 4.0.</p>
+<p>Combats : UCDP Georeferenced Event Dataset (Sundberg et Melander 2013 ; Davies et al. 2025), université d'Uppsala, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</p>
+<p>Fond de carte : Natural Earth (domaine public) ; routes © contributeurs <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> (ODbL) ; localités <a href="https://www.geonames.org/">GeoNames</a> (CC BY 4.0). Code et méthode indépendants, inspirés du suivi des feux de guerre de The Economist (2023). Généré le <span id="gen"></span>.</p>
+</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="geo.js?v=f4660667fd"></script>
+<script src="data.js?v=adb36d30d0"></script>
+<script src="front_equilibre.js?v=0b3e866b89"></script>
+<script src="front.js?v=2f99a362d2"></script>
+<script src="osint.js?v=3ab1cfd5c9"></script>
+<script src="app.js?v=3155488e0b"></script>
+</body>
+</html>
