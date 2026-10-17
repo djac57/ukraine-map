@@ -788,21 +788,26 @@ class Model:
         r = max(1.0, v_km * P["v_scale"] / CELL_KM)
         act = [k for u, k in enumerate(self.U) if abs(prev[k]) < lmax - 0.5 or abs(obs[u]) < lmax - 0.5]
         if not act:
-            return [(1 - P["beta"]) * obs[u] + P["beta"] * prev[k] for u, k in enumerate(self.U)]
+            return [obs[u] if self.maskBand[k] else (1 - P["beta"]) * obs[u] + P["beta"] * prev[k] for u, k in enumerate(self.U)]
         m = int(3 * r) + 3
         js = [k // NX for k in act]
         is_ = [k % NX for k in act]
         win = (max(0, min(js) - m), min(NY, max(js) + m + 1), max(0, min(is_) - m), min(NX, max(is_) + m + 1))
         # diffusion séparée de part et d'autre de la frontière : l'a priori ukrainien ne déborde pas en Russie
         out = [0.0] * self.nU
-        for mask in (self.maskUA, self.maskBand):
-            num = gauss_blur_win([prev[k] * mask[k] for k in range(N)], r, win)
-            den = gauss_blur_win(mask, r, win)
-            for u, k in enumerate(self.U):
-                if not mask[k]:
-                    continue
-                pr = num[k] / den[k] if den[k] > 1e-9 else prev[k]
-                out[u] = (1 - P["beta"]) * obs[u] + P["beta"] * pr
+        # bande russe : pas de filtre. Ses preuves sont déjà rétrospectives (une localité « libérée » à t était
+        # ukrainienne depuis le 6 août 2024 jusqu'à t) ; le filtre n'y ajoutait qu'un retard : poche de Koursk qui
+        # « grossissait » jusqu'en novembre 2024, reflux amorti
+        for u, k in enumerate(self.U):
+            if self.maskBand[k]:
+                out[u] = obs[u]
+        num = gauss_blur_win([prev[k] * self.maskUA[k] for k in range(N)], r, win)
+        den = gauss_blur_win(self.maskUA, r, win)
+        for u, k in enumerate(self.U):
+            if not self.maskUA[k]:
+                continue
+            pr = num[k] / den[k] if den[k] > 1e-9 else prev[k]
+            out[u] = (1 - P["beta"]) * obs[u] + P["beta"] * pr
         return out
 
     def run(self, P, sigma0, v_km, layers, kstrength, month_list, fields, on_month=None, mc=False):

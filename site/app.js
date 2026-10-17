@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"equilibre": "188b0a9203", "mcsd": "efae986d7d", "ru": "25486f7ffd", "sans_dsm": "3ba1340da9", "sans_enveloppes": "1eabfe10b7", "sans_gsua": "af2359ef74", "sans_indices": "6131e18a1f", "sans_isw": "791e1f042c", "sans_medias": "9e2604c268", "sans_modru": "c6a9220828", "sans_presence": "cb5eb716f3", "sans_wiki": "3aee975c42", "tiers": "95b6a8cadf", "ua": "7a8f836c8f"};
+const FRONT_V = {"equilibre": "9e1344253a", "mcsd": "6270025138", "ru": "3c94455852", "sans_dsm": "debd2b3bed", "sans_enveloppes": "569d531ba3", "sans_gsua": "d8bd725395", "sans_indices": "26d10e8c8b", "sans_isw": "2cc7e03257", "sans_medias": "f07246beda", "sans_modru": "7fbc959c1d", "sans_presence": "e7fd68355c", "sans_wiki": "88df516305", "tiers": "9c74a46937", "ua": "0bef287f4c"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
@@ -164,7 +164,9 @@ function buildRuMask(){
 // sources étant corrélées d'un mois à l'autre). Calibré sur les cas connus de scripts/check_arrows.py.
 // réglages des flèches (calibrés sur les cas connus de scripts/check_arrows.py)
 // vmin 0,7 km/mois ; même signe 3 mois sur 3 sous 1 km/mois, 2 sur 3 au-delà ; saut ≥ 3 km/mois en un mois accepté
-const ARROW_PARAMS = {vmin: 0.7, need: 3, vstrong: 1.0, jump: 3};
+const ARROW_PARAMS = {vmin: 0.7, need: 3, vstrong: 1.0, jump: 3, mode: "geo"};
+// logit borné (p quantifié en 64 niveaux : 0 et 1 exclus)
+const lgt = p => { const q = Math.min(1 - 0.5 / 63, Math.max(0.5 / 63, p)); return Math.log(q / (1 - q)); };
 window.__uafSetArrowParams = o => { Object.assign(ARROW_PARAMS, o); arrowCache = {}; };
 let showArrows = !!(document.getElementById("lyrArrows") && document.getElementById("lyrArrows").checked), arrowCache = {}, arrowList = [];
 function loadMcsd(then){
@@ -217,6 +219,30 @@ function polyNormal(run, t, w0){
   }
   return null;
 }
+// valeur interpolée d'un champ en coordonnées de grille continues (centres des mailles en i + 0,5)
+function sampleAt(g, x, y){
+  const u = x - 0.5, v = y - 0.5, i = Math.floor(u), j = Math.floor(v), fx = u - i, fy = v - j;
+  if (i < 0 || j < 0 || i >= GX - 1 || j >= GY - 1) return null;
+  const c = j * GX + i;
+  return (g[c] * (1 - fx) + g[c + 1] * fx) * (1 - fy) + (g[c + GX] * (1 - fx) + g[c + GX + 1] * fx) * fy;
+}
+// position (km, signée le long de (nx, ny), normale orientée vers le camp russe) de la ligne 50 % d'un mois, à 30 km
+// au plus ; null sinon. On ne cherche que d'un côté : si le point était russe ce mois-là (p > 0,5), la ligne était du
+// côté ukrainien (−n), et inversement. Chercher des deux côtés apparierait parfois la ligne à une autre (la frontière,
+// pendant l'incursion de Koursk) et inverserait le sens.
+function crossing(g, x, y, nx, ny){
+  const km = FR.grid.size / 1000, step = 0.5, R = 30 / km, f = s => { const v = sampleAt(g, x + s * nx, y + s * ny); return v === null ? null : v - 0.5; };
+  const f0 = f(0); if (f0 === null) return null;
+  if (f0 === 0) return 0;
+  const dir = f0 > 0 ? -1 : 1;
+  let a = 0, fa = f0;
+  for (let s = step; s <= R; s += step) {
+    const fb = f(dir * s); if (fb === null) return null;
+    if (Math.sign(fb) !== Math.sign(fa)) return dir * (a + (s - a) * fa / (fa - fb)) * km;
+    a = s; fa = fb;
+  }
+  return null;
+}
 function gradAt(g, x, y){
   const i = Math.max(1, Math.min(GX - 2, Math.floor(x))), j = Math.max(1, Math.min(GY - 2, Math.floor(y))), c = j * GX + i, km = FR.grid.size / 1000;
   return [(g[c + 1] - g[c - 1]) / (2 * km), (g[c + GX] - g[c - GX]) / (2 * km), c];
@@ -230,7 +256,7 @@ function computeArrows(fi, Lkm, view){
   if (arrowCache[key]) return arrowCache[key];
   const G4 = [fi, fi - 1, fi - 2, fi - 3].map(i => i >= 0 ? fullField(view, i) : null), g1 = G4[0];
   if (fi < 3 || G4.some(x => !x)) return arrowCache[key] = [];
-  const km = FR.grid.size / 1000, out = [];
+  const km = FR.grid.size / 1000, out = [], AP = ARROW_PARAMS;
   for (const run of lines50(view, fi)) {
     // abscisse curviligne
     const acc = [0]; for (let t = 1; t < run.length; t++) acc.push(acc[t - 1] + Math.hypot(run[t][0] - run[t - 1][0], run[t][1] - run[t - 1][1]) * km);
@@ -246,7 +272,16 @@ function computeArrows(fi, Lkm, view){
         const [x, y] = run[t], [gx, gy, c] = gradAt(g1, x, y), gm = Math.hypot(gx, gy);
         n++;
         if (gm < 1e-3) continue;
-        for (let m = 0; m < 3; m++) vm[m] += -(G4[m][c] - G4[m + 1][c]);  // pondéré par |∇p| : gm · (−Δp/gm)
+        if (AP.mode === "geo" || AP.mode === "logit") {
+          // déplacement en logit : p = sigmoïde(d/σ), donc logit p est linéaire en distance et −Δlogit/|∇logit|
+          // mesure le déplacement de la ligne sans saturer (un effondrement de poche n'est plus plafonné à 0,5/|∇p|)
+          const p0 = Math.min(0.98, Math.max(0.02, g1[c])), gl = gm / (p0 * (1 - p0));
+          // géométrique : position de la ligne 50 % de chaque mois le long de la normale (vers le camp russe), à
+          // ±30 km ; le déplacement d'un mois à l'autre est l'écart entre ces positions, quelle que soit son ampleur
+          const sx = AP.mode === "geo" ? G4.map(G => crossing(G, x, y, gx / gm, gy / gm)) : null;
+          for (let m = 0; m < 3; m++) vm[m] += gm * (sx && sx[m] !== null && sx[m + 1] !== null ? sx[m] - sx[m + 1]
+            : -(lgt(G4[m][c]) - lgt(G4[m + 1][c])) / gl);
+        } else for (let m = 0; m < 3; m++) vm[m] += -(G4[m][c] - G4[m + 1][c]);  // pondéré par |∇p| : gm · (−Δp/gm)
         sw += gm;
       }
       if (!n || !sw) continue;
@@ -255,7 +290,7 @@ function computeArrows(fi, Lkm, view){
       // critère : voir ARROW_PARAMS
       // exception : un saut brutal d'un seul mois (≥ 3 km/mois, comme l'incursion de Koursk) n'a pas d'historique
       // de signe ; à cette amplitude, le bruit de position des sources n'explique plus le déplacement
-      const AP = ARROW_PARAMS, jump = Math.abs(vm[0]) >= AP.jump;
+      const jump = Math.abs(vm[0]) >= AP.jump;
       const same = vm.filter(x => Math.sign(x) === Math.sign(v) && Math.abs(x) > 0.05).length;
       if (Math.abs(v) < AP.vmin || (!jump && same < (Math.abs(v) >= AP.vstrong ? 2 : AP.need))) continue;
       // ancrage : parmi les sommets du tiers central, celui dont la normale locale suit le mieux l'orientation
@@ -289,7 +324,13 @@ function overviewArrows(fi, view){
 // diagnostic (headless) : recadrage et mois
 window.__uafGoto = (month, lon, lat, k) => { const i = D.months.indexOf(month); if (i >= 0) setMonth(i); zoomTo(lon, lat, k); };
 // diagnostic (headless) : flèches d'un mois en coordonnées géographiques
-window.__uafArrows = (fi, L) => (L === "overview" ? overviewArrows(fi, "equilibre") : computeArrows(fi, L, "equilibre")).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)]}; });
+window.__uafArrows = (fi, L) => (L === "overview" ? overviewArrows(fi, "equilibre") : computeArrows(fi, L, "equilibre")).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)], vm: a.vm}; });
+// diagnostic (headless) : p(contrôle russe) en un point, km² russes et sommets de la ligne 50 % dans une boîte
+const cellOf = (lon, lat) => { const q = proj([lon, lat]); return Math.floor((q[1] - gAff[1]) / gAff[2]) * GX + Math.floor((q[0] - gAff[0]) / gAff[2]); };
+const inBox = (gx, gy, b) => { const ll = proj.invert([gAff[0] + gx * gAff[2], gAff[1] + gy * gAff[2]]); return ll[0] >= b[0] && ll[0] <= b[1] && ll[1] >= b[2] && ll[1] <= b[3]; };
+window.__uafP = (fi, lon, lat) => { const g = fullField("equilibre", fi); return g ? g[cellOf(lon, lat)] : null; };
+window.__uafArea = (fi, b, band) => { const g = fullField("equilibre", fi), a = (FR.grid.size / 1000) ** 2; let s = 0; for (let c = 0; c < GX * GY; c++) if ((band ? cellPlace[c] === -2 : cellPlace[c] >= 0) && inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) s += (band ? 1 - g[c] : g[c]) * a; return s; };
+window.__uafLine = (fi, b) => lines50("equilibre", fi).flat().filter(p => inBox(p[0], p[1], b)).length;
 // contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
 window.__uafArrowCheck = function(){
   const fails = [], km = FR.grid.size / 1000; let total = 0;
