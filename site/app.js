@@ -135,6 +135,7 @@ function ensureView(view, then){
   const sc = document.createElement("script"); sc.src = `front_${view}.js?v=${FRONT_V[view] || ""}`; sc.onload = then; document.head.appendChild(sc);
 }
 const oc = document.createElement("canvas"); oc.width = GX; oc.height = GY;
+const ocB = document.createElement("canvas"); ocB.width = GX; ocB.height = GY;
 const octx = oc.getContext("2d");
 let pgrid = new Float32Array(GX * GY), frontFor = -2, frontTheme = "", isoPaths = [], prePath = null;
 function ringsPath(polys){
@@ -157,8 +158,14 @@ function buildRuMask(){
   for (let c = 0; c < GX * GY; c++) ruMask[c] = d[c * 4 + 3] > 127 ? 1 : 0;
 }
 // ---------- flèches « qui pousse où » ----------
-// v_n = −Δp / |∇p| sur la ligne 50 % : déplacement de la ligne en km/mois, lissé sur 3 mois (p(t) − p(t−3)) / 3 ;
-// une maille ne compte que si |Δp| dépasse l'écart-type Monte Carlo de la différence (front_mcsd.js) ; agrégation par blocs de L km.
+// v_n = −Δp / |∇p| sur la ligne 50 % : déplacement de la ligne en km/mois, sur chacun des trois derniers mois ;
+// critère : |v| moyen ≥ 0,7 km/mois, même signe trois mois sur trois (deux sur trois au-delà de 1 km/mois), ou saut
+// d'un seul mois ≥ 3 km/mois ; pas de seuil Monte Carlo (il surestime le bruit de Δp, les erreurs de position des
+// sources étant corrélées d'un mois à l'autre). Calibré sur les cas connus de scripts/check_arrows.py.
+// réglages des flèches (calibrés sur les cas connus de scripts/check_arrows.py)
+// vmin 0,7 km/mois ; même signe 3 mois sur 3 sous 1 km/mois, 2 sur 3 au-delà ; saut ≥ 3 km/mois en un mois accepté
+const ARROW_PARAMS = {vmin: 0.7, need: 3, vstrong: 1.0, jump: 3};
+window.__uafSetArrowParams = o => { Object.assign(ARROW_PARAMS, o); arrowCache = {}; };
 let showArrows = !!(document.getElementById("lyrArrows") && document.getElementById("lyrArrows").checked), arrowCache = {}, arrowList = [];
 function loadMcsd(then){
   if (window.FRONTP && window.FRONTP.mcsd) return then();
@@ -170,59 +177,161 @@ function sdField(i){
   if (!sdCache.all) { const save = fieldCache.mcsd; sdCache.all = viewFields("mcsd"); }
   return sdCache.all && sdCache.all[i];
 }
-function computeArrows(fi, Lkm){
-  const key = fieldName() + ":" + fi + ":" + Lkm;
-  if (arrowCache[key]) return arrowCache[key];
-  const F = viewFields(fieldName()), j0 = fi - 3;
-  if (!F || fi < 3 || !F[fi] || !F[j0]) return arrowCache[key] = [];
-  const a = new Float32Array(GX * GY), b0 = new Float32Array(GX * GY), sa = new Float32Array(GX * GY), sb = new Float32Array(GX * GY);
-  const q1 = F[fi], q0 = F[j0], s1 = sdField(fi), s0 = sdField(j0);
-  for (let u = 0; u < UCELLS.length; u++) { const c = UCELLS[u]; a[c] = q1[u] / 63; b0[c] = q0[u] / 63; if (s1) sa[c] = s1[u] / 63 * 0.5; if (s0) sb[c] = s0[u] / 63 * 0.5; }
-  const km = FR.grid.size / 1000, bs = Math.max(1, Math.round(Lkm / km)), blocks = new Map();
-  for (let u = 0; u < UCELLS.length; u++) {
-    const c = UCELLS[u], p = a[c];
-    if (p < 0.2 || p > 0.8) continue;  // voisinage de la ligne 50 %
-    const x = c % GX, y = (c - x) / GX;
-    if (x < 1 || y < 1 || x >= GX - 1 || y >= GY - 1) continue;
-    const L = cellPlace[c - 1] !== -1 ? a[c - 1] : p, Rr = cellPlace[c + 1] !== -1 ? a[c + 1] : p, U = cellPlace[c - GX] !== -1 ? a[c - GX] : p, D = cellPlace[c + GX] !== -1 ? a[c + GX] : p;
-    const gx = (Rr - L) / (2 * km), gy = (D - U) / (2 * km), g2 = gx * gx + gy * gy;
-    if (g2 < 1e-6) continue;
-    // seuil : un écart-type Monte Carlo de la différence (les erreurs de position des sources étant fortement
-    // corrélées d'un mois à l'autre, cet écart-type surestime déjà le bruit réel de Δp), et au moins 0,04
-    const dp = p - b0[c], noise = Math.sqrt(sa[c] * sa[c] + sb[c] * sb[c]);
-    if (Math.abs(dp) < Math.max(noise, 0.04)) continue;
-    // déplacement de la ligne (km) : −Δp ∇p / |∇p|², ramené au mois
-    const dx = -dp * gx / g2 / 3, dy = -dp * gy / g2 / 3;
-    const bk = Math.floor(x / bs) + "_" + Math.floor(y / bs);
-    let o = blocks.get(bk); if (!o) blocks.set(bk, o = {x: 0, y: 0, dx: 0, dy: 0, n: 0, ru: 0});
-    o.x += x; o.y += y; o.dx += dx; o.dy += dy; o.n++; o.ru += dp > 0 ? 1 : -1;
+// champ complet d'un mois (grille), pour la ligne 50 % et les gradients
+const fullCache = {};
+function fullField(view, i){
+  const key = view + ":" + i; if (fullCache[key]) return fullCache[key];
+  const F = viewFields(view); if (!F || !F[i]) return null;
+  const g = new Float32Array(GX * GY), q = F[i];
+  for (let c = 0; c < GX * GY; c++) g[c] = ruMask && ruMask[c] && cellPlace[c] === -1 ? 1 : 0;
+  for (let u = 0; u < UCELLS.length; u++) g[UCELLS[u]] = q[u] / 63;
+  return fullCache[key] = g;
+}
+// sommets valides de la ligne 50 % : à l'intérieur du domaine, ni sur la frontière ni sur une côte
+function validVertex(x, y){
+  const i = Math.floor(x - 0.5), j = Math.floor(y - 0.5);
+  if (i < 1 || j < 1 || i >= GX - 2 || j >= GY - 2) return false;
+  let ua = 0, band = 0;
+  for (let dj = -1; dj <= 2; dj++) for (let di = -1; di <= 2; di++) {
+    const k = cellPlace[(j + dj) * GX + i + di];
+    if (k === -1) return false; if (k === -2) band++; else ua++;
   }
-  const out = [];
-  for (const o of blocks.values()) {
-    if (o.n < Math.max(2, bs / 2)) continue;
-    const dx = o.dx / o.n, dy = o.dy / o.n, v = Math.hypot(dx, dy);
-    if (v < 0.3) continue;  // moins de 300 m par mois : on ne dessine rien
-    out.push({gx: o.x / o.n + 0.5, gy: o.y / o.n + 0.5, dx: dx / v, dy: dy / v, v, ru: o.ru > 0, L: Lkm});
+  return !(ua && band);
+}
+function lines50(view, i){
+  const g = fullField(view, i); if (!g) return [];
+  const cs = d3.contours().size([GX, GY]).thresholds([0.5])(g)[0].coordinates, runs = [];
+  for (const poly of cs) for (const ring of poly) {
+    let cur = [];
+    for (const [x, y] of ring) { if (validVertex(x, y)) cur.push([x, y]); else { if (cur.length > 2) runs.push(cur); cur = []; } }
+    if (cur.length > 2) runs.push(cur);
+  }
+  return runs;
+}
+// normale locale d'une polyligne au sommet t (tangente sur ±2 à ±6 sommets, la première non dégénérée)
+function polyNormal(run, t, w0){
+  for (const w of [w0 || 2, (w0 || 2) + 1, (w0 || 2) + 2, (w0 || 2) + 4]) {
+    const pa = run[Math.max(0, t - w)], pb = run[Math.min(run.length - 1, t + w)];
+    const nx = -(pb[1] - pa[1]), ny = pb[0] - pa[0], nl = Math.hypot(nx, ny);
+    if (nl > 1.5) return [nx / nl, ny / nl];
+  }
+  return null;
+}
+function gradAt(g, x, y){
+  const i = Math.max(1, Math.min(GX - 2, Math.floor(x))), j = Math.max(1, Math.min(GY - 2, Math.floor(y))), c = j * GX + i, km = FR.grid.size / 1000;
+  return [(g[c + 1] - g[c - 1]) / (2 * km), (g[c + GX] - g[c - GX]) / (2 * km), c];
+}
+// flèches : la ligne 50 % du mois affiché est découpée en tronçons de L km ; sur chaque tronçon, v_n = −Δp/|∇p|
+// (Δp sur trois mois, ramené au mois), moyenné et pondéré par |∇p| sur les sommets de la ligne ; la flèche part du
+// milieu du tronçon, selon la normale locale de la ligne, vers le camp qui recule.
+function computeArrows(fi, Lkm, view){
+  view = view || fieldName();
+  const key = view + ":" + fi + ":" + Lkm;
+  if (arrowCache[key]) return arrowCache[key];
+  const G4 = [fi, fi - 1, fi - 2, fi - 3].map(i => i >= 0 ? fullField(view, i) : null), g1 = G4[0];
+  if (fi < 3 || G4.some(x => !x)) return arrowCache[key] = [];
+  const km = FR.grid.size / 1000, out = [];
+  for (const run of lines50(view, fi)) {
+    // abscisse curviligne
+    const acc = [0]; for (let t = 1; t < run.length; t++) acc.push(acc[t - 1] + Math.hypot(run[t][0] - run[t - 1][0], run[t][1] - run[t - 1][1]) * km);
+    const total = acc[acc.length - 1], nseg = Math.max(1, Math.round(total / Lkm));
+    if (total < Lkm * 0.4) continue;
+    for (let sgi = 0; sgi < nseg; sgi++) {
+      const a0 = total * sgi / nseg, a1 = total * (sgi + 1) / nseg, mid = (a0 + a1) / 2;
+      // vitesse mensuelle du tronçon pour chacun des trois derniers mois : v_m = Σ |∇p| · (−(p_m − p_m−1) / |∇p|) / Σ |∇p|
+      let sw = 0, n = 0, ax = 0, ay = 0;
+      const vm = [0, 0, 0];
+      for (let t = 0; t < run.length; t++) {
+        if (acc[t] < a0 || acc[t] > a1) continue;
+        const [x, y] = run[t], [gx, gy, c] = gradAt(g1, x, y), gm = Math.hypot(gx, gy);
+        n++;
+        if (gm < 1e-3) continue;
+        for (let m = 0; m < 3; m++) vm[m] += -(G4[m][c] - G4[m + 1][c]);  // pondéré par |∇p| : gm · (−Δp/gm)
+        sw += gm;
+      }
+      if (!n || !sw) continue;
+      for (let m = 0; m < 3; m++) vm[m] /= sw;
+      const v = (vm[0] + vm[1] + vm[2]) / 3;
+      // critère : voir ARROW_PARAMS
+      // exception : un saut brutal d'un seul mois (≥ 3 km/mois, comme l'incursion de Koursk) n'a pas d'historique
+      // de signe ; à cette amplitude, le bruit de position des sources n'explique plus le déplacement
+      const AP = ARROW_PARAMS, jump = Math.abs(vm[0]) >= AP.jump;
+      const same = vm.filter(x => Math.sign(x) === Math.sign(v) && Math.abs(x) > 0.05).length;
+      if (Math.abs(v) < AP.vmin || (!jump && same < (Math.abs(v) >= AP.vstrong ? 2 : AP.need))) continue;
+      // ancrage : parmi les sommets du tiers central, celui dont la normale locale suit le mieux l'orientation
+      // générale du tronçon (pas de flèche de travers sur un zigzag)
+      const ws = Math.max(2, Math.round(Lkm / km / 6));
+      let nn = null, bestAng = 9;
+      for (let t = 0; t < run.length; t++) {
+        if (Math.abs(acc[t] - mid) > (a1 - a0) / 3) continue;
+        const loc = polyNormal(run, t), sm = polyNormal(run, t, ws);
+        if (!loc || !sm) continue;
+        const ang = Math.acos(Math.min(1, Math.abs(loc[0] * sm[0] + loc[1] * sm[1])));
+        if (ang < bestAng) { bestAng = ang; nn = loc; ax = run[t][0]; ay = run[t][1]; }
+      }
+      if (!nn) continue;
+      let [nx, ny] = nn;
+      const [gx, gy] = gradAt(g1, ax, ay); if (nx * gx + ny * gy < 0) { nx = -nx; ny = -ny; }
+      const sgn = v > 0 ? 1 : -1;
+      out.push({gx: ax, gy: ay, dx: nx * sgn, dy: ny * sgn, v: Math.abs(v), ru: v < 0, L: Lkm, segKm: Math.round(a1 - a0), vm: vm.map(x => +x.toFixed(2))});
+    }
   }
   return arrowCache[key] = out;
 }
+// vue d'ensemble : flèches des tronçons de 20, 50 et 100 km (les longs tronçons captent les poussées larges et lentes),
+// éclaircies : au plus une tous les ~30 km, la plus rapide d'abord ; tout tronçon en mouvement a ainsi une flèche
+// affichée à moins de 30 km (contrôlé par scripts/check_arrows.py)
+function overviewArrows(fi, view){
+  const kept = [], minD = 30 / (FR.grid.size / 1000), all = [20, 50, 100].flatMap(L => computeArrows(fi, L, view));
+  for (const a of all.sort((x, y) => y.v - x.v)) if (!kept.some(b => Math.hypot(b.gx - a.gx, b.gy - a.gy) < minD)) kept.push(a);
+  return kept;
+}
+// diagnostic (headless) : recadrage et mois
+window.__uafGoto = (month, lon, lat, k) => { const i = D.months.indexOf(month); if (i >= 0) setMonth(i); zoomTo(lon, lat, k); };
+// diagnostic (headless) : flèches d'un mois en coordonnées géographiques
+window.__uafArrows = (fi, L) => (L === "overview" ? overviewArrows(fi, "equilibre") : computeArrows(fi, L, "equilibre")).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)]}; });
+// contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
+window.__uafArrowCheck = function(){
+  const fails = [], km = FR.grid.size / 1000; let total = 0;
+  for (let fi = 3; fi < FR.months.length; fi++) {
+    if (!FR.months[fi]) continue;
+    const runs = lines50("equilibre", fi), pts = runs.flat();
+    for (const L of [100, 50, 20, 10]) for (const a of computeArrows(fi, L, "equilibre")) {
+      total++;
+      // la base doit être sur la ligne ; l'angle est mesuré à la normale la plus favorable parmi les tronçons qui
+      // passent à moins de 2 km (deux bras de ligne peuvent se toucher au même sommet)
+      let bd = 1e9, ang = 90;
+      for (const run of runs) for (let t = 0; t < run.length; t++) {
+        const d = Math.hypot(run[t][0] - a.gx, run[t][1] - a.gy);
+        if (d < bd) bd = d;
+        if (d * km < 2) { const nn = polyNormal(run, t); if (nn) ang = Math.min(ang, Math.acos(Math.min(1, Math.abs(nn[0] * a.dx + nn[1] * a.dy))) * 180 / Math.PI); }
+      }
+      if (bd * km >= 2 || ang >= 30) fails.push({mois: D.months[fi], L, dist_km: +(bd * km).toFixed(2), angle: +ang.toFixed(1)});
+    }
+  }
+  return {total, fails};
+};
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
   if (!window.FRONTP || !window.FRONTP.mcsd) { loadMcsd(() => { arrowCache = {}; draw(); }); }
-  const Lkm = k < 1.6 ? 100 : k < 3 ? 50 : k < 6 ? 20 : 10;
-  const arr = computeArrows(fi, Lkm);
+  // vue d'ensemble : voir overviewArrows ; au zoom, tronçons de 20 puis 10 km
+  const arr = k < 3 ? overviewArrows(fi) : computeArrows(fi, k < 6 ? 20 : 10);
   arrowList = [];
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   for (const a of arr) {
     const sx = (gAff[0] + a.gx * gAff[2]) * k + tr.x, sy = (gAff[1] + a.gy * gAff[2]) * k + tr.y;
     if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
     // vue d'ensemble : un seul style discret ; au zoom, longueur et épaisseur proportionnelles à la vitesse
-    const overview = k < 1.6, len = overview ? Math.min(34, 8 + a.v * 4) : Math.min(70, 10 + a.v * 7), w = overview ? 1.6 : Math.min(7, 1.2 + a.v * 0.5);
+    const overview = k < 1.6, len = overview ? Math.min(26, 14 + a.v * 2.5) : Math.min(70, 10 + a.v * 7), w = overview ? 1.6 : Math.min(7, 1.2 + a.v * 0.5);
     const ex = sx + a.dx * len, ey = sy + a.dy * len, col = a.ru ? C.front : C.uactl;
-    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = overview ? 0.75 : 0.95; ctx.lineWidth = w; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * w * 1.6, ey - a.dy * w * 1.6); ctx.stroke();
+    // liseré clair : la flèche reste lisible sur la densité rouge ou bleue
     const hx = -a.dy, hy = a.dx, hs = 3 + w * 1.6;
-    ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - a.dx * hs * 1.6 + hx * hs, ey - a.dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - a.dx * hs * 1.6 - hx * hs, ey - a.dy * hs * 1.6 - hy * hs); ctx.closePath(); ctx.fill();
+    const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - a.dx * hs * 1.6 + hx * hs, ey - a.dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - a.dx * hs * 1.6 - hx * hs, ey - a.dy * hs * 1.6 - hy * hs); ctx.closePath(); };
+    ctx.strokeStyle = C.bg; ctx.globalAlpha = 0.8; ctx.lineWidth = w + 2.4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * hs, ey - a.dy * hs); ctx.stroke(); ctx.lineWidth = 2.4; head(); ctx.stroke();
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = overview ? 0.8 : 0.95; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * w * 1.6, ey - a.dy * w * 1.6); ctx.stroke();
+    head(); ctx.fill();
     arrowList.push({x: (sx + ex) / 2, y: (sy + ey) / 2, a});
   }
   ctx.globalAlpha = 1;
@@ -244,7 +353,7 @@ function buildFront(){
   const fi = frontIdx(), key = (C.dark ? "d" : "l") + fieldName() + (showStates ? "s" : ""), F = viewFields(fieldName());
   if (fi === frontFor && key === frontTheme) return;
   frontFor = fi; frontTheme = key;
-  const img = octx.createImageData(GX, GY), px4 = img.data;
+  const img = octx.createImageData(GX, GY), px4 = img.data, imgB = octx.createImageData(GX, GY), pxB = imgB.data;
   const [r, g, b] = C["front-rgb"].split(",").map(Number), [ur, ug, ub] = C["uactl-rgb"].split(",").map(Number);
   pgrid.fill(0); pBand.fill(0);
   if (fi >= 0 && F && F[fi]) {
@@ -256,7 +365,7 @@ function buildFront(){
         // Russie : seul l'écart à la normale compte, la probabilité de contrôle UKRAINIEN, dans une autre couleur
         const pu = 1 - p;
         // près de la frontière, on ignore la frange due au lissage temporel
-        if (pu > 0.05 && (pu > 0.25 || bandFade[c] < 0.93)) { px4[o] = ur; px4[o+1] = ug; px4[o+2] = ub; px4[o+3] = Math.round(255 * (0.12 + 0.6 * pu)); }
+        if (pu > 0.05 && (pu > 0.25 || bandFade[c] < 0.93)) { pxB[o] = ur; pxB[o+1] = ug; pxB[o+2] = ub; pxB[o+3] = Math.round(255 * (0.12 + 0.6 * pu)); }
         continue;
       }
       if (showStates) {
@@ -276,8 +385,17 @@ function buildFront(){
     }
     isoPaths = d3.contours().size([GX, GY]).thresholds([0.05, 0.5, 0.95])(pgrid).map(c => ringsPath(c.coordinates));
     isoBand = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(pBand)[0].coordinates);
+    // dilatation de 4 mailles hors d'Ukraine : le bord est ensuite donné par la frontière vectorielle (pas de créneaux)
+    for (let pass = 0; pass < 4; pass++) {
+      const src = new Uint8ClampedArray(px4);
+      for (let c = 0; c < GX * GY; c++) {
+        if (cellPlace[c] >= 0 || src[c * 4 + 3]) continue;
+        for (const x of [c - 1, c + 1, c - GX, c + GX]) if (x >= 0 && x < GX * GY && src[x * 4 + 3]) { const o = c * 4, q = x * 4; px4[o] = src[q]; px4[o+1] = src[q+1]; px4[o+2] = src[q+2]; px4[o+3] = src[q+3]; break; }
+      }
+    }
   } else { isoPaths = []; isoBand = null; }
   octx.putImageData(img, 0, 0);
+  ocB.getContext("2d").putImageData(imgB, 0, 0);
 }
 // domaines : Ukraine seule et bande russe seule (découpage des isolignes)
 let domainPath = null, bandPath = null;
@@ -302,7 +420,12 @@ function drawFront(k){
   ctx.save();
   ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]);
   const u = 1 / (k * gAff[2]);
-  if (showFront && frontFor >= 0) { ctx.imageSmoothingEnabled = true; ctx.drawImage(oc, 0, 0); }
+  if (showFront && frontFor >= 0) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.restore(); ctx.save(); ctx.clip(paths.uaClip);                   // Ukraine : découpée par la frontière vectorielle
+    ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]); ctx.drawImage(oc, 0, 0);
+    ctx.restore(); ctx.save(); ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]); ctx.drawImage(ocB, 0, 0);  // Russie
+  }
   ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.55; ctx.lineWidth = 1 * u; ctx.setLineDash([2*u, 3*u]);
   ctx.stroke(prePath);
   if (showLines && isoPaths.length) {
@@ -379,6 +502,10 @@ function layout(){
   const mk = fs => new Path2D(fs.map(f => gp(f) || "").join(""));
   paths.land = mk(G.land);
   paths.ua = mk(G.countries.filter(f => f.properties.iso === "UA"));
+  // découpe de la densité : Ukraine dans ses frontières internationales (Crimée et Sébastopol comprises)
+  // (oblasts Natural Earth au 1:10 M, cohérents avec le tracé des frontières, Crimée et Sébastopol comprises)
+  paths.uaClip = mk(G.regions.filter(f => f.properties.c === "UKR" || f.properties.id === "UA-43" || f.properties.id === "UA-40")
+    .concat(G.countries.filter(f => f.properties.iso === "UA")));
   paths.regions = mk(G.regions);
   paths.borders = mk(G.borders);
   paths.rivers = mk(G.rivers);
@@ -438,7 +565,7 @@ function draw(){
     if (placed.some(b => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]))) continue;
     placed.push(box);
     ctx.fillStyle = C.label; ctx.beginPath(); ctx.arc(x, y, c.cap ? 2.6 : 1.8, 0, 7); ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = C["map-bg"]; ctx.globalAlpha = .75; ctx.strokeText(c.n, x+6, y); ctx.globalAlpha = 1;
+    ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.strokeStyle = C["map-bg"]; ctx.globalAlpha = .75; ctx.strokeText(c.n, x+6, y); ctx.globalAlpha = 1;
     ctx.fillText(c.n, x+6, y);
   }
   if (!bg) return;
@@ -453,7 +580,7 @@ function draw(){
     if (placed.some(b => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]))) continue;
     placed.push(box);
     ctx.fillStyle = C.label; ctx.globalAlpha = .85; ctx.beginPath(); ctx.arc(x, y, 1.4, 0, 7); ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = C["map-bg"]; ctx.globalAlpha = .7; ctx.strokeText(c.n, x+5, y); ctx.globalAlpha = .85;
+    ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.strokeStyle = C["map-bg"]; ctx.globalAlpha = .7; ctx.strokeText(c.n, x+5, y); ctx.globalAlpha = .85;
     ctx.fillText(c.n, x+5, y); ctx.globalAlpha = 1;
   }
   // numéros des routes (M-, H-, P-) au zoom

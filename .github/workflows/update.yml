@@ -64,7 +64,13 @@ jobs:
       - name: Empreintes anti-cache de toutes les pages
         run: python scripts/stamp.py
         continue-on-error: true
+      - name: Contrôle des flèches (base sur la ligne 50 %, angle < 30°)
+        id: check
+        run: python scripts/check_arrows.py
+        timeout-minutes: 15
+        continue-on-error: true
       - name: Versionner les sorties
+        if: steps.check.outcome == 'success'
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
