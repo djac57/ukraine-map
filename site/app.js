@@ -351,6 +351,9 @@ function computeArrows(fi, Lkm, view){
       let [nx, ny] = nn;
       const [gx, gy] = gradAt(g1, ax, ay); if (nx * gx + ny * gy < 0) { nx = -nx; ny = -ny; }
       const sgn = v > 0 ? 1 : -1;
+      // garde-fou de sens : avancée russe vers −∇p, ukrainienne vers +∇p, à la base de la flèche ; la direction est
+      // sgn·n et le sens attendu sgn·∇p, leur produit scalaire vaut n·∇p (positif par construction, vérifié ici)
+      if (nx * gx + ny * gy <= 0) continue;
       out.push({gx: ax, gy: ay, dx: nx * sgn, dy: ny * sgn, v: Math.abs(v), ru: v < 0, L: Lkm, segKm: Math.round(a1 - a0), vm: vm.map(x => +x.toFixed(2))});
     }
   }
@@ -404,7 +407,17 @@ function eventArrows(fi){
       // une prise annoncée à plus de 15 km de l'ancienne ligne n'est pas plausible (ex. : « Sviatohirsk » annoncée
       // par le MoD RF le 2 septembre 2026, loin derrière les lignes ukrainiennes) : pas de flèche
       if (bx === null || bd * km > 15) continue;
-      out.push({ax: bx, ay: by, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km});
+      // sens : une avancée russe va vers le côté ukrainien (−∇p, p = contrôle russe partout, bande russe comprise),
+      // une avancée ukrainienne vers le côté russe (+∇p). Si le barycentre tombe du mauvais côté (annonce tardive d'une
+      // localité déjà derrière l'ancienne ligne), la flèche est réorientée selon le gradient local, sur 4 km au moins.
+      const gp = pc ? gradAt(pc, bx, by) : [0, 0], gn = Math.hypot(gp[0], gp[1]);
+      if (gn < 1e-4) continue;
+      const sgn = camp === 1 ? -1 : 1, ux = sgn * gp[0] / gn, uy = sgn * gp[1] / gn;
+      let tx = cx - bx, ty = cy - by;
+      const tl = Math.hypot(tx, ty), dot = tl > 1e-6 ? (tx * ux + ty * uy) / tl : -1;
+      let ex2 = cx, ey2 = cy, reoriented = false;
+      if (dot <= 0.05) { const L = Math.max(tl, 4 / km); ex2 = bx + ux * L; ey2 = by + uy * L; reoriented = true; }
+      out.push({ax: bx, ay: by, cx: ex2, cy: ey2, ru: camp === 1, n, w: sw, dkm: bd * km, reoriented});
     }
   }
   return evCache[fi] = out;
@@ -453,7 +466,7 @@ window.__uafArea = (fi, b, band) => { const g = fullField("equilibre", fi), a = 
 window.__uafLine = (fi, b) => lines50("equilibre", fi).flat().filter(p => inBox(p[0], p[1], b)).length;
 // contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
 window.__uafArrowCheck = function(){
-  const fails = [], km = FR.grid.size / 1000; let total = 0;
+  const fails = [], km = FR.grid.size / 1000; let total = 0, reoriented = 0;
   for (let fi = 3; fi < FR.months.length; fi++) {
     if (!FR.months[fi]) continue;
     const runs = lines50("equilibre", fi), pts = runs.flat();
@@ -468,9 +481,18 @@ window.__uafArrowCheck = function(){
         if (d * km < 2) { const nn = polyNormal(run, t); if (nn) ang = Math.min(ang, Math.acos(Math.min(1, Math.abs(nn[0] * a.dx + nn[1] * a.dy))) * 180 / Math.PI); }
       }
       if (bd * km >= 2 || ang >= 30) fails.push({mois: FR.months[fi].date, L, dist_km: +(bd * km).toFixed(2), angle: +ang.toFixed(1)});
+      // sens : avancée russe vers −∇p, ukrainienne vers +∇p (p = contrôle russe partout), à la base
+      const g = fullField("equilibre", fi), [gx, gy] = gradAt(g, a.gx, a.gy), s = a.ru ? -1 : 1;
+      if (s * (a.dx * gx + a.dy * gy) <= 0) fails.push({mois: FR.months[fi].date, L, sens: "gradient à rebours"});
+    }
+    const ge = fullField(fieldName(), fi);
+    for (const a of eventArrows(fi)) {
+      total++; if (a.reoriented) reoriented++;
+      const [gx, gy] = gradAt(ge, a.ax, a.ay), s = a.ru ? -1 : 1, tx = a.cx - a.ax, ty = a.cy - a.ay;
+      if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru});
     }
   }
-  return {total, fails};
+  return {total, fails, reoriented};
 };
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
