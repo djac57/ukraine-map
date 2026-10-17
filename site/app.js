@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"equilibre": "9e1344253a", "mcsd": "6270025138", "ru": "3c94455852", "sans_dsm": "debd2b3bed", "sans_enveloppes": "569d531ba3", "sans_gsua": "d8bd725395", "sans_indices": "26d10e8c8b", "sans_isw": "2cc7e03257", "sans_medias": "f07246beda", "sans_modru": "7fbc959c1d", "sans_presence": "e7fd68355c", "sans_wiki": "88df516305", "tiers": "9c74a46937", "ua": "0bef287f4c"};
+const FRONT_V = {"equilibre": "21f86023c0", "mcsd": "53703f1c57", "ru": "2ec8e9d067", "sans_dsm": "d7d0003c23", "sans_enveloppes": "c652a77977", "sans_gsua": "0414dba654", "sans_indices": "50270aee90", "sans_isw": "2f1a3f597b", "sans_medias": "8b3378edb5", "sans_modru": "222de94367", "sans_presence": "0fec1ac3b5", "sans_wiki": "8228610957", "tiers": "b5e93517b4", "ua": "555b5128d9"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
@@ -164,7 +164,7 @@ function buildRuMask(){
 // sources étant corrélées d'un mois à l'autre). Calibré sur les cas connus de scripts/check_arrows.py.
 // réglages des flèches (calibrés sur les cas connus de scripts/check_arrows.py)
 // vmin 0,7 km/mois ; même signe 3 mois sur 3 sous 1 km/mois, 2 sur 3 au-delà ; saut ≥ 3 km/mois en un mois accepté
-const ARROW_PARAMS = {vmin: 0.7, need: 3, vstrong: 1.0, jump: 3, mode: "geo"};
+const ARROW_PARAMS = {vmin: 0.7, need: 3, vstrong: 1.0, jump: 3, jumpHl: 0, hl: 0, mode: "geo"};
 // logit borné (p quantifié en 64 niveaux : 0 et 1 exclus)
 const lgt = p => { const q = Math.min(1 - 0.5 / 63, Math.max(0.5 / 63, p)); return Math.log(q / (1 - q)); };
 window.__uafSetArrowParams = o => { Object.assign(ARROW_PARAMS, o); arrowCache = {}; };
@@ -286,13 +286,20 @@ function computeArrows(fi, Lkm, view){
       }
       if (!n || !sw) continue;
       for (let m = 0; m < 3; m++) vm[m] /= sw;
-      const v = (vm[0] + vm[1] + vm[2]) / 3;
+      // moyenne des trois derniers mois : simple, ou exponentielle (demi-vie AP.hl mois) pour qu'un retournement
+      // net du dernier mois (contre-offensive) ressorte sans attendre que la moyenne sur trois mois change de signe
+      // un saut du dernier mois (≥ AP.jump km) est jugé sur cette moyenne exponentielle (demi-vie AP.jumpHl mois) :
+      // un retournement net, comme la contre-offensive au nord de Lyman en septembre 2026, ressort sans attendre
+      // que la moyenne sur trois mois change de signe
+      const jump = Math.abs(vm[0]) >= AP.jump, hl = jump ? AP.jumpHl : AP.hl;
+      const wt = hl ? [1, 0.5 ** (1 / hl), 0.5 ** (2 / hl)] : [1, 1, 1];
+      const v = (wt[0] * vm[0] + wt[1] * vm[1] + wt[2] * vm[2]) / (wt[0] + wt[1] + wt[2]);
       // critère : voir ARROW_PARAMS
       // exception : un saut brutal d'un seul mois (≥ 3 km/mois, comme l'incursion de Koursk) n'a pas d'historique
       // de signe ; à cette amplitude, le bruit de position des sources n'explique plus le déplacement
-      const jump = Math.abs(vm[0]) >= AP.jump;
       const same = vm.filter(x => Math.sign(x) === Math.sign(v) && Math.abs(x) > 0.05).length;
       if (Math.abs(v) < AP.vmin || (!jump && same < (Math.abs(v) >= AP.vstrong ? 2 : AP.need))) continue;
+      if (hl && Math.sign(vm[0]) !== Math.sign(v)) continue;  // le dernier mois doit aller dans le sens de la flèche
       // ancrage : parmi les sommets du tiers central, celui dont la normale locale suit le mieux l'orientation
       // générale du tronçon (pas de flèche de travers sur un zigzag)
       const ws = Math.max(2, Math.round(Lkm / km / 6));
@@ -328,6 +335,9 @@ window.__uafArrows = (fi, L) => (L === "overview" ? overviewArrows(fi, "equilibr
 // diagnostic (headless) : p(contrôle russe) en un point, km² russes et sommets de la ligne 50 % dans une boîte
 const cellOf = (lon, lat) => { const q = proj([lon, lat]); return Math.floor((q[1] - gAff[1]) / gAff[2]) * GX + Math.floor((q[0] - gAff[0]) / gAff[2]); };
 const inBox = (gx, gy, b) => { const ll = proj.invert([gAff[0] + gx * gAff[2], gAff[1] + gy * gAff[2]]); return ll[0] >= b[0] && ll[0] <= b[1] && ll[1] >= b[2] && ll[1] <= b[3]; };
+// diagnostic (headless) : déplacement du dernier mois (km, signé) de tous les tronçons de L km, sans aucun seuil
+window.__uafMoves = (fi, L) => { const save = {...ARROW_PARAMS}; Object.assign(ARROW_PARAMS, {vmin: 0, need: 0, vstrong: 0, jump: 1e9, hl: 0, jumpHl: 0}); arrowCache = {};
+  const out = computeArrows(fi, L || 20, "equilibre").map(a => a.vm[0]); Object.assign(ARROW_PARAMS, save); arrowCache = {}; return out; };
 window.__uafP = (fi, lon, lat) => { const g = fullField("equilibre", fi); return g ? g[cellOf(lon, lat)] : null; };
 window.__uafArea = (fi, b, band) => { const g = fullField("equilibre", fi), a = (FR.grid.size / 1000) ** 2; let s = 0; for (let c = 0; c < GX * GY; c++) if ((band ? cellPlace[c] === -2 : cellPlace[c] >= 0) && inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) s += (band ? 1 - g[c] : g[c]) * a; return s; };
 window.__uafLine = (fi, b) => lines50("equilibre", fi).flat().filter(p => inBox(p[0], p[1], b)).length;
@@ -975,7 +985,7 @@ document.querySelectorAll("[data-perim]").forEach(b => b.onclick = () => {
 function methodTables(){
   const P = FR.params;
   $("pAlpha").textContent = String(P.alpha).replace(".", ","); $("pH0").textContent = String(P.h0).replace(".", ",");
-  $("pBeta").textContent = String(P.beta).replace(".", ","); $("pV").textContent = String(FR.v).replace(".", ",");
+  $("pBeta").textContent = String(P.beta).replace(".", ","); $("pHalfLife").textContent = String(Math.round(P.official_half_life || 30)); $("pV").textContent = String(FR.v).replace(".", ",");
   const CS = FR.claimStats || {}, CR = FR.claimReliability || {};
   const cs = k => CS[k] ? `${k === "modru" ? "MoD RF" : "état-major ukrainien"} : ${fmt(CS[k].annonces || 0)} annonces géocodées, ${Math.round((CS[k].taux_rejet_localites || 0) * 100)}\u00a0% des localités reconnues rejetées (${fmt(CS[k].ambigu || 0)} ambiguës, ${fmt(CS[k]["loin du front"] || 0)} loin du front, ${fmt(CS[k]["incohérent"] || 0)} incohérentes), et ${fmt(CS[k]["introuvable"] || 0)} mots à majuscule sans correspondance (noms communs, localités absentes de GeoNames)` : "";
   $("pClaimStats").textContent = ["modru", "gsua"].map(cs).filter(Boolean).join(" ; ") || "annonces non encore disponibles";

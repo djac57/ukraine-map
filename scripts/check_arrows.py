@@ -6,7 +6,10 @@ Pour chaque flèche de chaque mois et de chaque échelle (100, 50, 20 et 10 km) 
 2 km de la ligne 50 % du mois affiché, et la flèche à moins de 30° de la normale locale de cette ligne.
 Rappel : chaque cas connu (Avdiïvka, Otcheretyne, Vovtchansk, Koursk à l'expansion et au reflux, Niou-York/Toretsk,
 Vouhledar, Selydove/Kourakhove, Pokrovsk, Koupiansk) doit avoir au moins une flèche dans le bon sens, et Koursk aucune
-flèche rouge pendant l'expansion (août 2024) ni bleue pendant le reflux (novembre 2024 - mars 2025). Faux positifs : la
+flèche rouge pendant l'expansion (août 2024) ni bleue pendant le reflux (novembre 2024 - mars 2025).
+Vivaldi (nord de Lyman, 2026) : flèches bleues à toutes les échelles en septembre (et sur deux mois dès qu'octobre
+est construit), et 150 à 280 km² repris fin septembre dans le saillant. Fins de série (ISW, UCDP) : pas de saut.
+Les tests marqués ALERTE (Vivaldi, Dnipro calme) sont affichés mais ne bloquent pas, provisoirement. Faux positifs : la
 ligne du Dnipro à Kherson (avril 2023 - 2025) ne doit pas en avoir plus de 8 sur 33 mois et deux échelles.
 Vue d'ensemble : pendant les mois actifs, chaque tronçon en mouvement (20, 50 ou 100 km) doit avoir une flèche
 affichée à moins de 50 km, et au moins une flèche par ~100 km de ligne en mouvement (longueur moyenne sur les trois
@@ -46,18 +49,38 @@ CASES = [
 # (novembre 2024 - mars 2025)
 FORBID = [("Koursk, pas de rouge à l'expansion", ["2024-08"], [34.80, 35.80, 51.00, 51.60], True),
           ("Koursk, pas de bleu au reflux", ["2024-11", "2024-12", "2025-01", "2025-02", "2025-03"], [34.80, 35.80, 51.00, 51.60], False)]
+# Opération Vivaldi (contre-offensive ukrainienne au nord de Lyman, été 2026) : flèches bleues dans le saillant à
+# toutes les échelles (vue d'ensemble, 20 km, 10 km), et surface reprise fin septembre de l'ordre des bilans publiés
+# (≈ 176 km² fin septembre, 277 km² au bilan ultérieur) : 150 à 280 km². Mois exigés : aucune source utilisable ne
+# documente la reprise avant septembre (DeepStateMap ne l'a pas annoncée dans son journal, l'état-major ukrainien l'a
+# révélée le 15 septembre, l'ISW s'arrête en juin) ; on exige donc septembre, puis deux mois dès qu'octobre est construit.
+# ALERTES non bloquantes, provisoires (décision du 17 octobre 2026), jusqu'au nowcast par les signaux de combat :
+# - flèches de Vivaldi : faute de sources, la reprise n'est visible qu'à partir de septembre ou d'octobre ;
+# - Dnipro calme : 13 flèches (8 tolérées), dues surtout au codage de Kherson par VIINA (russe dans 2 ou 3 cartes
+#   jusqu'en avril 2023) et aux îles du delta en 2024-2025.
+# Surface : ALERTE non bloquante. Wikipédia n'a jamais marqué le saillant russe en 2025 : le modèle le tenait pour
+# disputé (p ≈ 0,5), si bien que sa reprise ne retire au plus qu'environ la moitié de sa surface ; et Karpivka, Petrovka,
+# etc. ne sont libérées que sur la géométrie de DeepStateMap, jamais dans son journal (option retenue : journal seul).
+VIVALDI = ("Vivaldi (nord de Lyman)", ["2026-06", "2026-07", "2026-08", "2026-09", "2026-10"], [37.55, 38.15, 48.98, 49.30], ["2026-05", "2026-06", "2026-07", "2026-08"], "2026-09", [150, 280])
+# Fins de série : l'arrêt d'une source ne doit pas faire bouger la ligne. Déplacement médian |v| des tronçons de 20 km
+# sur tout le front, le mois qui suit la fin : échec s'il dépasse 0,3 km ET deux fois la médiane des six mois
+# précédents (un mois simplement actif, comme novembre 2024 à 0,4 km, n'est pas un artefact). L'ISW s'arrête fin juin
+# 2026 (sans correction : 2,04 km), l'UCDP fin août 2026.
+# Mois de référence affichés pour comparaison.
+SERIES_END = [("fin de l'ISW", "2026-07"), ("fin de l'UCDP", "2026-09")]
+MOVES_REF = ["2024-11", "2025-06", "2026-06"]
 # Calme : à partir d'avril 2023 (la fenêtre de trois mois ne contient plus le retrait russe de novembre 2022) ;
 # tolérance de 8 flèches sur 33 mois et deux échelles (révisions ponctuelles des cartes sur les îles du delta)
 # Mois actifs pour le contrôle de la vue d'ensemble
 OVERVIEW = ["2024-02", "2024-05", "2024-08", "2024-11", "2025-03", "2025-08"]
 CALM = ("Dnipro à Kherson", [f"{y}-{m:02d}" for y in (2023, 2024, 2025) for m in range(1, 13) if f"{y}-{m:02d}" >= "2023-04"], [32.30, 33.90, 46.40, 47.00])
 HARNESS = """<!doctype html><html><head><meta charset="utf-8"></head><body><pre id=o></pre><iframe id=f src="index.html" style="width:1000px;height:800px"></iframe>
-<script>const CASES=__CASES__, CALM=__CALM__, OVERVIEW=__OVERVIEW__, FORBID=__FORBID__;
+<script>const SERIES_END=__SERIES_END__, MOVES_REF=__MOVES_REF__, PARAMS=__PARAMS__, CASES=__CASES__, CALM=__CALM__, OVERVIEW=__OVERVIEW__, FORBID=__FORBID__, VIVALDI=__VIVALDI__;
 const okDir=(a,dir)=>{if(!dir) return true; if(Array.isArray(dir)) return a.dir[0]*dir[0]+a.dir[1]*dir[1]>0;
  const c=dir.vers||dir.depuis, tx=(c[0]-a.lon)*Math.cos(a.lat*Math.PI/180), ty=-(c[1]-a.lat), d=a.dir[0]*tx+a.dir[1]*ty; return dir.vers? d>0 : d<0;};
 f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l+'\\n';
 const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.__uafArrowCheck||!w.__uafArrows)&&n<60){return setTimeout(()=>go(n+1),500);}
- try{const r=w.__uafArrowCheck(); o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n';
+ try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n';
   const months=w.DATA.months, inb=(a,b)=>a.lon>=b[0]&&a.lon<=b[1]&&a.lat>=b[2]&&a.lat<=b[3];
   for(const [name,ms,box,ru,dir] of CASES){let hit=null,n=0;
     for(const m of ms){const i=months.indexOf(m); if(i<0) continue; for(const L of [100,50,20]) for(const a of w.__uafArrows(i,L)){ if(!inb(a,box)) continue; n++;
@@ -65,9 +88,19 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.__uafArrowCheck||!w.__uafArrow
     o.textContent+='CAS|'+name+'|'+(hit?'OK':'ECHEC')+'|'+(hit||'aucune flèche dans le bon sens')+'|'+n+'\\n';}
   for(const [name,ms,box,ru] of FORBID){const bad=[]; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; for(const L of [100,50,20,'overview']) for(const a of w.__uafArrows(i,L)) if(inb(a,box)&&a.ru===ru) bad.push(m+' L'+L+' '+a.v);}
     o.textContent+='CAS|'+name+'|'+(bad.length?'ECHEC':'OK')+'|'+(bad.length?bad.slice(0,4).join(', '):'aucune')+'|'+bad.length+'\\n';}
+  {const [name,ms,box,refs,last,rng]=VIVALDI; const ok=[], per={};
+   for(const m of ms){const i=months.indexOf(m); if(i<0) continue; const sc={}; for(const L of ['overview',20,10]) sc[L]=w.__uafArrows(i,L).filter(a=>inb(a,box)&&!a.ru).length; per[m]=sc; if(sc.overview&&sc[20]&&sc[10]) ok.push(m);}
+   const area=m=>w.__uafArea(months.indexOf(m),box), peak=Math.max(...refs.map(area)), gain=Math.round(peak-area(last));
+   const need=w.__uafP(months.indexOf('2026-10'),37.8,49.1)!==null?2:1;
+   o.textContent+='CAS|'+name+', flèches bleues|'+(ok.length>=need&&ok.includes('2026-09')?'OK':'ALERTE')+'|'+(ok.join(', ')||'aucun mois')+' (exigé : '+need+' mois dont septembre) '+JSON.stringify(per)+'|'+ok.length+'\\n';
+   o.textContent+='CAS|'+name+', surface reprise|'+(gain>=rng[0]&&gain<=rng[1]?'OK':'ALERTE')+'|'+gain+' km² repris fin '+last+' (pic '+Math.round(peak)+' km² russes ; attendu '+rng[0]+'-'+rng[1]+')|'+gain+'\\n';}
+  {const med=m=>{const i=months.indexOf(m); const x=w.__uafMoves(i,20).map(Math.abs).sort((a,b)=>a-b); return x.length? x[Math.floor(x.length/2)] : null;};
+   const ref=MOVES_REF.map(m=>m+' '+(med(m)??'-').toString()).join(', ');
+   for(const [name,m] of SERIES_END){const v=med(m), i=months.indexOf(m), prev=[1,2,3,4,5,6].map(k=>med(months[i-k])).filter(x=>x!==null).sort((a,b)=>a-b), base=prev.length?prev[Math.floor(prev.length/2)]:0;
+     const ok=v!==null&&(v<0.3||v<2*base); o.textContent+='SERIE|'+name+' ('+m+')|'+(ok?'OK':'ECHEC')+'|déplacement médian '+(v===null?'-':v.toFixed(2))+' km ; médiane des 6 mois précédents '+base.toFixed(2)+' km (référence : '+ref+')\\n';}}
   {const [name,ms,box]=CALM; let n=0, ex=[]; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; for(const L of [50,20]) for(const a of w.__uafArrows(i,L)){ if(inb(a,box)){n++; if(ex.length<4) ex.push(m+' '+(a.ru?'RU':'UA')+' '+a.v);}}}
     const per={}; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; let c=0; for(const a of w.__uafArrows(i,20)) if(inb(a,box)) c++; if(c) per[m]=c;}
-    o.textContent+='CALME|'+name+'|'+(n<=8?'OK':'ECHEC')+'|'+n+' flèche(s) '+ex.join(', ')+' '+JSON.stringify(per)+'\\n';}
+    o.textContent+='CALME|'+name+'|'+(n<=8?'OK':'ALERTE')+'|'+n+' flèche(s) '+ex.join(', ')+' '+JSON.stringify(per)+'\\n';}
   {const R=6371,dk=(a,b)=>{const p=Math.PI/180,x=(b.lon-a.lon)*p*Math.cos((a.lat+b.lat)/2*p),y=(b.lat-a.lat)*p;return R*Math.hypot(x,y);};
    for(const m of OVERVIEW){const i=months.indexOf(m); if(i<0) continue; const all=[20,50,100].flatMap(L=>w.__uafArrows(i,L).map(a=>({...a,L}))), ov=w.__uafArrows(i,'overview');
     const km=all.reduce((s,a)=>s+a.L,0)/3, need=Math.max(1,Math.ceil(km/100)), miss=all.filter(a=>!ov.some(b=>dk(a,b)<50)); const ok=!miss.length&&ov.length>=need;
@@ -91,7 +124,7 @@ def main():
         return 1
     harness = os.path.join(SITE, "_check_arrows.html")
     import json
-    open(harness, "w").write(HARNESS.replace("__CASES__", json.dumps(CASES, ensure_ascii=False)).replace("__CALM__", json.dumps(CALM, ensure_ascii=False)).replace("__OVERVIEW__", json.dumps(OVERVIEW)).replace("__FORBID__", json.dumps(FORBID, ensure_ascii=False)))
+    open(harness, "w").write(HARNESS.replace("__SERIES_END__", json.dumps(SERIES_END, ensure_ascii=False)).replace("__MOVES_REF__", json.dumps(MOVES_REF)).replace("__PARAMS__", os.environ.get("ARROW_PARAMS", "null")).replace("__CASES__", json.dumps(CASES, ensure_ascii=False)).replace("__CALM__", json.dumps(CALM, ensure_ascii=False)).replace("__OVERVIEW__", json.dumps(OVERVIEW)).replace("__FORBID__", json.dumps(FORBID, ensure_ascii=False)).replace("__VIVALDI__", json.dumps(VIVALDI, ensure_ascii=False)))
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *a):
             pass

@@ -89,6 +89,10 @@ DEFAULT = {
     "claim_days": 90,      # annonces des médias : 90 jours
     "near_km": 20.0,       # … à moins de 20 km d'une zone tenue / contestée
     "official_stale": 3,
+    "official_decay": True,       # décroissance des annonces officielles (sinon : persistantes jusqu'au démenti)
+    "stale_local": True,          # âge réel par localité
+    "stale_cap_days": 90,         # plafond de l'âge par localité : au-delà, la carte ne perd plus de poids (évite une dérive sans fin)
+    "official_half_life": 30.0,  # jours ; recalculé : délai médian entre une annonce du MoD RF et sa confirmation par une carte tierce
     "band_prior": 4.0,     # bande russe : a priori « russe » (logit +4, p ≈ 0,98) que seules des preuves de contrôle renversent
     "band_ua_ctrl": 7.0,   # localité russe annoncée « libérée » par le MoD RF : contrôle ukrainien avant cette date (logit −7 au centre)   # annonce officielle levée après 3 mois de démenti par les autres sources du même camp
     "sigma_scale": 1.0,
@@ -143,6 +147,150 @@ def in_ring(x, y, ring):
     return inside
 
 
+LATIN = re.compile(r"^[A-Za-z'’ʼ` -]+$")
+
+
+def name_key(n):
+    """Clé de translittération tolérante : Seredne = Serednie, Kolodyazi = Kolodiazi, Zelenyi = Zelenyy."""
+    n = re.sub(r"['’ʼ`]", "", n.lower()).replace("-", " ").strip()
+    for a, b in (("kh", "h"), ("zh", "z"), ("ts", "c"), ("ch", "c"), ("sh", "s"), ("y", "i"), ("ii", "i"),
+                 ("ie", "e"), ("ia", "a"), ("iu", "u"), ("io", "o"), ("j", "i")):
+        n = n.replace(a, b)
+    return re.sub(r"(.)\1+", r"\1", n)
+
+
+def carry_forward(status):
+    """Une carte dont la série s'arrête (l'ISW fin juin 2026) n'est pas retirée d'un coup : son dernier statut connu
+    est prolongé, et son âge (σ0 + v · âge) le fait s'effacer progressivement. La retirer brutalement faisait sauter
+    le champ (≈ +1,5 km en moyenne sur tout le front en juillet 2026)."""
+    days = sorted(status)
+    ended = {}
+    for n, s in enumerate(VIINA):
+        have = [d for d in days if any(c[n] for c in status[d].values())]
+        if have and have[-1] != days[-1]:
+            last = have[-1]
+            ended[s] = last
+            keep = {g: c[n] for g, c in status[last].items() if c[n]}
+            for d in days:
+                if d > last:
+                    st = status[d]
+                    for g, code in keep.items():
+                        if g in st:
+                            st[g] = st[g][:n] + (code,) + st[g][n + 1:]
+    if ended:
+        print("séries arrêtées, prolongées par leur dernier statut (vieillissement progressif) : "
+              + ", ".join(f"{s} ({d[:4]}-{d[4:6]}-{d[6:]})" for s, d in ended.items()), flush=True)
+    return ended
+
+
+def apply_dsm_log(status, places):
+    """Corrige la colonne DeepState de VIINA par les déclarations datées de DeepState (« X libérée le jour J »).
+
+    Une déclaration prime sur le statut VIINA tant que VIINA n'a pas changé depuis (sinon VIINA est plus récent) et
+    qu'aucune déclaration contraire ne l'a remplacée. (Un plafond de 365 jours ramenait des erreurs de codage de VIINA :
+    Kherson, codée russe côté DeepState de 2022 à 2024.) Localités sans coordonnées : par leur nom, parmi les homonymes proches du front ce jour-là
+    (localités ukrainiennes et russes à moins de 10 km), au plus près des autres liens du message. Écrit les faits
+    retenus dans data/dsm_log.csv et renvoie le nombre de corrections par instantané."""
+    path = os.path.join(SRC_DIR, "dsm_log_raw.json")
+    if not os.path.exists(path):
+        print("journal DeepState absent : colonne DeepState de VIINA non corrigée", flush=True)
+        return {}
+    rows = json.load(open(path, encoding="utf-8"))
+    days = sorted(status)
+    pidx = {p["id"]: k for k, p in enumerate(places)}
+    byname, bucket = defaultdict(set), defaultdict(list)
+    for k, p in enumerate(places):
+        for n in p["names"]:
+            if n:
+                byname[name_key(n)].add(k)
+        bucket[(round(p["lat"] * 10), round(p["lon"] * 10))].append(k)
+
+    def km(k, lat, lon):
+        return math.hypot((places[k]["lon"] - lon) * 111.3 * math.cos(math.radians(lat)), (places[k]["lat"] - lat) * 111.3)
+
+    def around(lat, lon, r):
+        out = []
+        for a in range(-2, 3):
+            for b in range(-2, 3):
+                out += [k for k in bucket.get((round(lat * 10) + a, round(lon * 10) + b), ()) if km(k, lat, lon) <= r]
+        return out
+
+    def ref_day(date):
+        later = [d for d in days if d >= date]
+        return later[0] if later else days[-1]
+
+    def near_front(k, day):
+        st, seen = status[ref_day(day)], set()
+        for q in around(places[k]["lat"], places[k]["lon"], 10):
+            seen |= {c for c in st.get(places[q]["id"], ()) if c in (1, 2)}
+        return seen == {1, 2}
+
+    resolved, pending = [], []
+    for r in rows:
+        day = r["date"].replace("-", "")
+        if r["lat"] is not None:
+            c = [k for k in around(r["lat"], r["lon"], 2)]
+            k = min(c, key=lambda q: km(q, r["lat"], r["lon"])) if c else None
+        else:
+            c = [q for q in byname.get(name_key(r["name"]), ()) if near_front(q, day)]
+            if r["ctx"]:
+                la, lo = sum(x[0] for x in r["ctx"]) / len(r["ctx"]), sum(x[1] for x in r["ctx"]) / len(r["ctx"])
+                c = [q for q in c if km(q, la, lo) <= 40]
+                k = min(c, key=lambda q: km(q, la, lo)) if c else None
+            else:
+                k = c[0] if len(c) == 1 else None
+                if len(c) > 1:
+                    pending.append((day, r["camp"], c))
+                    continue
+        if k is not None:
+            resolved.append((day, r["camp"], k))
+    # homonymes restants : au plus près des localités déjà situées dans les déclarations du même jour
+    for day, camp, c in pending:
+        same = [k for d, cp, k in resolved if d == day]
+        if same:
+            la, lo = sum(places[k]["lat"] for k in same) / len(same), sum(places[k]["lon"] for k in same) / len(same)
+            best = min(c, key=lambda q: km(q, la, lo))
+            if km(best, la, lo) <= 40:
+                resolved.append((day, camp, best))
+    events = defaultdict(list)
+    for day, camp, k in sorted(set(resolved)):
+        events[places[k]["id"]].append((day, 1 if camp == "ua" else 2))
+    with open(os.path.join(ROOT, "data", "dsm_log.csv"), "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["date", "geonameid", "nom", "lon", "lat", "camp"])
+        for day, camp, k in sorted(set(resolved)):
+            p = places[k]
+            w.writerow([f"{day[:4]}-{day[4:6]}-{day[6:]}", p["id"], p["name"], round(p["lon"], 4), round(p["lat"], 4), camp])
+    # correction, instantané par instantané (VIINA garde la main s'il a changé après la déclaration)
+    fixed, last, since, prev_day = {}, {}, {}, None
+    for day in days:
+        st, n = status[day], 0
+        for g, codes in st.items():
+            old = last.get(g)
+            for i, c in enumerate(codes):
+                if old is None or old[i] != c:
+                    since[(g, i)] = prev_day or "00000000"  # cette colonne a changé après l'instantané précédent
+            last[g] = codes
+        for g, evs in events.items():
+            e = [x for x in evs if x[0] <= day]
+            if not e or g not in st:
+                continue
+            eday, code = e[-1]
+            # la déclaration tombe si VIINA-DeepState a changé depuis, ou si une autre carte est passée depuis au
+            # statut contraire (Vovtchansk « libérée » en 2022, reprise ensuite par la Russie sans « occupée » au journal)
+            if since.get((g, 0), "00000000") >= eday or any(
+                    c and c != code and since.get((g, i), "00000000") >= eday for i, c in enumerate(st[g]) if i):
+                continue
+            if st[g][0] != code:
+                st[g] = (code,) + tuple(st[g][1:])
+                n += 1
+        fixed[day] = n
+        prev_day = day
+    print(f"journal DeepState : {len(rows)} déclarations, {len(set(resolved))} localités situées, "
+          f"{sum(fixed.values())} corrections de la colonne DeepState de VIINA (instantanés cumulés)", flush=True)
+    return fixed
+
+
 def rasterize(tess_path):
     gj = json.load(open(tess_path))
     places, polys = [], []
@@ -153,6 +301,7 @@ def rasterize(tess_path):
         idx = len(places)
         places.append({"id": str(int(pr["geonameid"])), "adm1": str(pr.get("admin1_code") or "").split(".")[0],
                        "adm1n": pr.get("ADM1_NAME") or "", "name": pr.get("name") or "",
+                       "names": [pr.get("name") or "", pr.get("asciiname") or ""] + [a for a in str(pr.get("alternatenames") or "").split(",") if LATIN.match(a)],
                        "lat": float(pr["latitude"]), "lon": float(pr["longitude"])})
         for poly in (g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]):
             xs = [q[0] for q in poly[0]]
@@ -420,12 +569,27 @@ def load_layers(months):
                 combat[midx[m]].append(((cells[j + 1] + 0.5) * D["cell"], (cells[j] + 0.5) * D["cell"],
                                         max(0.0, cells[j + 2] - cells[j + 3]) * 0.1))
     if O:
+        # fin de série (UCDP publié avec un mois de retard, etc.) : les derniers mois manquants reprennent le dernier
+        # mois disponible, pour que l'arrêt d'une source ne fasse pas bouger la ligne
+        def carry(d, label):
+            if not d:
+                return
+            last = max(d)
+            for mi in range(last + 1, len(months)):
+                d[mi] = list(d[last])
+            if last + 1 < len(months):
+                print(f"{label} : arrêt après {months[last]}, dernier mois reconduit jusqu'en {months[-1]}", flush=True)
+        ucdp = defaultdict(list)
         p = O["ucdp"]["pts"]
         for j in range(0, len(p), 5):
-            combat[p[j + 2]].append(((p[j + 1] + 0.5) * 0.1, (p[j] + 0.5) * 0.1, float(p[j + 3])))
+            ucdp[p[j + 2]].append(((p[j + 1] + 0.5) * 0.1, (p[j] + 0.5) * 0.1, float(p[j + 3])))
+        carry(ucdp, "UCDP")
+        for mi, pts in ucdp.items():
+            combat[mi].extend(pts)
         p = O["ws"]["pts"]  # pertes RUSSES documentées : présence russe à cet endroit ce mois-là
         for j in range(0, len(p), 5):
             presence_ru[p[j + 2]].append(((p[j + 1] + 0.5) * 0.1, (p[j] + 0.5) * 0.1, float(p[j + 4])))
+        carry(presence_ru, "WarSpotting")
     # présence ukrainienne en Russie : une reprise annoncée par le MoD RF prouve une présence ukrainienne
     # dans les semaines qui précèdent (75 jours) ; elle élargit l'incertitude sans faire basculer le contrôle
     presence_ua = defaultdict(list)
@@ -488,6 +652,32 @@ def russian_band(cell):
 def act_since(act, k):
     v = act[k]
     return v if isinstance(v, str) else "0"
+
+
+def official_half_life(official, status, places):
+    """Délai médian (jours) entre une annonce du MoD RF et le premier instantané où une carte tierce (ISW, Wikipédia)
+    montre la localité russe, sur les annonces confirmées dans l'année : le temps que les cartes rattrapent
+    l'annonce, au-delà duquel le noyau n'apporte plus d'information propre."""
+    days = sorted(status)
+    lags = []
+    for k, dates in official.get("modru", {}).items():
+        if isinstance(k, tuple):
+            continue
+        g = places[k]["id"]
+        for t in dates:
+            t0 = dt.date(int(t[:4]), int(t[4:6]), int(t[6:]))
+            for d in days:
+                if d < t:
+                    continue
+                d0 = dt.date(int(d[:4]), int(d[4:6]), int(d[6:]))
+                if (d0 - t0).days > 365:
+                    break
+                c = status[d].get(g)
+                if c and 2 in (c[1], c[2]):
+                    lags.append((d0 - t0).days)
+                    break
+    lags.sort()
+    return (lags[len(lags) // 2], len(lags)) if lags else (DEFAULT["official_half_life"], 0)
 
 
 def load_official_claims(pid_index):
@@ -620,6 +810,13 @@ class Model:
                 if abs(v) > abs(target.get(u, 0.0)):
                     target[u] = v
 
+    def stale_sigma(self, st, v_km, P):
+        """Élargissement de σ (km) par maille, d'après l'âge réel (jours) de la carte à chaque localité."""
+        if not st:
+            return {}
+        return {u: v_km * P["v_scale"] * st[self.cell[k]] / 30.0 for u, k in enumerate(self.U)
+                if self.cell[k] >= 0 and self.cell[k] in st}
+
     def month_inputs(self, m, P, sigma0, v_km, layers, state, kstrength):
         """Tout ce qui ne dépend pas des poids : distances, σ, noyaux, indices. state : persistance entre mois."""
         d = self.snap[m]
@@ -638,6 +835,24 @@ class Model:
             dd = signed_distance(arr, self.U, self.inU, P["cap_km"])
             dist[s] = [dd.get(k) for k in self.U]
         sigma = {s: sigma0[s] * P["sigma_scale"] + v_km * P["v_scale"] * state["age"][s] / 30.0 for s in dist}
+        # âge réel par localité : une carte que contredit un changement plus récent d'une autre carte (VIINA ou
+        # journal DeepState) vieillit à cette localité depuis ce changement ; son σ s'y élargit d'autant (v · âge)
+        chg, prevc = state.setdefault("chg", {}), state.setdefault("codes", {})
+        stale = {s: {} for s in VIINA}
+        for k, b in enumerate(base):
+            old = prevc.get(k)
+            for n, s in enumerate(VIINA):
+                if old is None or old[n] != b[n]:
+                    chg[(s, k)] = day
+            prevc[k] = b
+            for n, s in enumerate(VIINA):
+                if not b[n]:
+                    continue
+                newer = [chg[(o, k)] for m, o in enumerate(VIINA) if m != n and b[m] and b[m] != b[n] and chg[(o, k)] > chg[(s, k)]]
+                if newer and P["stale_local"]:
+                    t = min(newer)
+                    age = (d - dt.date(int(t[:4]), int(t[4:6]), int(t[6:]))).days
+                    stale[s][k] = min(age, P["stale_cap_days"]) if P["stale_cap_days"] else age
         mi = self.months.index(m)
         combat, pres, pres_ua = layers
         h = density_field(combat.get(mi, []), P["h0"]) if P["alpha"] > 0 else None
@@ -675,18 +890,18 @@ class Model:
                         continue
                 self.kernel_xy(lon, lat, RU_CLAIM_RADIUS, sgn * kstrength[src], ker[src])
             for k in [x for x in act if not isinstance(x, tuple)]:
-                # démenti : toutes les cartes du même camp disent l'inverse ce mois-ci
+                # démenti : une carte d'un autre camp ou tierce dit l'inverse (le MoD RF n'annonce jamais ses reculs :
+                # attendre un démenti de toutes les cartes verrouillait en rouge des localités reprises)
                 b = base[k]
-                av = [c for c in b if c]
-                if src == "modru":
-                    contrary = bool(av) and max(av, key=lambda c: RANK[c]) == 1
-                else:
-                    contrary = (b[0] == 2) if b[0] else (bool(av) and min(av, key=lambda c: RANK[c]) == 2)
+                contrary = any(c == (1 if src == "modru" else 2) for c in b if c)
                 act[k] = act[k] + 1 if contrary else 0
                 if act[k] >= P["official_stale"]:
                     del act[k]
                     continue
-                self.kernel(k, sgn * kstrength[src], ker[src])
+                # décroissance : demi-vie = délai médian de confirmation par les cartes ; une nouvelle annonce rafraîchit
+                last = max(x for x in self.official[src][k] if x <= day)
+                age = (d - dt.date(int(last[:4]), int(last[4:6]), int(last[6:]))).days
+                self.kernel(k, sgn * kstrength[src] * (0.5 ** (age / P["official_half_life"]) if P["official_decay"] else 1.0), ker[src])
                 flags[k] |= bit
         xy_active = {src: [k for k in state["official"].get(src, {}) if isinstance(k, tuple)] for src in ("modru", "gsua")}
         band_ev = self.band_evidence(d, P, kstrength)
@@ -707,11 +922,12 @@ class Model:
                 widen[u] = w
         lv = {}
         lmax = P["lmax"]
+        extra = {s: self.stale_sigma(stale.get(s), v_km, P) for s in dist}
         for s in dist:
             sg = sigma[s]
-            col = dist[s]
-            lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / (sg * widen[u]))) for u in range(self.nU)]
-        return {"day": day, "base": base, "dist": dist, "sigma": sigma, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
+            col, ex = dist[s], extra[s]
+            lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / (sg * widen[u] + ex.get(u, 0.0)))) for u in range(self.nU)]
+        return {"day": day, "base": base, "dist": dist, "sigma": sigma, "extra": extra, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
                 "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active, "band_ev": band_ev}
 
     def band_evidence(self, d, P, kstrength):
@@ -765,7 +981,7 @@ class Model:
                     continue
                 if shift is not None:
                     d = inp["dist"][s][u] + shift[s].get(block[u], 0.0)
-                    v = max(-lmax, min(lmax, d / (inp["sigma"][s] * inp["widen"][u])))
+                    v = max(-lmax, min(lmax, d / (inp["sigma"][s] * inp["widen"][u] + inp.get("extra", {}).get(s, {}).get(u, 0.0))))
                 num[c] = num.get(c, 0.0) + w * v
                 den[c] = den.get(c, 0.0) + w
             for ker, c, w in pts:
@@ -855,7 +1071,8 @@ class Model:
                 if pu and mean > 0:
                     w += 4 * P["gamma"] * pu[k]
             widen[u] = w
-        lv = {s: [None if dist[s][u] is None else max(-lmax, min(lmax, dist[s][u] / (inp["sigma"][s] * widen[u])))
+        ex = inp.get("extra", {})
+        lv = {s: [None if dist[s][u] is None else max(-lmax, min(lmax, dist[s][u] / (inp["sigma"][s] * widen[u] + ex.get(s, {}).get(u, 0.0))))
                   for u in range(self.nU)] for s in dist}
         out = dict(inp)
         out["widen"], out["lv"] = widen, lv
@@ -1152,6 +1369,8 @@ def main():
     cell, places = rasterize(os.path.join(SRC_DIR, "gn_UA_tess.geojson"))
     cell = russian_band(cell)
     pid_index = {p["id"]: k for k, p in enumerate(places)}
+    ended = carry_forward(status)
+    dsm_fixed = apply_dsm_log(status, places)
     official = load_official_claims(pid_index)
     model = Model(months, snap, status, claims, official, cell, places)
     crimea = [p["adm1"] in CRIMEA_ADM1 for p in places]
@@ -1160,6 +1379,9 @@ def main():
         av = [SIGN[c] for c in b if c]
         pre.append(bool(av) and sum(av) / len(av) > 0)
     P = dict(DEFAULT)
+    hl, nhl = official_half_life(official, status, places)
+    P["official_half_life"] = max(15.0, float(hl))
+    print(f"annonces du MoD RF : demi-vie {P['official_half_life']:.0f} jours (délai médian de confirmation par une carte tierce, {nhl} annonces)", flush=True)
     if "--sans-indices" in sys.argv:
         P["alpha"] = 0.0
     layers = load_layers(months)

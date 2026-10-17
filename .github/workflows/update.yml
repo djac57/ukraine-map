@@ -39,6 +39,10 @@ jobs:
         run: python scripts/fetch_claims.py raw
         timeout-minutes: 60
         continue-on-error: true
+      - name: Journal public de DeepStateMap (déclarations datées, faits seulement)
+        run: python scripts/fetch_dsmlog.py raw/viina
+        timeout-minutes: 5
+        continue-on-error: true
       - name: Sauvegarder le cache (même en cas d'échec ou d'expiration)
         if: always()
         uses: actions/cache/save@v4

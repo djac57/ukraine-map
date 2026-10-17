@@ -2,21 +2,20 @@
 
     python3 scripts/fetch_dsmlog.py <dossier_viina>
 
-Pourquoi : la colonne DeepState de VIINA n'a pas suivi certaines mises à jour de la carte (contre-offensive
-au nord de Lyman, 2026 : Serednie est « libérée » le 14 septembre selon DeepState, mais codée russe par VIINA
-un mois plus tard). Le journal de DeepState (deepstatemap.live/api/history/public) date et localise chaque
-changement ; il sert à corriger la colonne DeepState de VIINA, localité par localité.
+Pourquoi : la colonne DeepState de VIINA n'a pas suivi certaines mises à jour de la carte (contre-offensive au
+nord de Lyman, 2026 : Serednie est « libérée » le 14 septembre selon DeepState, mais toujours codée russe par
+VIINA un mois plus tard). Le journal de DeepState (deepstatemap.live/api/history/public) date chaque changement ;
+build_front.py s'en sert pour corriger la colonne DeepState de VIINA, localité par localité.
 
-On ne garde que des FAITS : date, localité (géocodée par les coordonnées du lien vers la carte, rattachée à la
-localité VIINA la plus proche, à moins de 2 km) et sens du changement. Le texte n'est ni conservé ni publié.
-Seuls les verbes de prise comptent : « liberated » → ukrainien ; « occupied », « captured » → russe. Les
-avancées « près de » (« advanced near », « pushed back near », « regained control of areas near ») ne disent
-pas qui tient la localité : ignorées.
-Sortie : data/dsm_log.csv (date, geonameid, lon, lat, camp).
+On ne garde que des FAITS : date, sens du changement, nom de la localité et coordonnées du lien vers la carte
+quand il en a (les liens récents ne portent qu'un identifiant interne : la localité est alors retrouvée par son
+nom dans build_front.py, près du front). Le texte n'est pas conservé. Seuls les verbes de prise comptent :
+« liberated » → ukrainien ; « occupied », « captured » → russe. Les avancées (« advanced », « pushed back »,
+« regained control of areas near », « near ») ne disent pas qui tient la localité : elles annulent le verbe qui
+précède. Sortie (brute, jamais publiée) : <dossier_viina>/dsm_log_raw.json.
 """
-import csv
+import html
 import json
-import math
 import os
 import re
 import sys
@@ -24,66 +23,57 @@ import urllib.request
 
 import guard
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UA = "Mozilla/5.0 (compatible; ukraine-feux/1.0; non-commercial research)"
 URL = "https://deepstatemap.live/api/history/public"
-LINK = re.compile(r'<a [^>]*href="[^"]*#\d+/(-?[\d.]+)/(-?[\d.]+)"[^>]*>.*?</a>', re.S)
-# verbes (anglais, sinon ukrainien) : le dernier vu avant un lien fixe le sens ; « near / поблизу » l'annule
-VERB = re.compile(r"\b(liberated|occupied|captured|seized|took control of|near|in the area of)\b|"
-                  r"(звільнили|звільнено|окупував|окупували|захопив|захопили|поблизу|біля|в районі)", re.I)
+LINK = re.compile(r'<a [^>]*href="[^"#]*#([^"]*)"[^>]*>(.*?)</a>', re.S)
+COORD = re.compile(r"^\d+(?:\.\d+)?/(-?[\d.]+)/(-?[\d.]+)")
+# verbes (anglais, sinon ukrainien) : le dernier vu avant un lien fixe le sens ; les autres l'annulent
+VERB = re.compile(r"\b(liberated|occupied|captured|seized|took control of|near|in the area of|advanced|pushed back|"
+                  r"regained|clarified|cleared|repelled|attacked|infiltrated|in the direction of)\b|"
+                  r"(звільнили|звільнено|окупував|окупували|захопив|захопили|поблизу|біля|в районі|просунувся|"
+                  r"просунулися|відкинули|відновили|уточнено|зачистили)", re.I)
 SIDE = {"liberated": "ua", "звільнили": "ua", "звільнено": "ua", "occupied": "ru", "captured": "ru", "seized": "ru",
         "took control of": "ru", "окупував": "ru", "окупували": "ru", "захопив": "ru", "захопили": "ru"}
 
 
 def parse(text):
-    """Liste (lat, lon, camp) des liens précédés d'un verbe de prise, dans l'ordre du texte."""
-    out, side, pos = [], None, 0
-    toks = sorted([(m.start(), "v", (m.group(1) or m.group(2)).lower()) for m in VERB.finditer(text)]
-                  + [(m.start(), "l", (float(m.group(1)), float(m.group(2)))) for m in LINK.finditer(text)])
+    """Liens précédés d'un verbe de prise : (camp, nom, lat, lon) dans l'ordre du texte, et les coordonnées de
+    tous les liens du message (contexte, pour situer les liens sans coordonnées)."""
+    links = []
+    for m in LINK.finditer(text):
+        c = COORD.match(m.group(1))
+        name = html.unescape(re.sub("<[^>]+>", "", m.group(2))).strip()
+        links.append((m.start(), name, (float(c.group(1)), float(c.group(2))) if c else (None, None)))
+    verbs = [(m.start(), (m.group(1) or m.group(2)).lower()) for m in VERB.finditer(re.sub(r"<a [^>]*>.*?</a>", lambda x: " " * len(x.group(0)), text, flags=re.S))]
+    toks = sorted([(p, "v", v) for p, v in verbs] + [(p, "l", (n, ll)) for p, n, ll in links])
+    out, side = [], None
     for _, kind, val in toks:
         if kind == "v":
             side = SIDE.get(val)
         elif side:
-            out.append((val[0], val[1], side))
-    return out
+            out.append((side, val[0], val[1][0], val[1][1]))
+    ctx = [ll for _, _, ll in links if ll[0] is not None]
+    return out, ctx
 
 
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else "viina"
-    tess = os.path.join(src, "gn_UA_tess.geojson")
-    guard.require_files("fetch_dsmlog.py", [tess])
-    places = [(int(f["properties"]["geonameid"]), f["properties"]["longitude"], f["properties"]["latitude"])
-              for f in json.load(open(tess, encoding="utf-8"))["features"]]
-    grid = {}
-    for p in places:
-        grid.setdefault((round(p[1] * 10), round(p[2] * 10)), []).append(p)
+    os.makedirs(src, exist_ok=True)
     req = urllib.request.Request(URL, headers={"User-Agent": UA})
     hist = json.loads(urllib.request.urlopen(req, timeout=60).read())
     rows = []
     for h in hist:
         text = h.get("descriptionEn") or h.get("description") or ""
-        day = h["createdAt"][:10]
-        for lat, lon, side in parse(text):
-            best, bd = None, 2.0
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    for g, x, y in grid.get((round(lon * 10) + dx, round(lat * 10) + dy), []):
-                        d = math.hypot((x - lon) * 111.3 * math.cos(math.radians(lat)), (y - lat) * 111.3)
-                        if d < bd:
-                            best, bd = (g, x, y), d
-            if best:
-                rows.append((day, best[0], round(best[1], 4), round(best[2], 4), side))
-    rows = sorted(set(rows))
-    os.makedirs(os.path.join(ROOT, "data"), exist_ok=True)
-    out = os.path.join(ROOT, "data", "dsm_log.csv")
-    old = sum(1 for _ in open(out, encoding="utf-8")) - 1 if os.path.exists(out) else None
-    guard.check("fetch_dsmlog.py", [("localités datées", len(rows), old, "count")])
-    with open(out, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(["date", "geonameid", "lon", "lat", "camp"])
-        w.writerows(rows)
-    n = {s: sum(1 for r in rows if r[4] == s) for s in ("ua", "ru")}
-    print(f"dsm_log.csv : {len(hist)} mises à jour, {len(rows)} localités datées (libérées {n['ua']}, occupées {n['ru']})")
+        found, ctx = parse(text)
+        for side, name, lat, lon in found:
+            rows.append({"date": h["createdAt"][:10], "camp": side, "name": name, "lat": lat, "lon": lon, "ctx": ctx})
+    out = os.path.join(src, "dsm_log_raw.json")
+    old = len(json.load(open(out, encoding="utf-8"))) if os.path.exists(out) else None
+    guard.check("fetch_dsmlog.py", [("annonces datées", len(rows), old, "count")])
+    json.dump(rows, open(out, "w", encoding="utf-8"), ensure_ascii=False)
+    n = {s: sum(1 for r in rows if r["camp"] == s) for s in ("ua", "ru")}
+    print(f"dsm_log_raw.json : {len(hist)} mises à jour, {len(rows)} localités datées "
+          f"(libérées {n['ua']}, occupées {n['ru']}, dont {sum(1 for r in rows if r['lat'] is None)} sans coordonnées)")
 
 
 if __name__ == "__main__":
