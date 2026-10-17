@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"combat": "5fc9d7ab4b", "contact": "375402d9aa", "equilibre": "d61894e7d1", "mcsd": "336766faa8", "nowcast": "95ef4a8b8b", "ru": "3be56b1e70", "sans_dsm": "2137fc3519", "sans_enveloppes": "eaaaccfec7", "sans_gsua": "fb1195d689", "sans_indices": "eb631fb8a8", "sans_isw": "7204391fa3", "sans_medias": "b2cb9b17f8", "sans_modru": "116a72119e", "sans_presence": "e432ec76fa", "sans_wiki": "790ac0f34b", "tiers": "b5e93517b4", "ua": "11ab8e7462"};
+const FRONT_V = {"combat": "6aacf1046b", "contact": "ceb9fe5287", "equilibre": "d61894e7d1", "mcsd": "336766faa8", "nowcast": "95ef4a8b8b", "ru": "3be56b1e70", "sans_dsm": "2137fc3519", "sans_enveloppes": "eaaaccfec7", "sans_gsua": "fb1195d689", "sans_indices": "eb631fb8a8", "sans_isw": "7204391fa3", "sans_medias": "b2cb9b17f8", "sans_modru": "116a72119e", "sans_presence": "e432ec76fa", "sans_wiki": "790ac0f34b", "tiers": "b5e93517b4", "ua": "11ab8e7462", "zf": "7d771a092c", "zm": "ddd95172d7", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
@@ -400,7 +400,7 @@ function eventArrows(fi){
       if (c) { c.items.push(p); } else cl.push({sx: p.gx, sy: p.gy, items: [p]});
     }
     // base : ligne 50 % des cartes seules un mois plus tôt (la flèche compare les annonces aux cartes)
-    const fp = frameAt(fi, 30), prevLines = fp >= 0 ? lines50("equilibre", fp) : [];
+    const fp = frameAt(fi, 30), prevLines = fp >= 0 ? lines50("equilibre", fp) : [], curLines = lines50(fieldName(), fi);
     for (const c of cl) {
       const n = c.items.length, sw = c.items.reduce((a, p) => a + p.w, 0), mw = Math.max(...c.items.map(p => p.w));
       // corroboration : une seule carte qui recode ses localités (Wikipédia, DeepStateMap) est une révision, pas une
@@ -422,19 +422,85 @@ function eventArrows(fi){
       // Ce n'est pas un mouvement nouveau (95 % des cas examinés : annonce postérieure aux cartes) : simple repère
       // « confirmé par annonce », sans direction.
       const pvo = POLD ? POLD[Math.round(cy - 0.5) * GX + Math.round(cx - 0.5)] : 0.5;
-      if (camp === 1 ? pvo > 0.5 : pvo < 0.5) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true}); continue; }
+      if (camp === 1 ? pvo > 0.5 : pvo < 0.5) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, items: c.items}); continue; }
       // sens : une avancée russe va vers le côté ukrainien (−∇p, p = contrôle russe partout, bande russe comprise),
       // une avancée ukrainienne vers le côté russe (+∇p) ; à défaut (cas résiduel), réorientation selon le gradient local
-      const gp = pc ? gradAt(pc, bx, by) : [0, 0], gn = Math.hypot(gp[0], gp[1]);
-      if (gn < 1e-4) continue;
-      const sgn = camp === 1 ? -1 : 1, ux = sgn * gp[0] / gn, uy = sgn * gp[1] / gn;
-      const tx = cx - bx, ty = cy - by, tl = Math.hypot(tx, ty), dot = tl > 1e-6 ? (tx * ux + ty * uy) / tl : -1;
-      let ex2 = cx, ey2 = cy, reoriented = false;
-      if (dot <= 0.05) { const L = Math.max(tl, 4 / km); ex2 = bx + ux * L; ey2 = by + uy * L; reoriented = true; }
-      out.push({ax: bx, ay: by, cx: ex2, cy: ey2, ru: camp === 1, n, w: sw, dkm: bd * km, reoriented, late: false});
+      // Direction, par ordre de priorité : 1) déplacement de la ligne 50 % autour de l'agrégat (ancienne ligne disparue →
+      // nouvelle ligne apparue) ; 2) mailles basculées ; 3) localités annoncées qui ont effectivement basculé (adverses
+      // un mois plus tôt sur les cartes, au camp annonceur maintenant) ; 4) gradient local. Le point de l'ancienne ligne
+      // le plus proche d'une localité ou d'un barycentre peut être sur un flanc, où le gradient est latéral : la flèche
+      // suivait alors la ligne au lieu de la traverser (Lyman, septembre 2026).
+      let fl = null;
+      if (pc && POLD) { let x = 0, y = 0, nn = 0;
+        for (const q of c.items) { const k = Math.round(q.gy - 0.5) * GX + Math.round(q.gx - 0.5);
+          q.flipped = camp === 1 ? (POLD[k] < 0.5 && pc[k] > 0.5) : (POLD[k] > 0.5 && pc[k] < 0.5);
+          if (q.flipped) { x += q.gx; y += q.gy; nn++; } }
+        if (nn) fl = [x / nn, y / nn]; }
+      const fc = pc && POLD ? flippedCentroid(pc, POLD, cx, cy, camp) : null;
+      const sh = !pc || !POLD ? null : lineShift(prevLines, curLines, pc, POLD, cx, cy, camp);
+      let arr = sh ? {ax: sh.ax, ay: sh.ay, ux: sh.ux, uy: sh.uy, len: sh.len, mode: "déplacement"} : null;
+      for (const [tgt, mode] of [[fc, "bascule"], [fl, "localités"]]) {
+        if (!tgt || arr) continue;
+        let ax = null, ay = null, ad = 1e9;
+        for (const run of prevLines) for (const [x, y] of run) { const d = Math.hypot(x - tgt[0], y - tgt[1]); if (d < ad) { ad = d; ax = x; ay = y; } }
+        if (ax === null || ad * km < 1) continue;
+        arr = {ax, ay, ux: (tgt[0] - ax) / ad, uy: (tgt[1] - ay) / ad, len: ad, mode};
+        if (mode === "localités") {
+          // direction : moyenne des déplacements de chaque localité basculée depuis le point de l'ancienne ligne le plus
+          // proche d'elle (un agrégat de 15 km peut réunir deux poussées voisines ; leur barycentre seul serait trompeur)
+          let sx = 0, sy = 0;
+          for (const q of c.items) { if (!q.flipped) continue;
+            let qd = 1e9, qx = 0, qy = 0;
+            for (const run of prevLines) for (const [x, y] of run) { const d = Math.hypot(x - q.gx, y - q.gy); if (d < qd) { qd = d; qx = x; qy = y; } }
+            if (qd * km >= 0.5) { sx += q.w * (q.gx - qx) / qd; sy += q.w * (q.gy - qy) / qd; } }
+          const sl = Math.hypot(sx, sy);
+          if (sl > 1e-6) { arr.ux = sx / sl; arr.uy = sy / sl; }
+        }
+      }
+      if (!arr) {
+        const gp = pc ? gradAt(pc, bx, by) : [0, 0], gn = Math.hypot(gp[0], gp[1]);
+        if (gn < 1e-4) continue;
+        const sgn = camp === 1 ? -1 : 1, ux = sgn * gp[0] / gn, uy = sgn * gp[1] / gn;
+        arr = {ax: bx, ay: by, ux, uy, len: Math.hypot(cx - bx, cy - by), mode: "gradient"};
+      }
+      // la direction retenue doit aller vers les localités basculées et vers les mailles basculées quand ces repères
+      // existent (à plus de 1 km de la base) ; sinon le sens n'est pas établi : repère creux, sans direction
+      const against = [fl, fc].some(t => t && Math.hypot(t[0] - arr.ax, t[1] - arr.ay) * km >= 1 && (t[0] - arr.ax) * arr.ux + (t[1] - arr.ay) * arr.uy <= 0);
+      if (against) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, undirected: true, items: c.items}); continue; }
+      const L = Math.max(arr.len, 4 / km);
+      out.push({ax: arr.ax, ay: arr.ay, cx: arr.ax + arr.ux * L, cy: arr.ay + arr.uy * L, ru: camp === 1, n, w: sw, dkm: bd * km, late: false,
+                items: c.items, dir: [arr.ux, arr.uy], mode: arr.mode, bary: [cx, cy], refs: [fl, fc]});
     }
   }
   return evCache[fi] = out;
+}
+// déplacement de la ligne 50 % à moins de 15 km d'un agrégat d'annonces : barycentre des sommets de l'ancienne ligne
+// passés du côté du camp qui annonce → barycentre des sommets de la nouvelle ligne qui étaient du côté adverse.
+// null si l'un des deux ensembles a moins de 3 sommets ou si le déplacement fait moins de 1 km.
+function lineShift(oldRuns, newRuns, pc, pold, cx, cy, camp){
+  const km = FR.grid.size / 1000, R = 15 / km, own = v => camp === 1 ? v > 0.55 : v < 0.45, adv = v => camp === 1 ? v < 0.45 : v > 0.55;
+  const acc = (runs, g, test) => { let x = 0, y = 0, n = 0;
+    for (const run of runs) for (const [px, py] of run) {
+      if (Math.hypot(px - cx, py - cy) > R) continue;
+      const v = sampleAt(g, px, py); if (v !== null && test(v)) { x += px; y += py; n++; } }
+    return n >= 3 ? [x / n, y / n] : null; };
+  const A = acc(oldRuns, pc, own), B = acc(newRuns, pold, adv);
+  if (!A || !B) return null;
+  const dx = B[0] - A[0], dy = B[1] - A[1], len = Math.hypot(dx, dy);
+  if (len * km < 1) return null;
+  return {ax: A[0], ay: A[1], ux: dx / len, uy: dy / len, len};
+}
+// barycentre des mailles qui ont basculé vers le camp annonceur (adverses à p_old, au camp à p_now) à moins de 15 km ;
+// null s'il y en a moins de 3
+function flippedCentroid(pc, pold, cx, cy, camp){
+  const km = FR.grid.size / 1000, R = 15 / km; let x = 0, y = 0, n = 0;
+  for (let j = Math.max(0, Math.floor(cy - R)); j <= Math.min(GY - 1, Math.ceil(cy + R)); j++)
+    for (let i = Math.max(0, Math.floor(cx - R)); i <= Math.min(GX - 1, Math.ceil(cx + R)); i++) {
+      if (Math.hypot(i + 0.5 - cx, j + 0.5 - cy) > R) continue;
+      const c = j * GX + i, a = pold[c], b = pc[c];
+      if (camp === 1 ? (a < 0.45 && b > 0.55) : (a > 0.55 && b < 0.45)) { x += i + 0.5; y += j + 0.5; n++; }
+    }
+  return n >= 3 ? [x / n, y / n] : null;
 }
 function drawEventArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
@@ -446,7 +512,7 @@ function drawEventArrows(k){
       const r = k < 1.6 ? 3.5 : 5;
       ctx.globalAlpha = 0.7; ctx.strokeStyle = a.ru ? C.front : C.uactl; ctx.lineWidth = 1.3;
       ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI); ctx.stroke();
-      arrowList.push({x: sx, y: sy, a: {ru: a.ru, v: 0, ev: a.n, late: true}});
+      arrowList.push({x: sx, y: sy, a: {ru: a.ru, v: 0, ev: a.n, late: true, undirected: !!a.undirected}});
       continue;
     }
     let ex = (gAff[0] + a.cx * gAff[2]) * k + tr.x, ey = (gAff[1] + a.cy * gAff[2]) * k + tr.y;
@@ -470,7 +536,10 @@ function drawEventArrows(k){
 }
 // diagnostic (headless) : flèches d'événements d'un mois en coordonnées géographiques
 window.__uafEvents = fi => eventArrows(fi).map(a => { const p = proj.invert([gAff[0] + a.cx * gAff[2], gAff[1] + a.cy * gAff[2]]), b = proj.invert([gAff[0] + a.ax * gAff[2], gAff[1] + a.ay * gAff[2]]);
-  return {lon: +p[0].toFixed(2), lat: +p[1].toFixed(2), from: [+b[0].toFixed(2), +b[1].toFixed(2)], ru: a.ru, n: a.n, w: +a.w.toFixed(2), dkm: +a.dkm.toFixed(1), late: !!a.late}; });
+  const ll = (x, y) => proj.invert([gAff[0] + x * gAff[2], gAff[1] + y * gAff[2]]).map(v => +v.toFixed(3));
+  return {lon: +p[0].toFixed(2), lat: +p[1].toFixed(2), from: [+b[0].toFixed(2), +b[1].toFixed(2)], ru: a.ru, n: a.n, w: +a.w.toFixed(2), dkm: +a.dkm.toFixed(1), late: !!a.late,
+    undirected: !!a.undirected, mode: a.mode || null, dir: a.dir ? a.dir.map(v => +v.toFixed(2)) : null, bary: a.bary ? ll(...a.bary) : null,
+    locs: (a.items || []).map(q => [...ll(q.gx, q.gy), +q.w.toFixed(2), [...q.srcs].join("+"), !!q.flipped])}; });
 // diagnostic (headless) : état d'affichage (zoom, info-bulle, pas) pour les tests mobiles
 window.__uafState = () => ({k: tr.k, x: tr.x, y: tr.y, tip: tip.style.display, step: stepIdx, nsteps: AX.length, fvar, nowcast: amode() === "nowcast",
   checks: Object.fromEntries([...document.querySelectorAll('input[type="checkbox"]')].map(c => [c.id || c.dataset.raw || c.dataset.var, c.checked]))});
@@ -495,7 +564,7 @@ window.__uafArea = (fi, b, band) => { const g = fullField("equilibre", fi), a = 
 window.__uafLine = (fi, b) => lines50("equilibre", fi).flat().filter(p => inBox(p[0], p[1], b)).length;
 // contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
 window.__uafArrowCheck = function(){
-  const fails = [], km = FR.grid.size / 1000; let total = 0, reoriented = 0, evN = 0, late = 0;
+  const fails = [], km = FR.grid.size / 1000; let total = 0, reoriented = 0, evN = 0, late = 0, flipChecked = 0;
   for (let fi = 3; fi < FR.months.length; fi++) {
     if (!FR.months[fi]) continue;
     const runs = lines50("equilibre", fi), pts = runs.flat();
@@ -516,12 +585,32 @@ window.__uafArrowCheck = function(){
     }
     const ge = fullField(fieldName(), fi);
     for (const a of eventArrows(fi)) {
-      total++; evN++; if (a.reoriented) reoriented++; if (a.late) { late++; continue; }
-      const [gx, gy] = gradAt(ge, a.ax, a.ay), s = a.ru ? -1 : 1, tx = a.cx - a.ax, ty = a.cy - a.ay;
+      total++; evN++; if (a.undirected) reoriented++; if (a.late) { late++; continue; }
+      const s = a.ru ? -1 : 1, tx = a.cx - a.ax, ty = a.cy - a.ay;
+      // direction comparée au déplacement réel (localités annoncées basculées, mailles basculées), recalculé ici à partir
+      // des champs ; le gradient ponctuel, trompeur sur les flancs d'un saillant, ne sert que s'il n'y a aucun repère
+      const fp0 = frameAt(fi, 30), po = fp0 >= 0 ? fullField("equilibre", fp0) : null, ll = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(v => +v.toFixed(2));
+      const refs = [];
+      if (po && a.items) {
+        let x = 0, y = 0, n = 0;
+        for (const q of a.items) { const c = Math.round(q.gy - 0.5) * GX + Math.round(q.gx - 0.5), was = po[c], now = ge[c];
+          if (a.ru ? (was < 0.5 && now > 0.5) : (was > 0.5 && now < 0.5)) { x += q.gx; y += q.gy; n++; } }
+        if (n) refs.push(["localités basculées", [x / n, y / n]]);
+        const fc = flippedCentroid(ge, po, a.bary ? a.bary[0] : a.cx, a.bary ? a.bary[1] : a.cy, a.ru ? 1 : 0);
+        if (fc) refs.push(["mailles basculées", fc]);
+      }
+      const used = refs.filter(([, r]) => Math.hypot(r[0] - a.ax, r[1] - a.ay) * km >= 1);
+      if (used.length) {
+        flipChecked++;
+        for (const [nm, r] of used) if (tx * (r[0] - a.ax) + ty * (r[1] - a.ay) <= 0)
+          fails.push({mois: FR.months[fi].date, sens: "annonces contre les " + nm, ru: a.ru, base: ll(a.ax, a.ay), pointe: ll(a.cx, a.cy), ref: ll(...r), mode: a.mode});
+        continue;
+      }
+      const [gx, gy] = gradAt(ge, a.ax, a.ay);
       if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru});
     }
   }
-  return {total, fails, reoriented, evN, late};
+  return {total, fails, reoriented, evN, late, flipChecked};
 };
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
@@ -1067,7 +1156,9 @@ function hover(e){
     for (const h of arrowList) { const d = Math.hypot(h.x - mx, h.y - my); if (d < bd) { bd = d; best = h; } }
     if (best) {
       const fi = frontIdx(), camp = best.a.ru ? "russe" : "ukrainienne";
-      tip.innerHTML = best.a.ev ? (best.a.late
+      tip.innerHTML = best.a.ev ? (best.a.undirected
+        ? `<div class="r"><span>changements annoncés (${camp})</span><b>${best.a.ev} localité(s)</b></div><div style="margin-top:4px;color:var(--faint)">30 derniers jours ; sens non établi : les localités basculées et le déplacement de la ligne ne vont pas dans la même direction</div>`
+        : best.a.late
         ? `<div class="r"><span>confirmé par annonce (${camp})</span><b>${best.a.ev} localité(s)</b></div><div style="margin-top:4px;color:var(--faint)">changements annoncés dans les 30 jours que les cartes montraient déjà : pas un mouvement nouveau</div>`
         : `<div class="r"><span>changements annoncés : avancée ${camp}</span><b>${best.a.ev} localité(s)</b></div><div style="margin-top:4px;color:var(--faint)">30 derniers jours ; journal DeepStateMap, état-major UA, MoD RF, bascules des cartes, pondérés par leur fiabilité mesurée</div>`)
         : `<div class="r"><span>avancée ${camp}</span><b>${String(Math.round(best.a.v * 10) / 10).replace(".", ",")} km par 30 jours</b></div>` +
