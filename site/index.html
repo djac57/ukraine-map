@@ -121,6 +121,7 @@ footer{border-top:1px solid var(--rule);margin-top:56px;padding:20px 0 40px;font
 footer p{margin:0 0 8px}
 @media (max-width:760px){
   .osint{grid-template-columns:1fr}
+  .osint>div{grid-column:auto!important}
   .areabox{grid-template-columns:1fr}
   .lic td:first-child{white-space:normal}
   .stats{grid-template-columns:1fr 1fr}
@@ -257,7 +258,7 @@ footer p{margin:0 0 8px}
   <div><h3 class="mono" style="font-size:12px;color:var(--faint);font-weight:400;margin:0 0 4px">MISSILES</h3><div class="chart" id="missiles"></div></div>
 </div>
 
-<h2>Pertes matérielles documentées</h2>
+<h2>Pertes matérielles documentées (cumul)</h2>
 <p class="sub">Équipements dont la perte est prouvée par une photo ou une vidéo, d'après Oryx (via le jeu de données de D. Scarnecchia). Un minimum, pas un bilan : les pertes non filmées manquent, et les zones tenues par la Russie sont moins documentées. Série figée au <span class="mono" id="oryxDay"></span>, dernier relevé disponible. Le tableau reprend les totaux d'Oryx par type ; le panneau sous la carte compte les entrées par date de relevé (une par preuve, munitions et drones compris), d'où un cumul plus élevé.</p>
 <div class="tablewrap"><table class="oryx" id="oryxTab"></table></div>
 
@@ -400,7 +401,9 @@ let fmode = "equilibre";
 const monthCodes = []; { let codes = new Uint16Array(FR.nPlaces);
   for (const m of FR.months) { if (!m) { monthCodes.push(null); continue; } codes = codes.slice(); const d = m.d; for (let i = 0; i < d.length; i += 2) codes[d[i]] = d[i+1]; monthCodes.push(codes); } }
 const lastFront = FR.months.reduce((a, m, i) => m ? i : a, -1);
-const frontIdx = () => FR.months[cur] ? cur : -1;
+// après le dernier instantané (règle des 7 jours), on garde le dernier front connu plutôt qu'une carte vide
+const frontIdx = () => FR.months[cur] ? cur : (cur > lastFront ? lastFront : -1);
+if (lastFront >= 0) cur = lastFront;  // ouverture : dernier mois disponible pour le front
 // champs de probabilité : un fichier par vue (la vue équilibrée est chargée d'office), différences mois à mois
 const UCELLS = []; for (let c = 0; c < GX * GY; c++) if (cellPlace[c] >= 0) UCELLS.push(c);
 const fieldCache = {};
@@ -553,7 +556,7 @@ function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   const lim = W < 500 ? 4 + Math.log2(k)*2 : 4.5 + Math.log2(k)*2;
   ctx.font = "11px 'JetBrains Mono', monospace"; ctx.textBaseline = "middle";
-  const placed = [[0, 0, W < 560 ? 250 : 300, W < 560 ? 62 : 70], [W-48, 0, W, 130]];
+  const placed = [[0, 0, W < 560 ? 290 : 420, (W < 560 ? 62 : 70) + 15 * Math.max(0, layerNotes().length - 1)], [W-48, 0, W, 130]];
   for (const c of cities) {
     if (c.r > lim && !c.cap) continue;
     const x = c.x*k + tr.x, y = c.y*k + tr.y;
@@ -707,6 +710,7 @@ $("legend").addEventListener("click", e => {
 });
 
 function legend(){
+  if (typeof layerNotes === "function" && $("mSub")) $("mSub").innerHTML = layerNotes().join("<br>");
   const front = showFront || showLines ? `<span><i style="background:rgba(${C["front-rgb"]},.75);border-radius:0"></i>probabilité d'occupation russe</span>` +
     (showLines ? `<span><i style="background:${C.front};height:2px;border-radius:0;vertical-align:3px"></i>ligne médiane (p = 50 %)</span><span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>10 % et 90 %</span>` : "") +
     `<span><i style="border-top:1px dotted ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>occupé avant 2022</span><span style="flex-basis:100%;height:0"></span>` : "";
@@ -728,22 +732,42 @@ function updateReadout(){
   const s = D.series[cur], m = +D.months[cur].slice(5) - 1;
   let cum = 0; for (let i = 0; i <= cur; i++) cum += D.series[i][2];
   $("mLabel").textContent = monthLabel(cur);
-  $("mSub").textContent = cur === 0 ? "à partir du 24 février" : (!covered[cur] ? "feux : aucune donnée S-NPP ce mois-ci" : (cur === lastIdx && partial ? "feux : mois en cours, jusqu'au " + (+D.lastDay.slice(8)) : (D.series[cur][3] < 1 ? "feux : " + Math.round(D.series[cur][3]*100) + "\u00a0% des jours observés" : "")));
+  $("mSub").innerHTML = layerNotes().join("<br>");
   const nd = v => covered[cur] ? fmt(v) : "—";
   $("readout").innerHTML = [
-    ["toutes détections", nd(s[0])],
-    ["normale 2012-2021", fmt(s[1])],
-    ["même mois 2021", fmt(ref2021Tot[m])],
-    ["en excès", nd(s[2]), "ex"]
+    ["feux détectés ce mois-ci", nd(s[0])],
+    ["normale du mois (2012-2021)", fmt(s[1])],
+    ["même mois en 2021", fmt(ref2021Tot[m])],
+    ["en excès ce mois-ci", nd(s[2]), "ex"]
   ].map(([t,v,c]) => `<div class="${c||""}">${t}<b>${v}</b></div>`).join("") +
   `<div style="grid-column:1/-1">cumul depuis le 24 février 2022 : <span style="color:var(--ember)">${fmt(cum)}</span> détections au-dessus de la normale</div>`;
   const c = CTX.filter(x => x.month === D.months[cur]);
   $("note").innerHTML = c.map(x => `<b>${x.title}.</b> ${x.short}`).join(" ");
   updateOsint();
 }
+// une ligne par couche affichée : ce qu'elle montre ce mois-ci, ou pourquoi elle est vide
+function layerNotes(){
+  const n = [], fi = frontIdx();
+  if (showFront || showLines) {
+    if (fi < 0) n.push("front : pas d'instantané pour ce mois");
+    else if (fi !== cur) n.push(`front : ${monthLabel(fi)} (dernier disponible, J-7 minimum)`);
+  }
+  if (showFire) {
+    if (!covered[cur]) n.push("feux : aucune donnée S-NPP ce mois-ci");
+    else if (!D.series[cur][2]) n.push("feux : aucun excès détecté ce mois-ci" + (cur === lastIdx && partial ? ` (mois en cours, jusqu'au ${+D.lastDay.slice(8)})` : ""));
+    else if (cur === lastIdx && partial) n.push(`feux : mois en cours, jusqu'au ${+D.lastDay.slice(8)}`);
+    else if (D.series[cur][3] < 1) n.push(`feux : ${Math.round(D.series[cur][3]*100)}\u00a0% des jours observés`);
+  } else if (cur === 0) n.push("à partir du 24 février");
+  if (showLoss && cur > cutIdx) n.push("pertes : pas encore publiées (mois complet + 7 jours)");
+  else if (showLoss && !O.ws.perMonth[cur].some(Boolean)) n.push("pertes : aucune ce mois-ci");
+  if (showUcdp) { let any = false; for (let j = 0; j < NU; j++) if (UC[j*5+2] === cur) { any = true; break; }
+    if (!any) n.push(cur > cutIdx || D.months[cur] > (O.ucdp.last || "") ? "combats UCDP : pas encore publiés pour ce mois" : "combats UCDP : aucun événement localisé"); }
+  if (showArcs && !O.launch.arcs.some(a => a[0] === cur)) n.push(cur > cutIdx ? "missiles : pas encore publiés (mois complet + 7 jours)" : D.months[cur] < "2022-10" ? "missiles : série à partir d'octobre 2022" : "missiles : aucune cible précisée ce mois-ci");
+  return n;
+}
 function updateArea(){
   const fi = frontIdx(), el = $("areaBox");
-  if (fi < 0) { el.innerHTML = `<div style="grid-column:1/-1"><span class="na">front : pas d'instantané publié pour ce mois (règle des 7 jours)</span></div>`; return; }
+  if (fi < 0) { el.innerHTML = `<div style="grid-column:1/-1"><span class="na">front : pas d'instantané pour ce mois</span></div>`; return; }
   const mo = FR.months[fi], a = mo.a[fmode], sh = v => (v / UA_KM2 * 100).toFixed(1).replace(".", ",") + "\u00a0%";
   const r10 = v => fmt(Math.round(v/10)*10), mc = mo.mc, eq = fmode === "equilibre";
   const crimea = a.tout[0] - a.horsCrimee[0], pre = a.horsCrimee[0] - a.depuis2022[0];
@@ -840,30 +864,33 @@ function methodTables(){
 function updateOsint(){
   updateArea();
   const after = cur > cutIdx, wait = `<span class="na">pas encore publié (mois complet + 7 jours)</span>`;
-  // WarSpotting
-  let a = `<h4>Pertes russes documentées · WarSpotting</h4>`;
-  if (after) a += wait;
-  else {
-    const pm = O.ws.perMonth[cur], tot = d3.sum(pm);
-    let cum = 0; for (let i = 0; i <= cur; i++) cum += d3.sum(O.ws.perMonth[i]);
-    a += `<span class="big">${fmt(tot)}</span>` + O.groups.map((g,i) => `<div class="r"><span>${pictoSvg(i, C["loss-now"])}${g}</span><b>${fmt(pm[i])}</b></div>`).join("") +
-      `<div class="r" style="margin-top:6px"><span>cumul</span><b>${fmt(cum)}</b></div>`;
-  }
-  // Oryx
-  let b = `<h4>Cumul documenté, deux camps · Oryx</h4>`;
+  // WarSpotting : cumul depuis le 24 février 2022 en grand, mois et cumul par catégorie, Oryx en regard
+  const lastWs = Math.min(cur, cutIdx), mlab = MC[+D.months[cur].slice(5)-1] + " " + D.months[cur].slice(0,4);
+  const cumG = O.groups.map(() => 0);
+  for (let i = 0; i <= lastWs; i++) O.ws.perMonth[i].forEach((v, g) => cumG[g] += v);
+  const pmG = after ? null : O.ws.perMonth[cur];
+  const orx = O.oryx.snapshot, oryxDay = dateFr(O.oryx.lastDay);
+  let a = `<h4>Pertes russes documentées · WarSpotting · cumul depuis le 24 février 2022</h4>` +
+    `<span class="big">${fmt(d3.sum(cumG))}</span><span>engins perdus (détruits, endommagés, abandonnés ou capturés) jusqu'à fin ${monthLabel(lastWs)}</span>` +
+    `<div class="tablewrap"><table class="oryx" style="margin-top:8px;font-size:12px"><tr><th>catégorie</th><th>ce mois-ci (${mlab})</th><th>cumul WarSpotting</th><th>cumul Oryx, Russie (arrêté au ${oryxDay})</th></tr>` +
+    O.groups.map((g, i) => `<tr><td>${pictoSvg(i, C["loss-now"])} ${g}</td><td>${pmG ? fmt(pmG[i]) : "—"}</td><td>${fmt(cumG[i])}</td><td>${fmt(orx[i][0])}</td></tr>`).join("") +
+    `</table></div><p style="margin:8px 0 0">WarSpotting et Oryx ne comptent que les pertes prouvées par photo ou vidéo : ce sont des minimums. Les derniers mois sont sous-estimés, car la documentation arrive avec retard.` +
+    (after ? ` Ce mois-ci : pas encore publié (mois complet + 7 jours).` : "") + ` La série Oryx n'est pas prolongée au-delà du ${oryxDay}.</p>`;
+  // Oryx : cumul des deux camps à la fin du mois affiché
+  let b = `<h4>Pertes documentées des deux camps · Oryx · cumul</h4>`;
   const ox = O.oryx.total[cur];
   const od = v => v ? fmt(v) : "—";
-  if (ox && (ox[0] || ox[1])) b += `<div class="r"><span>Russie</span><b>${od(ox[0])}</b></div><div class="r"><span>Ukraine</span><b>${od(ox[1])}</b></div>` + (ox[0] && ox[1] ? `<div class="r"><span>rapport</span><b>${(ox[0]/ox[1]).toFixed(1).replace(".",",")} pour 1</b></div>` : "") + `<p style="margin:8px 0 0">entrées documentées (une par preuve photo ou vidéo) à la fin du mois, date de relevé</p>`;
+  if (ox && (ox[0] || ox[1])) b += `<div class="r"><span>Russie</span><b>${od(ox[0])}</b></div><div class="r"><span>Ukraine</span><b>${od(ox[1])}</b></div>` + (ox[0] && ox[1] ? `<div class="r"><span>rapport</span><b>${(ox[0]/ox[1]).toFixed(1).replace(".",",")} pour 1</b></div>` : "") + `<p style="margin:8px 0 0">cumul à la fin de ${monthLabel(cur)}, en entrées documentées (une par preuve photo ou vidéo, à la date de relevé)</p>`;
   else if (ox) b += `<span class="na">pas encore de relevé dans le jeu de données</span>`;
-  else { const l = O.oryx.total.filter(Boolean).pop(); b += `<span class="na">série arrêtée au ${dateFr(O.oryx.lastDay)}</span><div class="r" style="margin-top:6px"><span>Russie</span><b>${fmt(l[0])}</b></div><div class="r"><span>Ukraine</span><b>${fmt(l[1])}</b></div>`; }
+  else { const l = O.oryx.total.filter(Boolean).pop(); b += `<span class="na">série arrêtée au ${oryxDay}, non prolongée</span><div class="r" style="margin-top:6px"><span>Russie</span><b>${fmt(l[0])}</b></div><div class="r"><span>Ukraine</span><b>${fmt(l[1])}</b></div><p style="margin:8px 0 0">cumul au ${oryxDay}</p>`; }
   // Missiles et drones
-  let c = `<h4>Missiles et drones lancés · armée de l'air</h4>`;
+  let c = `<h4>Missiles et drones lancés · armée de l'air · ce mois-ci (${mlab})</h4>`;
   const mm = O.missiles.perMonth[cur];
   if (after) c += wait;
   else if (!d3.sum(mm)) c += `<span class="na">série disponible à partir de fin septembre 2022</span>`;
   else c += `<div class="r"><span>drones lancés</span><b>${fmt(mm[2])}</b></div><div class="r"><span>dont annoncés abattus</span><b>${fmt(mm[3])}</b></div>` +
     `<div class="r" style="margin-top:6px"><span>missiles lancés</span><b>${fmt(mm[0])}</b></div><div class="r"><span>dont annoncés abattus</span><b>${fmt(mm[1])}</b></div>`;
-  $("osint").innerHTML = `<div>${a}</div><div>${b}</div><div>${c}</div>`;
+  $("osint").innerHTML = `<div style="grid-column:1/-1">${a}</div><div>${b}</div><div style="grid-column:span 2">${c}</div>`;
 }
 
 // petits graphiques mensuels synchronisés (drones, missiles)
