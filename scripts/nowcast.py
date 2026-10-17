@@ -119,6 +119,7 @@ class Nowcast:
         self.IND[key] = [ndimage.gaussian_filter(np.asarray(x, np.float32).reshape(self.NY, self.NX), 3.0)[self.jj, self.ii]
                          for x in indicators]
         try:
+            self.last_ind = self.IND[key]
             return self.apply(key, beta), self.score(key), self.dist_line(key)
         finally:
             for kk in (key, key - k):
@@ -126,6 +127,59 @@ class Nowcast:
                 self._dist.pop(kk, None)
                 self._trend.pop(kk, None)
             self.IND.pop(key, None)
+
+    # ---------- zone de contact mesurée par nos signaux ----------
+    def contact(self, p, ind_s, factor=2.0, tile_cells=25):
+        """Zone de contact (zone grise au sens du terrain) estimée UNIQUEMENT par nos signaux de combat.
+
+        Activité A = moyenne des trois indicateurs normalisés (feux, UCDP, pertes), lissés (~6 km). Profil national de A
+        selon la distance signée à la ligne 50 % (+ côté russe) ; fond = niveau à 40-60 km de chaque côté ; zone = mailles
+        à moins de 60 km de la ligne où A dépasse factor × fond (de leur côté), reliées à la ligne. Renvoie (rapport
+        A / seuil sur U, masque de zone, bilan : km², largeurs moyennes par côté, tuiles de 50 km, profil)."""
+        A = np.mean(np.stack([1 - np.exp(-np.asarray(ind_s[n], np.float32) / self.H[n]) for n in range(len(NAMES))]), axis=0)
+        g = np.full((self.NY, self.NX), np.nan, np.float32)
+        g[self.jj, self.ii] = p
+        ru, ua = g > 0.5, g < 0.5
+        edge = np.zeros_like(ru)
+        for sh in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            edge |= ru & np.roll(ua, sh, axis=(0, 1))
+        sd = np.where(ru, 1, -1)[self.jj, self.ii] * (ndimage.distance_transform_edt(~edge) * self.km)[self.jj, self.ii]
+        bins = np.arange(-60, 64, 4.0)
+        idx = np.clip(np.digitize(sd, bins) - 1, 0, len(bins) - 2)
+        near = np.abs(sd) <= 60
+        s = np.bincount(idx[near], weights=A[near], minlength=len(bins) - 1)
+        n = np.bincount(idx[near], minlength=len(bins) - 1)
+        prof = s / np.maximum(n, 1)
+        mids = (bins[:-1] + bins[1:]) / 2
+        bg_ru = float(prof[(mids >= 40) & (mids <= 60)].mean()) or 1e-3
+        bg_ua = float(prof[(mids <= -40) & (mids >= -60)].mean()) or 1e-3
+        thr = np.where(sd > 0, factor * bg_ru, factor * bg_ua)
+        hot = near & (A > thr)
+        lab, nl = ndimage.label(self.grid(hot.astype(np.float32)) > 0)
+        labU = lab[self.jj, self.ii]
+        keep = np.unique(labU[hot & (np.abs(sd) <= 4)])
+        zone = hot & np.isin(labU, keep[keep > 0])
+        a2 = self.km ** 2
+        # largeur moyenne de chaque côté : surface de zone de ce côté / longueur de ligne (arêtes coupées × km)
+        line_km = float(edge.sum()) * self.km * np.pi / 4
+        w_ru = float((zone & (sd > 0)).sum() * a2 / max(line_km, 1))
+        w_ua = float((zone & (sd <= 0)).sum() * a2 / max(line_km, 1))
+        tiles = []
+        tk = (self.jj // tile_cells) * 1000 + self.ii // tile_cells
+        ej, ei = np.nonzero(edge)
+        etk = (ej // tile_cells) * 1000 + ei // tile_cells
+        for t in np.unique(etk):
+            L = float((etk == t).sum()) * self.km * np.pi / 4
+            if L < 5:
+                continue
+            m = tk == t
+            zr, zu = float((zone & m & (sd > 0)).sum() * a2 / L), float((zone & m & (sd <= 0)).sum() * a2 / L)
+            j0, i0 = (t // 1000) * tile_cells + tile_cells // 2, (t % 1000) * tile_cells + tile_cells // 2
+            tiles.append((int(j0), int(i0), round(zr, 1), round(zu, 1)))
+        ratio = np.where(zone, np.clip(A / np.maximum(thr, 1e-6), 1, 6.3), 0)
+        return ratio, zone, {"km2": round(float(zone.sum() * a2)), "w_ru": round(w_ru, 1), "w_ua": round(w_ua, 1),
+                             "bg": [round(bg_ru, 4), round(bg_ua, 4)], "tiles": tiles,
+                             "profile": [round(float(x), 4) for x in prof]}
 
     # ---------- validation ----------
     def brier(self, t, p, sel=None):

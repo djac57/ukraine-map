@@ -305,8 +305,26 @@ def control_events(status, places, official, dsm_events):
     days = sorted(d for d in status if d != PRE_DATE)
     pidx = {p["id"]: k for k, p in enumerate(places)}
     ev = []
+    # mention ancienne : localité que les cartes (2 sur 3) donnaient déjà au camp annonceur 60 jours avant l'annonce ;
+    # ce n'est pas une prise (ex. : « Vouhledar » dans des communiqués du MoD RF de novembre 2024, prise début octobre)
+    stale_n = defaultdict(int)
+
+    def stale(g, d, camp):
+        if not g:
+            return False
+        ref = (dt.date(int(d[:4]), int(d[4:6]), int(d[6:])) - dt.timedelta(days=60)).strftime("%Y%m%d")
+        before = [x for x in days if x <= ref]
+        if not before:
+            return False
+        c = status[before[-1]].get(g)
+        return bool(c) and sum(1 for x in c[:3] if x == (2 if camp == 1 else 1)) >= 2
+
     for day, camp, k in dsm_events:
-        ev.append((day, places[k]["lon"], places[k]["lat"], 1 if camp == "ru" else 0, "dsmlog", places[k]["id"]))
+        c1 = 1 if camp == "ru" else 0
+        if stale(places[k]["id"], day, c1):
+            stale_n["dsmlog"] += 1
+            continue
+        ev.append((day, places[k]["lon"], places[k]["lat"], c1, "dsmlog", places[k]["id"]))
     for src, camp in (("modru", 1), ("gsua", 0)):
         for key, dates in official.get(src, {}).items():
             if isinstance(key, tuple):
@@ -314,7 +332,11 @@ def control_events(status, places, official, dsm_events):
             else:
                 lon, lat, g = places[key]["lon"], places[key]["lat"], places[key]["id"]
             for d in dates:
+                if stale(g, d, camp):
+                    stale_n[src] += 1
+                    continue
                 ev.append((d, lon, lat, camp, src, g))
+    print("annonces écartées comme mentions anciennes (localité déjà au camp annonceur 60 jours avant) : " + ", ".join(f"{k} {v}" for k, v in stale_n.items()), flush=True)
     for prev, day in zip(days, days[1:]):
         a, b = status[prev], status[day]
         for g, codes in b.items():
@@ -1589,7 +1611,8 @@ def main():
     U = model.U
     months_out = {m: None for m in months}
     days_out = {}
-    allf = list(fields) + ["nowcast", "combat"]
+    allf = list(fields) + ["nowcast", "combat", "contact"]
+    contact_prof = []
     qstore = {f: {} for f in allf}   # champs quantifiés par instantané, encodés à la fin dans l'ordre publié
     sdstore = {}
     last_mc = {}
@@ -1727,6 +1750,11 @@ def main():
         near = ncast.isUA & (dl <= 10)
         ref = float(sc[near].mean()) if near.any() else 1.0
         qstore["combat"][m] = bytes(np.where(dl <= 30, np.clip(sc / max(ref, 1e-6) * 10, 0, 63), 0).astype(np.uint8).tolist())
+        # zone grise (contact) : nos seuls signaux de combat, rapportés au fond national à 40-60 km de la ligne
+        ratio, zone, cst = ncast.contact(pn, ncast.IND[t] if len(m) == 7 else ncast.last_ind)
+        qstore["contact"][m] = bytes(np.round(ratio * 10).astype(np.uint8).tolist())
+        contact_prof.append(cst.pop("profile"))
+        mo["contact"] = cst
 
     variants = [
         ("défaut : camps à un tiers chacun", {}),
@@ -1811,6 +1839,7 @@ def main():
         "mcDraws": MC_DRAWS, "calibSlope": round(slope, 2), "calibMonths": len(sample),
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
         "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30},
+        "contact": {"factor": 2.0, "bins": list(range(-58, 62, 4)), "profile": [round(float(x), 4) for x in np.mean(np.array(contact_prof), axis=0)] if contact_prof else []},
         "nowcast": dict(rep, names=["feux", "UCDP", "pertes"], widthKm=30, r0=0.03, grid=[0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]),
         "nMonths": len(months), "steps": dk, "stepDays": STEP_DAYS, "windowDays": WINDOW_DAYS,
         "months": mlist,
@@ -1825,7 +1854,7 @@ def main():
         digests[f] = hashlib.sha1(fjs.encode()).hexdigest()[:10]
     fjs = "(window.FRONTP=window.FRONTP||{})[\"mcsd\"]=" + json.dumps(encode_seq(sdstore), separators=(",", ":")) + ";"
     open(os.path.join(ROOT, "site", "front_mcsd.js"), "w").write(fjs)
-    print(f"champs : {len(fields) + 2} fichiers front_*.js (dont nowcast, combat) + front_mcsd.js (écart-type Monte Carlo, 0-63 pour 0-0,5)")
+    print(f"champs : {len(fields) + 3} fichiers front_*.js (dont nowcast, combat, contact) + front_mcsd.js (écart-type Monte Carlo, 0-63 pour 0-0,5)")
     with open(os.path.join(ROOT, "data", "front_areas.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["mois", "date", "perimetre"] + [f"{v}_{x}_km2" for v in VIEWS for x in ("esperance", "mediane", "zone_grise", "controle_ru_90")]
@@ -1849,6 +1878,7 @@ def main():
     s2 = re.sub(r'src="front\.js(\?v=[\w-]+)?"', f'src="front.js?v={hashlib.sha1(js.encode()).hexdigest()[:10]}"', s)
     s2 = re.sub(r'src="front_equilibre\.js(\?v=[\w-]+)?"', f'src="front_equilibre.js?v={digests["equilibre"]}"', s2)
     s2 = re.sub(r'src="front_nowcast\.js(\?v=[\w-]+)?"', f'src="front_nowcast.js?v={digests["nowcast"]}"', s2)
+    s2 = re.sub(r'src="front_contact\.js(\?v=[\w-]+)?"', f'src="front_contact.js?v={digests["contact"]}"', s2)
     s2 = re.sub(r'const FRONT_V = \{[^}]*\}', "const FRONT_V = " + json.dumps(digests), s2)
     if s2 != s:
         open(page, "w", encoding="utf-8").write(s2)

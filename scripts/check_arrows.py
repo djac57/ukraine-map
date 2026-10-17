@@ -91,7 +91,7 @@ const okDir=(a,dir)=>{if(!dir) return true; if(Array.isArray(dir)) return a.dir[
  const c=dir.vers||dir.depuis, tx=(c[0]-a.lon)*Math.cos(a.lat*Math.PI/180), ty=-(c[1]-a.lat), d=a.dir[0]*tx+a.dir[1]*ty; return dir.vers? d>0 : d<0;};
 f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l+'\\n';
 const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.__uafArrowCheck||!w.__uafArrows)&&n<60){return setTimeout(()=>go(n+1),500);}
- try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces réorientées selon le gradient local|'+(r.reoriented||0)+'\\n';
+ try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces : '+(r.evN||0)+' ; réorientées '+(r.reoriented||0)+' ; confirmations (en retard sur les cartes, sans direction) '+(r.late||0)+'\\n';
   const months=w.DATA.months, inb=(a,b)=>a.lon>=b[0]&&a.lon<=b[1]&&a.lat>=b[2]&&a.lat<=b[3];
   for(const [name,ms,box,ru,dir] of CASES){let hit=null,n=0;
     for(const m of ms){const i=months.indexOf(m); if(i<0) continue; for(const L of [100,50,20]) for(const a of w.__uafArrows(i,L)){ if(!inb(a,box)) continue; n++;
@@ -110,14 +110,19 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.__uafArrowCheck||!w.__uafArrow
    for(const [name,m] of SERIES_END){const v=med(m), i=months.indexOf(m), prev=[1,2,3,4,5,6].map(k=>med(months[i-k])).filter(x=>x!==null).sort((a,b)=>a-b), base=prev.length?prev[Math.floor(prev.length/2)]:0;
      const ok=v!==null&&(v<0.3||v<2*base); o.textContent+='SERIE|'+name+' ('+m+')|'+(ok?'OK':'ECHEC')+'|déplacement médian '+(v===null?'-':v.toFixed(2))+' km ; médiane des 6 mois précédents '+base.toFixed(2)+' km (référence : '+ref+')\\n';}}
   {const FM=w.FRONT.months, idx=k=>k.length===7?months.indexOf(k):FM.findIndex(m=>m&&m.date===k);
-   for(const [name,ks,box,ru] of EVENT_CASES){let hit=null,n=0; for(const k of ks){const i=idx(k); if(i<0) continue; for(const a of w.__uafEvents(i)){ if(!inb(a,box)) continue; n++; if(a.ru===ru&&!hit) hit=k+' '+a.n+' localité(s), poids '+a.w;}}
+   for(const [name,ks,box,ru] of EVENT_CASES){let hit=null,n=0; for(const k of ks){const i=idx(k); if(i<0) continue; for(const a of w.__uafEvents(i)){ if(!inb(a,box)) continue; n++; if(a.ru===ru&&!a.late&&!hit) hit=k+' '+a.n+' localité(s), poids '+a.w;}}
      o.textContent+='CAS|'+name+'|'+(hit?'OK':'ECHEC')+'|'+(hit||'aucune flèche d’annonces du bon camp')+'|'+n+'\\n';}
    {const [name,ks,box,lim]=EVENT_CALM; let n=0; for(const k of ks){const i=idx(k); if(i<0) continue; n+=w.__uafEvents(i).filter(a=>inb(a,box)).length;}
      o.textContent+='CALME|'+name+'|'+(n<=lim?'OK':'ALERTE')+'|'+n+' flèche(s) d’annonces sur 33 mois (tolérance '+lim+')\\n';}
    for(const [name,d0,d1,box,ru] of DAILY_CASES){let hit=null,n=0,steps=0; FM.forEach((m,i)=>{ if(!m||m.kind!=='d'||m.date<d0||m.date>d1) return; steps++; for(const L of [20,10,'overview']) for(const a of w.__uafArrows(i,L)){ if(!inb(a,box)) continue; n++; if(a.ru===ru&&!hit) hit=m.date+' L'+L+' '+a.v+' km/30 j';}});
      o.textContent+='CAS|'+name+'|'+(hit?'OK':(steps?'ALERTE':'OK'))+'|'+(hit||(steps?'aucune flèche bleue sur '+steps+' pas':'pas de pas récents dans la période'))+'|'+n+'\\n';}}
-  {let g=0,e=0,n=0; for(const m of months){ if(m<'2024-01'||m>'2026-09') continue; const i=months.indexOf(m); if(!w.FRONT.months[i]) continue; n++; g+=w.__uafArrows(i,'overview').length; e+=w.__uafEvents(i).length;}
-   o.textContent+='COMPTE|vue d’ensemble 2024-2026|'+n+' mois|flèches de gradient '+(g/Math.max(n,1)).toFixed(1)+' par mois ; flèches d’annonces '+(e/Math.max(n,1)).toFixed(1)+' ; total '+((g+e)/Math.max(n,1)).toFixed(1)+'\\n';}
+  {let g=0,e=0,cf=0,n=0; for(const m of months){ if(m<'2024-01'||m>'2026-09') continue; const i=months.indexOf(m); if(!w.FRONT.months[i]) continue; n++; g+=w.__uafArrows(i,'overview').length; const ev=w.__uafEvents(i); e+=ev.filter(a=>!a.late).length; cf+=ev.filter(a=>a.late).length;}
+   o.textContent+='COMPTE|vue d’ensemble 2024-2026|'+n+' mois|flèches de gradient '+(g/Math.max(n,1)).toFixed(1)+' par mois ; flèches d’annonces (mouvement nouveau) '+(e/Math.max(n,1)).toFixed(1)+' ; total des mouvements '+((g+e)/Math.max(n,1)).toFixed(1)+' ; confirmations d’annonces (creuses) '+(cf/Math.max(n,1)).toFixed(1)+'\\n';}
+  {let miss=[], wr=[], wu=[]; for(const m of months){ if(m<'2024-01'||m>'2026-09') continue; const i=months.indexOf(m); const c=w.FRONT.months[i]&&w.FRONT.months[i].contact; if(!c) continue; if(!c.km2) miss.push(m); wr.push(c.w_ru); wu.push(c.w_ua);}
+   const med=a=>a.length?a.slice().sort((x,y)=>x-y)[Math.floor(a.length/2)]:0;
+   o.textContent+='CONTACT|zone grise de contact détectée chaque mois 2024-2026|'+(miss.length?'ECHEC':'OK')+'|'+(miss.length?'absente : '+miss.join(', '):'largeur moyenne médiane : '+med(wr)+' km côté russe, '+med(wu)+' km côté ukrainien')+'\\n';
+   const sh=w.__uafContactShare(months.indexOf('2026-06'),[37.6,37.95,49.0,49.25]);
+   o.textContent+='CONTACT|Vivaldi : saillant en zone de contact en juin 2026|'+(sh!==null&&sh>=0.3?'OK':'ALERTE')+'|'+(sh===null?'-':Math.round(sh*100)+' % des mailles')+'\\n';}
   {const [name,ms,box]=CALM; let n=0, ex=[]; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; for(const L of [50,20]) for(const a of w.__uafArrows(i,L)){ if(inb(a,box)){n++; if(ex.length<4) ex.push(m+' '+(a.ru?'RU':'UA')+' '+a.v);}}}
     const per={}; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; let c=0; for(const a of w.__uafArrows(i,20)) if(inb(a,box)) c++; if(c) per[m]=c;}
     o.textContent+='CALME|'+name+'|'+(n<=8?'OK':'ALERTE')+'|'+n+' flèche(s) '+ex.join(', ')+' '+JSON.stringify(per)+'\\n';}
@@ -137,7 +142,30 @@ def chrome_path(arg):
     return None
 
 
+def check_workflows():
+    """Les workflows doivent être du YAML valide (un « : » non protégé dans un nom d'étape a déjà bloqué tout le
+    déploiement). Bloquant si PyYAML est disponible ; sinon, simple avertissement."""
+    try:
+        import yaml
+    except ImportError:
+        print("check_arrows.py : PyYAML absent, workflows non vérifiés")
+        return True
+    import glob
+    ok = True
+    for path in glob.glob(os.path.join(ROOT, ".github", "workflows", "*.yml")):
+        try:
+            doc = yaml.safe_load(open(path, encoding="utf-8"))
+            if not isinstance(doc, dict) or not doc.get("jobs"):
+                raise ValueError("aucun job")
+        except Exception as e:  # noqa: BLE001
+            print(f"check_arrows.py : workflow invalide {os.path.basename(path)} : {e}")
+            ok = False
+    return ok
+
+
 def main():
+    if not check_workflows():
+        return 1
     chrome = chrome_path(sys.argv[1] if len(sys.argv) > 1 else None)
     if not chrome:
         print("check_arrows.py : navigateur introuvable, contrôle en échec")
