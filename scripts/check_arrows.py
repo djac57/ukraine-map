@@ -69,13 +69,24 @@ VIVALDI = ("Vivaldi (nord de Lyman)", ["2026-06", "2026-07", "2026-08", "2026-09
 # Mois de référence affichés pour comparaison.
 SERIES_END = [("fin de l'ISW", "2026-07"), ("fin de l'UCDP", "2026-09")]
 MOVES_REF = ["2024-11", "2025-06", "2026-06"]
+# Flèches d'événements (changements de contrôle annoncés et datés, 30 derniers jours) : au moins une flèche du bon camp
+# sur la période (mois ou pas récents « AAAA-MM-JJ ») ; et peu de flèches sur le Dnipro calme
+EVENT_CASES = [
+    ("Vivaldi, annonces (septembre - début octobre 2026)", ["2026-09", "2026-09-19", "2026-09-28", "2026-10-04", "2026-10-10"], [37.55, 38.15, 48.98, 49.30], False),
+    ("Avdiïvka, annonces (février 2024)", ["2024-02", "2024-03"], [37.40, 37.95, 47.95, 48.30], True),
+    ("Pokrovsk, annonces (2025)", ["2025-0%d" % m for m in range(1, 10)], [36.80, 37.50, 48.05, 48.50], True),
+    ("Koursk, annonces (reflux, début 2025)", ["2025-01", "2025-02", "2025-03"], [34.80, 35.80, 51.00, 51.60], True),
+]
+EVENT_CALM = ("Dnipro à Kherson, annonces", [f"{y}-{m:02d}" for y in (2023, 2024, 2025) for m in range(1, 13) if f"{y}-{m:02d}" >= "2023-04"], [32.30, 33.90, 46.40, 47.00], 6)
+# Pas récents (tous les 3 jours) : flèche bleue de gradient au nord de Lyman entre fin septembre et le dernier pas
+DAILY_CASES = [("Vivaldi, gradient sur les pas récents", "2026-09-19", "2026-10-31", [37.55, 38.15, 48.98, 49.30], False)]
 # Calme : à partir d'avril 2023 (la fenêtre de trois mois ne contient plus le retrait russe de novembre 2022) ;
 # tolérance de 8 flèches sur 33 mois et deux échelles (révisions ponctuelles des cartes sur les îles du delta)
 # Mois actifs pour le contrôle de la vue d'ensemble
 OVERVIEW = ["2024-02", "2024-05", "2024-08", "2024-11", "2025-03", "2025-08"]
 CALM = ("Dnipro à Kherson", [f"{y}-{m:02d}" for y in (2023, 2024, 2025) for m in range(1, 13) if f"{y}-{m:02d}" >= "2023-04"], [32.30, 33.90, 46.40, 47.00])
 HARNESS = """<!doctype html><html><head><meta charset="utf-8"></head><body><pre id=o></pre><iframe id=f src="index.html" style="width:1000px;height:800px"></iframe>
-<script>const SERIES_END=__SERIES_END__, MOVES_REF=__MOVES_REF__, PARAMS=__PARAMS__, CASES=__CASES__, CALM=__CALM__, OVERVIEW=__OVERVIEW__, FORBID=__FORBID__, VIVALDI=__VIVALDI__;
+<script>const EVENT_CASES=__EVENT_CASES__, EVENT_CALM=__EVENT_CALM__, DAILY_CASES=__DAILY_CASES__, SERIES_END=__SERIES_END__, MOVES_REF=__MOVES_REF__, PARAMS=__PARAMS__, CASES=__CASES__, CALM=__CALM__, OVERVIEW=__OVERVIEW__, FORBID=__FORBID__, VIVALDI=__VIVALDI__;
 const okDir=(a,dir)=>{if(!dir) return true; if(Array.isArray(dir)) return a.dir[0]*dir[0]+a.dir[1]*dir[1]>0;
  const c=dir.vers||dir.depuis, tx=(c[0]-a.lon)*Math.cos(a.lat*Math.PI/180), ty=-(c[1]-a.lat), d=a.dir[0]*tx+a.dir[1]*ty; return dir.vers? d>0 : d<0;};
 f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l+'\\n';
@@ -98,6 +109,15 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.__uafArrowCheck||!w.__uafArrow
    const ref=MOVES_REF.map(m=>m+' '+(med(m)??'-').toString()).join(', ');
    for(const [name,m] of SERIES_END){const v=med(m), i=months.indexOf(m), prev=[1,2,3,4,5,6].map(k=>med(months[i-k])).filter(x=>x!==null).sort((a,b)=>a-b), base=prev.length?prev[Math.floor(prev.length/2)]:0;
      const ok=v!==null&&(v<0.3||v<2*base); o.textContent+='SERIE|'+name+' ('+m+')|'+(ok?'OK':'ECHEC')+'|déplacement médian '+(v===null?'-':v.toFixed(2))+' km ; médiane des 6 mois précédents '+base.toFixed(2)+' km (référence : '+ref+')\\n';}}
+  {const FM=w.FRONT.months, idx=k=>k.length===7?months.indexOf(k):FM.findIndex(m=>m&&m.date===k);
+   for(const [name,ks,box,ru] of EVENT_CASES){let hit=null,n=0; for(const k of ks){const i=idx(k); if(i<0) continue; for(const a of w.__uafEvents(i)){ if(!inb(a,box)) continue; n++; if(a.ru===ru&&!hit) hit=k+' '+a.n+' localité(s), poids '+a.w;}}
+     o.textContent+='CAS|'+name+'|'+(hit?'OK':'ECHEC')+'|'+(hit||'aucune flèche d’annonces du bon camp')+'|'+n+'\\n';}
+   {const [name,ks,box,lim]=EVENT_CALM; let n=0; for(const k of ks){const i=idx(k); if(i<0) continue; n+=w.__uafEvents(i).filter(a=>inb(a,box)).length;}
+     o.textContent+='CALME|'+name+'|'+(n<=lim?'OK':'ALERTE')+'|'+n+' flèche(s) d’annonces sur 33 mois (tolérance '+lim+')\\n';}
+   for(const [name,d0,d1,box,ru] of DAILY_CASES){let hit=null,n=0,steps=0; FM.forEach((m,i)=>{ if(!m||m.kind!=='d'||m.date<d0||m.date>d1) return; steps++; for(const L of [20,10,'overview']) for(const a of w.__uafArrows(i,L)){ if(!inb(a,box)) continue; n++; if(a.ru===ru&&!hit) hit=m.date+' L'+L+' '+a.v+' km/30 j';}});
+     o.textContent+='CAS|'+name+'|'+(hit?'OK':(steps?'ALERTE':'OK'))+'|'+(hit||(steps?'aucune flèche bleue sur '+steps+' pas':'pas de pas récents dans la période'))+'|'+n+'\\n';}}
+  {let g=0,e=0,n=0; for(const m of months){ if(m<'2024-01'||m>'2026-09') continue; const i=months.indexOf(m); if(!w.FRONT.months[i]) continue; n++; g+=w.__uafArrows(i,'overview').length; e+=w.__uafEvents(i).length;}
+   o.textContent+='COMPTE|vue d’ensemble 2024-2026|'+n+' mois|flèches de gradient '+(g/Math.max(n,1)).toFixed(1)+' par mois ; flèches d’annonces '+(e/Math.max(n,1)).toFixed(1)+' ; total '+((g+e)/Math.max(n,1)).toFixed(1)+'\\n';}
   {const [name,ms,box]=CALM; let n=0, ex=[]; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; for(const L of [50,20]) for(const a of w.__uafArrows(i,L)){ if(inb(a,box)){n++; if(ex.length<4) ex.push(m+' '+(a.ru?'RU':'UA')+' '+a.v);}}}
     const per={}; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; let c=0; for(const a of w.__uafArrows(i,20)) if(inb(a,box)) c++; if(c) per[m]=c;}
     o.textContent+='CALME|'+name+'|'+(n<=8?'OK':'ALERTE')+'|'+n+' flèche(s) '+ex.join(', ')+' '+JSON.stringify(per)+'\\n';}
@@ -105,7 +125,7 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.__uafArrowCheck||!w.__uafArrow
    for(const m of OVERVIEW){const i=months.indexOf(m); if(i<0) continue; const all=[20,50,100].flatMap(L=>w.__uafArrows(i,L).map(a=>({...a,L}))), ov=w.__uafArrows(i,'overview');
     const km=all.reduce((s,a)=>s+a.L,0)/3, need=Math.max(1,Math.ceil(km/100)), miss=all.filter(a=>!ov.some(b=>dk(a,b)<50)); const ok=!miss.length&&ov.length>=need;
     o.textContent+='VUE|'+m+'|'+(ok?'OK':'ECHEC')+'|'+ov.length+' flèche(s) affichée(s) pour ~'+Math.round(km)+' km en mouvement (minimum '+need+'), '+miss.length+' tronçon(s) sans flèche à moins de 50 km|'+JSON.stringify(ov.map(a=>[a.lon,a.lat,a.ru?'RU':'UA',a.v]))+'\\n';}}
- }catch(e){o.textContent+='ERREUR '+e;} };
+ }catch(e){o.textContent+='ERREUR '+e+' '+(e.stack||'').split('\\n').slice(0,4).join(' | ');} };
 setTimeout(()=>go(0),2000)}</script></body></html>"""
 
 
@@ -124,7 +144,7 @@ def main():
         return 1
     harness = os.path.join(SITE, "_check_arrows.html")
     import json
-    open(harness, "w").write(HARNESS.replace("__SERIES_END__", json.dumps(SERIES_END, ensure_ascii=False)).replace("__MOVES_REF__", json.dumps(MOVES_REF)).replace("__PARAMS__", os.environ.get("ARROW_PARAMS", "null")).replace("__CASES__", json.dumps(CASES, ensure_ascii=False)).replace("__CALM__", json.dumps(CALM, ensure_ascii=False)).replace("__OVERVIEW__", json.dumps(OVERVIEW)).replace("__FORBID__", json.dumps(FORBID, ensure_ascii=False)).replace("__VIVALDI__", json.dumps(VIVALDI, ensure_ascii=False)))
+    open(harness, "w").write(HARNESS.replace("__EVENT_CASES__", json.dumps(EVENT_CASES, ensure_ascii=False)).replace("__EVENT_CALM__", json.dumps(EVENT_CALM, ensure_ascii=False)).replace("__DAILY_CASES__", json.dumps(DAILY_CASES, ensure_ascii=False)).replace("__SERIES_END__", json.dumps(SERIES_END, ensure_ascii=False)).replace("__MOVES_REF__", json.dumps(MOVES_REF)).replace("__PARAMS__", os.environ.get("ARROW_PARAMS", "null")).replace("__CASES__", json.dumps(CASES, ensure_ascii=False)).replace("__CALM__", json.dumps(CALM, ensure_ascii=False)).replace("__OVERVIEW__", json.dumps(OVERVIEW)).replace("__FORBID__", json.dumps(FORBID, ensure_ascii=False)).replace("__VIVALDI__", json.dumps(VIVALDI, ensure_ascii=False)))
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *a):
             pass

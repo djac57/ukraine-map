@@ -194,7 +194,7 @@ def apply_dsm_log(status, places):
     path = os.path.join(SRC_DIR, "dsm_log_raw.json")
     if not os.path.exists(path):
         print("journal DeepState absent : colonne DeepState de VIINA non corrigée", flush=True)
-        return {}
+        return {}, []
     rows = json.load(open(path, encoding="utf-8"))
     days = sorted(status)
     pidx = {p["id"]: k for k, p in enumerate(places)}
@@ -288,7 +288,60 @@ def apply_dsm_log(status, places):
         prev_day = day
     print(f"journal DeepState : {len(rows)} déclarations, {len(set(resolved))} localités situées, "
           f"{sum(fixed.values())} corrections de la colonne DeepState de VIINA (instantanés cumulés)", flush=True)
-    return fixed
+    return fixed, sorted(set(resolved))
+
+
+EV_SOURCES = ["dsmlog", "gsua", "modru", "dsm", "wiki"]   # journal DeepState, état-major UA, MoD RF, bascules des cartes
+EV_JUDGES = {"dsmlog": (1, 2), "dsm": (1, 2), "gsua": (1, 2), "modru": (1, 2), "wiki": (0, 1)}
+
+
+def control_events(status, places, official, dsm_events):
+    """Changements de contrôle datés (flèches d'événements) et fiabilité mesurée de chaque source.
+
+    Événements : déclarations du journal DeepState, annonces de l'état-major ukrainien et du MoD RF (localités
+    ukrainiennes et russes), bascules des colonnes DeepState (corrigée) et Wikipédia de VIINA d'un instantané au
+    suivant. Fiabilité : part des événements qu'une AUTRE carte (ISW, Wikipédia ; DeepState et ISW pour Wikipédia)
+    confirme dans les 90 jours. Renvoie [(AAAAMMJJ, lon, lat, camp 1 russe / 0 ukrainien, source)] et {source: taux}."""
+    days = sorted(d for d in status if d != PRE_DATE)
+    pidx = {p["id"]: k for k, p in enumerate(places)}
+    ev = []
+    for day, camp, k in dsm_events:
+        ev.append((day, places[k]["lon"], places[k]["lat"], 1 if camp == "ru" else 0, "dsmlog", places[k]["id"]))
+    for src, camp in (("modru", 1), ("gsua", 0)):
+        for key, dates in official.get(src, {}).items():
+            if isinstance(key, tuple):
+                lon, lat, g = key[1], key[2], None
+            else:
+                lon, lat, g = places[key]["lon"], places[key]["lat"], places[key]["id"]
+            for d in dates:
+                ev.append((d, lon, lat, camp, src, g))
+    for prev, day in zip(days, days[1:]):
+        a, b = status[prev], status[day]
+        for g, codes in b.items():
+            old = a.get(g)
+            if not old:
+                continue
+            for n, src in ((0, "dsm"), (2, "wiki")):
+                if old[n] in (1, 2) and codes[n] in (1, 2) and old[n] != codes[n] and g in pidx:
+                    k = pidx[g]
+                    ev.append((day, places[k]["lon"], places[k]["lat"], 1 if codes[n] == 2 else 0, src, g))
+    rate = {}
+    for src in EV_SOURCES:
+        ok = tot = 0
+        for d, lon, lat, camp, s, g in ev:
+            if s != src or not g:
+                continue
+            d0 = dt.date(int(d[:4]), int(d[4:6]), int(d[6:]))
+            later = [x for x in days if d < x <= (d0 + dt.timedelta(days=90)).strftime("%Y%m%d")]
+            codes = [status[x].get(g) for x in later]
+            judged = [c[j] for c in codes if c for j in EV_JUDGES[src] if c[j] in (1, 2)]
+            if not judged:
+                continue
+            tot += 1
+            ok += (2 if camp == 1 else 1) in judged
+        rate[src] = round(ok / tot, 3) if tot else 0.5
+    print("événements datés : " + ", ".join(f"{s} {sum(1 for e in ev if e[4] == s)} (confirmés par un tiers : {rate[s]:.0%})" for s in EV_SOURCES), flush=True)
+    return [e[:5] for e in sorted(ev)], rate
 
 
 def rasterize(tess_path):
@@ -606,7 +659,116 @@ def load_layers(months):
             for mi, e in enumerate(ends):
                 if e - dt.timedelta(days=75) < d <= e + dt.timedelta(days=45):
                     presence_ua[mi].append((float(r["lon"]), float(r["lat"]), 3.0))
-    return combat, presence_ru, presence_ua
+    return combat, presence_ru, presence_ua, (ucdp if O else {})
+
+
+DAILY_DAYS = 0       # période récente en pas de quelques jours (90 à l'étape « NOWCAST 2 » ; 0 : tout mensuel)
+STEP_DAYS = 3        # pas de la période récente
+WINDOW_DAYS = 14     # fenêtre glissante des indicateurs de combat d'un pas récent
+
+
+class WindowLayers:
+    """Indicateurs de combat d'un pas récent : fenêtre glissante de WINDOW_DAYS jours finissant à la date du pas.
+    Feux : détections des mailles en excès (site/data.js, datées au jour), moins la normale de la maille au prorata
+    des jours ; UCDP et pertes WarSpotting : mois de la date (publiés au mois) ; présence ukrainienne en Russie :
+    annonces du MoD RF de la fenêtre −75 / +45 jours autour de la date."""
+
+    def __init__(self, months, layers):
+        self.months, self.layers = months, layers
+        D = json.loads(open(os.path.join(ROOT, "site", "data.js"), encoding="utf-8").read()[len("window.DATA="):].rstrip().rstrip(";"))
+        self.cell = D["cell"]
+        self.mu = {}
+        for mi, cells in enumerate(D["cells"]):
+            for j in range(0, len(cells), 4):
+                self.mu[(cells[j], cells[j + 1], D["months"][mi])] = cells[j + 3]
+        self.det = defaultdict(lambda: defaultdict(int))  # jour → maille → détections (mailles en excès)
+        p = D["pts"]
+        for j in range(0, len(p), 5):
+            m = D["months"][p[j + 2]]
+            day = f"{m}-{p[j + 3]:02d}"
+            c = (math.floor(p[j] / 100 / self.cell + 1e-9), math.floor(p[j + 1] / 100 / self.cell + 1e-9))
+            self.det[day][c] += 1
+        self.claims = []
+        path = os.path.join(ROOT, "data", "claims_modru.csv")
+        if os.path.exists(path):
+            self.claims = [(dt.date.fromisoformat(r["date"]), float(r["lon"]), float(r["lat"]))
+                           for r in csv.DictReader(open(path, encoding="utf-8")) if r["geonameid"].startswith("ru")]
+
+    def fires(self, date):
+        cnt, days = defaultdict(int), defaultdict(int)
+        for k in range(WINDOW_DAYS):
+            d = date - dt.timedelta(days=k)
+            m = d.strftime("%Y-%m")
+            days[m] += 1
+            for c, n in self.det.get(d.isoformat(), {}).items():
+                cnt[(c, m)] += n
+        out = []
+        for (c, m), n in cnt.items():
+            y, mo = int(m[:4]), int(m[5:])
+            nd = (dt.date(y + mo // 12, mo % 12 + 1, 1) - dt.date(y, mo, 1)).days
+            w = n - self.mu.get((c[0], c[1], m), 0.0) * days[m] / nd
+            if w > 0:
+                out.append(((c[1] + 0.5) * self.cell, (c[0] + 0.5) * self.cell, w * 30.0 / WINDOW_DAYS))  # ramené au mois
+        return out
+
+    def get(self, date):
+        """(combats, présence russe, présence ukrainienne) du pas, au format de load_layers."""
+        mi = self.months.index(date.strftime("%Y-%m"))
+        _, pres, _, ucdp = self.layers
+        pu = [(lon, lat, 3.0) for d, lon, lat in self.claims if date - dt.timedelta(days=75) < d <= date + dt.timedelta(days=45)]
+        return self.fires(date) + list(ucdp.get(mi, [])), pres.get(mi, []), pu
+
+    def indicators(self, date):
+        """Indicateurs bruts du nowcast pour le pas : feux (fenêtre), UCDP (mois), pertes (mois), sur la grille."""
+        import numpy as np
+        mi = self.months.index(date.strftime("%Y-%m"))
+        _, pres, _, ucdp = self.layers
+        grids = []
+        for pts in (self.fires(date), ucdp.get(mi, []), pres.get(mi, [])):
+            g = np.zeros(N, np.float32)
+            for lon, lat, w in pts:
+                k = grid_index(lon, lat)
+                if k >= 0:
+                    g[k] += w
+            grids.append(g)
+        return grids
+
+
+def indicator_grids(months):
+    """Indicateurs de combat bruts par mois sur la grille (nowcast) : feux en excès, combats UCDP, pertes WarSpotting.
+    Les fins de série reprennent le dernier mois disponible (voir load_layers)."""
+    import numpy as np
+    D = json.loads(open(os.path.join(ROOT, "site", "data.js"), encoding="utf-8").read()[len("window.DATA="):].rstrip().rstrip(";"))
+    O = json.loads(open(os.path.join(ROOT, "site", "osint.js"), encoding="utf-8").read()[len("window.OSINT="):].rstrip().rstrip(";"))
+    midx = {m: i for i, m in enumerate(months)}
+    pts = [defaultdict(list) for _ in range(3)]
+    for mi, cells in enumerate(D["cells"]):
+        t = midx.get(D["months"][mi])
+        if t is None:
+            continue
+        for j in range(0, len(cells), 4):
+            pts[0][t].append(((cells[j + 1] + 0.5) * D["cell"], (cells[j] + 0.5) * D["cell"], max(0.0, cells[j + 2] - cells[j + 3])))
+    for n, (key, wi) in ((1, ("ucdp", 3)), (2, ("ws", 4))):
+        p = O[key]["pts"]
+        for j in range(0, len(p), 5):
+            pts[n][p[j + 2]].append(((p[j + 1] + 0.5) * 0.1, (p[j] + 0.5) * 0.1, float(p[j + wi])))
+    for n in (1, 2):
+        if pts[n]:
+            last = max(pts[n])
+            for t in range(last + 1, len(months)):
+                pts[n][t] = list(pts[n][last])
+    out = {}
+    for t in range(len(months)):
+        grids = []
+        for n in range(3):
+            g = np.zeros(N, np.float32)
+            for lon, lat, w in pts[n].get(t, ()):
+                k = grid_index(lon, lat)
+                if k >= 0:
+                    g[k] += w
+            grids.append(g)
+        out[t] = grids
+    return out
 
 
 def density_field(points, h0):
@@ -853,11 +1015,15 @@ class Model:
                     t = min(newer)
                     age = (d - dt.date(int(t[:4]), int(t[4:6]), int(t[6:]))).days
                     stale[s][k] = min(age, P["stale_cap_days"]) if P["stale_cap_days"] else age
-        mi = self.months.index(m)
-        combat, pres, pres_ua = layers
-        h = density_field(combat.get(mi, []), P["h0"]) if P["alpha"] > 0 else None
-        pr = density_field(pres.get(mi, []), P["h0"]) if P["gamma"] > 0 else None
-        pu = density_field(pres_ua.get(mi, []), P["h0"]) if P["gamma"] > 0 else None
+        if len(m) == 7:
+            mi = self.months.index(m)
+            combat, pres, pres_ua = layers[:3]
+            cb, pp, pq = combat.get(mi, []), pres.get(mi, []), pres_ua.get(mi, [])
+        else:  # pas récent : fenêtre glissante (voir WindowLayers)
+            cb, pp, pq = self.window.get(d)
+        h = density_field(cb, P["h0"]) if P["alpha"] > 0 else None
+        pr = density_field(pp, P["h0"]) if P["gamma"] > 0 else None
+        pu = density_field(pq, P["h0"]) if P["gamma"] > 0 else None
         near = self.near_index(base)
         ker = {s: {} for s in POINT}
         flags = defaultdict(int)
@@ -878,7 +1044,7 @@ class Model:
             act = state["official"].setdefault(src, {})
             for k, dates in self.official.get(src, {}).items():
                 if any(x <= day for x in dates) and k not in act:
-                    act[k] = 0 if not isinstance(k, tuple) else min(x for x in dates if x <= day)
+                    act[k] = None if not isinstance(k, tuple) else min(x for x in dates if x <= day)
             # localités russes : une annonce de prise ukrainienne tient jusqu'à une annonce russe contraire à moins de 5 km
             for k in [x for x in act if isinstance(x, tuple)]:
                 _, lon, lat = k
@@ -894,8 +1060,10 @@ class Model:
                 # attendre un démenti de toutes les cartes verrouillait en rouge des localités reprises)
                 b = base[k]
                 contrary = any(c == (1 if src == "modru" else 2) for c in b if c)
-                act[k] = act[k] + 1 if contrary else 0
-                if act[k] >= P["official_stale"]:
+                # démenti continu depuis act[k] (date) ; tombée au bout de (official_stale − 1) × 30 jours, soit
+                # trois instantanés mensuels de suite, quel que soit le pas de temps
+                act[k] = (act[k] or day) if contrary else None
+                if act[k] and (dt.date(int(day[:4]), int(day[4:6]), int(day[6:])) - dt.date(int(act[k][:4]), int(act[k][4:6]), int(act[k][6:]))).days >= (P["official_stale"] - 1) * 30:
                     del act[k]
                     continue
                 # décroissance : demi-vie = délai médian de confirmation par les cartes ; une nouvelle annonce rafraîchit
@@ -927,7 +1095,7 @@ class Model:
             sg = sigma[s]
             col, ex = dist[s], extra[s]
             lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / (sg * widen[u] + ex.get(u, 0.0)))) for u in range(self.nU)]
-        return {"day": day, "base": base, "dist": dist, "sigma": sigma, "extra": extra, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
+        return {"day": day, "ndays": ndays or 30, "base": base, "dist": dist, "sigma": sigma, "extra": extra, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
                 "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active, "band_ev": band_ev}
 
     def band_evidence(self, d, P, kstrength):
@@ -996,12 +1164,17 @@ class Model:
                 out[u] = sum(num[c] / den[c] for c in den) / len(den)
         return out
 
-    def filter(self, obs, prev, P, v_km):
-        """logit(t) = (1-β)·obs + β·[logit(t-1) diffusé de v·1 mois] (convolution normalisée, fenêtre du front)."""
+    def filter(self, obs, prev, P, v_km, ndays=30):
+        """logit(t) = (1-β)·obs + β·[logit(t-1) diffusé de v·Δt] (convolution normalisée, fenêtre du front).
+        Pas de temps quelconque (mensuel, ou tous les 3 jours sur la période récente) : β^(Δt/30) et diffusion
+        v·√(Δt/30), si bien que dix pas de 3 jours valent un pas mensuel."""
         if prev is None or P["beta"] <= 0:
             return obs
         lmax = P["lmax"]
-        r = max(1.0, v_km * P["v_scale"] / CELL_KM)
+        f = max(1, ndays) / 30.0
+        if f < 0.9:
+            P = dict(P, beta=P["beta"] ** f)
+        r = max(1.0, v_km * P["v_scale"] / CELL_KM) if f >= 0.9 else v_km * P["v_scale"] * math.sqrt(f) / CELL_KM
         act = [k for u, k in enumerate(self.U) if abs(prev[k]) < lmax - 0.5 or abs(obs[u]) < lmax - 0.5]
         if not act:
             return [obs[u] if self.maskBand[k] else (1 - P["beta"]) * obs[u] + P["beta"] * prev[k] for u, k in enumerate(self.U)]
@@ -1043,13 +1216,13 @@ class Model:
                     Pf.update(ch)
                     use = self.rewiden(inp, Pf)
                 obs = self.pool(use, camps, Pf, drop=drop)
-                L = self.filter(obs, prev[name], Pf, v_km)
+                L = self.filter(obs, prev[name], Pf, v_km, inp.get("ndays", 30))
                 full = [0.0] * N
                 for u, k in enumerate(self.U):
                     full[k] = L[u]
                 prev[name] = full
                 ps[name] = [sig(x) for x in L]
-                if mc and name == "equilibre":
+                if mc and name == "equilibre" and (len(m) == 7 or m == getattr(self, "last_key", None)):
                     mcres = self.monte_carlo(inp, P, obs, L)
             if on_month:
                 on_month(m, inp, ps, mcres)
@@ -1350,16 +1523,25 @@ def main():
     today = dt.date.today()
     limit = today - dt.timedelta(days=LAG_DAYS)
     snap = wanted_dates(months, limit)
-    status, last_viina = read_status(snap.values())
+    # période récente : un pas tous les STEP_DAYS jours sur DAILY_DAYS jours, le dernier pas à J-7 exactement
+    recent = [limit - dt.timedelta(days=k * STEP_DAYS) for k in range(DAILY_DAYS // STEP_DAYS)][::-1]
+    daily = {d.isoformat(): d for d in recent if d not in snap.values()}
+    status, last_viina = read_status(list(snap.values()) + list(daily.values()))
     for m, d in list(snap.items()):
         if d.strftime("%Y%m%d") not in status:
             print(f"  {m} : pas de données VIINA au {d} — mois ignoré")
             del snap[m]
+    for k, d in list(daily.items()):
+        if d.strftime("%Y%m%d") not in status:
+            del daily[k]
     fm = [m for m in months if m in snap]
-    print(f"{len(fm)} instantanés mensuels ({fm[0]} → {fm[-1]}) ; VIINA jusqu'au {last_viina}", flush=True)
+    dk = sorted(daily)
+    frames = sorted(fm + dk, key=lambda k: snap.get(k) or daily[k])
+    print(f"{len(fm)} instantanés mensuels ({fm[0]} → {fm[-1]}) et {len(dk)} pas récents tous les {STEP_DAYS} jours "
+          f"({dk[0] if dk else '-'} → {dk[-1] if dk else '-'}) ; VIINA jusqu'au {last_viina}", flush=True)
     old = guard.published("front.js", "FRONT")
     if old:
-        olds = [m for m in old["months"] if m]
+        olds = [m for m in old["months"][:old.get("nMonths", len(old["months"]))] if m]
         guard.check("build_front.py", [
             ("nombre d'instantanés", len(fm), len(olds), "max"),
             ("dernier instantané", snap[fm[-1]].isoformat(), olds[-1]["date"] if olds else None, "max"),
@@ -1370,9 +1552,11 @@ def main():
     cell = russian_band(cell)
     pid_index = {p["id"]: k for k, p in enumerate(places)}
     ended = carry_forward(status)
-    dsm_fixed = apply_dsm_log(status, places)
+    dsm_fixed, dsm_events = apply_dsm_log(status, places)
     official = load_official_claims(pid_index)
-    model = Model(months, snap, status, claims, official, cell, places)
+    events, ev_rate = control_events(status, places, official, dsm_events)
+    model = Model(months, dict(snap, **daily), status, claims, official, cell, places)
+    model.last_key = frames[-1]
     crimea = [p["adm1"] in CRIMEA_ADM1 for p in places]
     pre = []
     for b in model.base_codes(PRE_DATE):
@@ -1385,6 +1569,7 @@ def main():
     if "--sans-indices" in sys.argv:
         P["alpha"] = 0.0
     layers = load_layers(months)
+    model.window = WindowLayers(months, layers)
 
     v_km, speeds = estimate_speed(model, fm)
     print(f"vitesse typique du front : {v_km:.2f} km/mois", flush=True)
@@ -1403,14 +1588,36 @@ def main():
 
     U = model.U
     months_out = {m: None for m in months}
-    enc = {f: {} for f in fields}
-    prevq = {f: None for f in fields}
-    state = {"codes": {}}
-    enc_sd, prev_sd = {}, {"q": None}
+    days_out = {}
+    allf = list(fields) + ["nowcast", "combat"]
+    qstore = {f: {} for f in allf}   # champs quantifiés par instantané, encodés à la fin dans l'ordre publié
+    sdstore = {}
+    last_mc = {}
+    day_p = {}
+    # nowcast : champ de base, consensus des cartes et indicateurs de combat, mois par mois (voir scripts/nowcast.py)
+    import numpy as np
+    from nowcast import Nowcast
+    lonlat = np.array([inv_laea(X0 + (k % NX + 0.5) * SIZE, Y1 - (k // NX + 0.5) * SIZE) for k in U], np.float32).T
+    ncast = Nowcast(U, [cell[k] for k in U], NX, NY, CELL_KM, (lonlat[0], lonlat[1]), months)
+    ind = indicator_grids(months)
+    codes_store = {}
     claim_places = {}
 
+    def fdate(m):
+        return snap.get(m) or daily[m]
+
     def on_month(m, inp, ps, mcres):
-        mo = {"date": snap[m].isoformat(), "a": {}, "v": {}}
+        fd = fdate(m)
+        mo = {"date": fd.isoformat(), "kind": "m" if len(m) == 7 else "d", "a": {}, "v": {}}
+        if len(m) == 7:
+            # consensus des cartes (DeepState corrigé, ISW, Wikipédia) par localité, puis par maille : vérité du nowcast
+            cons = []
+            for b in inp["base"]:
+                v = [x for x in b[:3] if x in (1, 2)]
+                cons.append(1 if v.count(2) > v.count(1) else 0 if v.count(1) > v.count(2) else -1)
+            ncast.add_month(months.index(m), ps["equilibre"], [cons[cell[k]] if cell[k] >= 0 else -1 for k in U], ind[months.index(m)])
+        else:
+            day_p[m] = np.asarray(ps["equilibre"], np.float32)
         for f, p in ps.items():
             met = model.metrics(p, crimea, pre, sectors=(f == "equilibre"))
             if f in VIEWS:
@@ -1422,18 +1629,18 @@ def main():
             else:
                 mo["v"][f] = {k: met[k] for k in ("tout", "depuis2022")}
                 mo["v"][f]["grey_width_km"] = met["grey_width_km"]
-            q = [min(63, int(x * 63 + 0.5)) for x in p]
-            enc[f][m] = encode_field(q, prevq[f])
-            prevq[f] = q
-        lo, hi, sd = mcres
-        # écart-type Monte Carlo de p par maille (pour les futures flèches « qui pousse où ») : 0-63 pour 0-0,5
-        q = [0] * len(U)
-        for u, v in sd.items():
-            q[u] = min(63, int(v / 0.5 * 63 + 0.5))
-        enc_sd[m] = encode_field(q, prev_sd["q"])
-        prev_sd["q"] = q
+            qstore[f][m] = bytes(min(63, int(x * 63 + 0.5)) for x in p)
         tot = mo["a"]["equilibre"]["tout"][0]
-        mo["mc"] = {per: [round(lo - tot + mo["a"]["equilibre"][per][0]), round(hi - tot + mo["a"]["equilibre"][per][0])]
+        if mcres:
+            lo, hi, sd = mcres
+            # écart-type Monte Carlo de p par maille (pour les flèches) : 0-63 pour 0-0,5
+            q = [0] * len(U)
+            for u, v in sd.items():
+                q[u] = min(63, int(v / 0.5 * 63 + 0.5))
+            last_mc.update(lo=lo - tot, hi=hi - tot, sd=bytes(q))
+        # pas récents sans tirages propres : écarts du dernier tirage reportés autour de l'espérance du pas
+        sdstore[m] = last_mc["sd"]
+        mo["mc"] = {per: [round(last_mc["lo"] + mo["a"]["equilibre"][per][0]), round(last_mc["hi"] + mo["a"]["equilibre"][per][0])]
                     for per in ("tout", "horsCrimee", "depuis2022")}
         pu, pr_ = ps["ua"], ps["ru"]
         dis = {"tout": [0.0, 0.0], "horsCrimee": [0.0, 0.0], "depuis2022": [0.0, 0.0]}
@@ -1454,12 +1661,9 @@ def main():
             fl = inp["flags"].get(k, 0)
             if any(c > 1 for c in b) or fl:
                 cur[k] = b[0] | b[1] << 2 | b[2] << 4 | b[3] << 6 | fl
-        prev_codes = state["codes"]
-        diff = [[k, c] for k, c in cur.items() if prev_codes.get(k) != c] + [[k, 0] for k in prev_codes if k not in cur]
-        mo["d"] = [x for kc in sorted(diff) for x in kc]
-        state["codes"] = cur
+        codes_store[m] = cur  # différences calculées après coup, dans l'ordre publié (mois, puis pas récents)
         # annonces officielles actives ce mois (calque brut) : indices de localités ; nouvelles du mois à part
-        day0 = (snap[m].replace(day=1)).strftime("%Y%m%d")
+        day0 = (fd.replace(day=1) if len(m) == 7 else fd - dt.timedelta(days=30)).strftime("%Y%m%d")
         day1 = inp["day"]
         for src, bit in (("modru", 1024), ("gsua", 2048)):
             act = [k for k, f in inp["flags"].items() if f & bit] + inp["xy_active"][src]
@@ -1473,14 +1677,56 @@ def main():
                     claim_places[kid(k)] = [k[1], k[2], "Russie"]
                 else:
                     claim_places[kid(k)] = [round(places[k]["lon"], 4), round(places[k]["lat"], 4), places[k]["name"]]
-        months_out[m] = mo
+        if len(m) == 7:
+            months_out[m] = mo
+        else:
+            days_out[m] = mo
         g = mo["grey"]
         print(f"  {m} : {mo['a']['equilibre']['tout'][0]:,} km² (95 % {mo['mc']['tout'][0]:,}–{mo['mc']['tout'][1]:,}) · "
               f"RU {mo['a']['ru']['tout'][0]:,} · UA {mo['a']['ua']['tout'][0]:,} · zone grise {g['km2']:,} km², "
               f"{g['width_km']} km de large · MoD actives {len(mo['modru']['actives'])}", flush=True)
 
     print("modèle principal et variantes…", flush=True)
-    model.run(P, sig0, v_km, layers, kstrength, fm, fields, on_month=on_month, mc=True)
+    model.run(P, sig0, v_km, layers, kstrength, frames, fields, on_month=on_month, mc=True)
+
+    # ---------- nowcast : les combats déplacent p (β calibré mois par mois, walk-forward) ----------
+    rep = ncast.calibrate()
+    o, n_ = rep["overall"], rep["overall"]["nChanging"]
+    print(f"nowcast : β final {rep['beta_final']} ; walk-forward {rep['period']} : Brier bande {o['band'][0]} → {o['band'][1]}, "
+          f"mailles changeantes ({n_}) {o['changing'][0]} → {o['changing'][1]}", flush=True)
+    beta_last = ncast.beta[months.index(fm[-1])]
+    for m in frames:
+        mo = months_out[m] if len(m) == 7 else days_out[m]
+        if len(m) == 7:
+            t = months.index(m)
+            pn = ncast.apply(t, ncast.beta[t])
+            sc, dl = ncast.score(t), ncast.dist_line(t)
+            beta_m = ncast.beta[t]
+        else:
+            # pas récent : β du dernier mois calibré, indicateurs de la fenêtre glissante, tendance sur ~60 jours
+            fd = fdate(m)
+            back = [k for k in frames if fdate(k) <= fd - dt.timedelta(days=60)]
+            kb = back[-1] if back else frames[0]
+            p_back = day_p[kb] if len(kb) != 7 else ncast.P[months.index(kb)]
+            beta_m = beta_last
+            pn, sc, dl = ncast.apply_arrays(day_p[m], model.window.indicators(fd), p_back, beta_m)
+        met = model.metrics(pn.tolist(), crimea, pre)
+        mo["a"]["nowcast"] = {k: met[k] for k in ("tout", "horsCrimee", "depuis2022")}
+        mo["a"]["nowcast"]["russie"] = met["russie_ua"]
+        mo["greyNow"] = {"km2": met["tout"][2], "width_km": met["grey_width_km"]}
+        d = met["tout"][0] - mo["a"]["equilibre"]["tout"][0]
+        mo["mcNow"] = {per: [x + d for x in mo["mc"][per]] for per in mo["mc"]}
+        mo["beta"] = beta_m
+        # événements datés des 30 jours précédant l'instantané : lon, lat, camp (1 russe), source (indice EV_SOURCES)
+        d1 = fdate(m).strftime("%Y%m%d")
+        d0 = (fdate(m) - dt.timedelta(days=30)).strftime("%Y%m%d")
+        mo["ev"] = [x for e in events if d0 < e[0] <= d1 for x in (round(e[1], 3), round(e[2], 3), e[3], EV_SOURCES.index(e[4]))]
+        qstore["nowcast"][m] = bytes(min(63, int(x * 63 + 0.5)) for x in pn.tolist())
+        # couche « combats intenses » : score de combat rapporté à sa moyenne nationale près de la ligne (×10, 0-63),
+        # à moins de 30 km de la ligne ; hachures à partir de 2 (deux fois la moyenne)
+        near = ncast.isUA & (dl <= 10)
+        ref = float(sc[near].mean()) if near.any() else 1.0
+        qstore["combat"][m] = bytes(np.where(dl <= 30, np.clip(sc / max(ref, 1e-6) * 10, 0, 63), 0).astype(np.uint8).tolist())
 
     variants = [
         ("défaut : camps à un tiers chacun", {}),
@@ -1528,7 +1774,27 @@ def main():
             last, n = c, 1
     flush(last, n)
     flags = bytes((1 if crimea[k] else 0) | (2 if pre[k] else 0) for k in range(len(places)))
-    mlist = [months_out[m] for m in months]
+    mlist = [months_out[m] for m in months] + [days_out[k] for k in dk]
+    order = list(months) + dk
+    prev_codes = {}
+    for key in order:
+        cur = codes_store.get(key)
+        if cur is None:
+            continue
+        diff = [[k, c] for k, c in cur.items() if prev_codes.get(k) != c] + [[k, 0] for k in prev_codes if k not in cur]
+        (months_out[key] if len(key) == 7 else days_out[key])["d"] = [x for kc in sorted(diff) for x in kc]
+        prev_codes = cur
+
+    def encode_seq(store):
+        arr, prev = [], None
+        for key in order:
+            q = store.get(key)
+            if q is None:
+                arr.append(None)
+                continue
+            arr.append(encode_field(q, prev))
+            prev = q
+        return arr
     cstats = {}
     p_stats = os.path.join(ROOT, "data", "claims_stats.json")
     if os.path.exists(p_stats):
@@ -1544,19 +1810,22 @@ def main():
         "claimPlaces": claim_places,
         "mcDraws": MC_DRAWS, "calibSlope": round(slope, 2), "calibMonths": len(sample),
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
+        "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30},
+        "nowcast": dict(rep, names=["feux", "UCDP", "pertes"], widthKm=30, r0=0.03, grid=[0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]),
+        "nMonths": len(months), "steps": dk, "stepDays": STEP_DAYS, "windowDays": WINDOW_DAYS,
         "months": mlist,
     }
     js = "window.FRONT=" + json.dumps(meta, ensure_ascii=False, separators=(",", ":")) + ";"
     open(os.path.join(ROOT, "site", "front.js"), "w", encoding="utf-8").write(js)
     digests = {}
-    for f in fields:
-        arr = [enc[f].get(m) for m in months]
+    for f in allf:
+        arr = encode_seq(qstore[f])
         fjs = f"(window.FRONTP=window.FRONTP||{{}})[{json.dumps(f)}]=" + json.dumps(arr, separators=(",", ":")) + ";"
         open(os.path.join(ROOT, "site", f"front_{f}.js"), "w").write(fjs)
         digests[f] = hashlib.sha1(fjs.encode()).hexdigest()[:10]
-    fjs = "(window.FRONTP=window.FRONTP||{})[\"mcsd\"]=" + json.dumps([enc_sd.get(m) for m in months], separators=(",", ":")) + ";"
+    fjs = "(window.FRONTP=window.FRONTP||{})[\"mcsd\"]=" + json.dumps(encode_seq(sdstore), separators=(",", ":")) + ";"
     open(os.path.join(ROOT, "site", "front_mcsd.js"), "w").write(fjs)
-    print(f"champs : {len(fields)} fichiers front_*.js + front_mcsd.js (écart-type Monte Carlo, 0-63 pour 0-0,5)")
+    print(f"champs : {len(fields) + 2} fichiers front_*.js (dont nowcast, combat) + front_mcsd.js (écart-type Monte Carlo, 0-63 pour 0-0,5)")
     with open(os.path.join(ROOT, "data", "front_areas.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["mois", "date", "perimetre"] + [f"{v}_{x}_km2" for v in VIEWS for x in ("esperance", "mediane", "zone_grise", "controle_ru_90")]
@@ -1579,6 +1848,7 @@ def main():
     s = open(page, encoding="utf-8").read()
     s2 = re.sub(r'src="front\.js(\?v=[\w-]+)?"', f'src="front.js?v={hashlib.sha1(js.encode()).hexdigest()[:10]}"', s)
     s2 = re.sub(r'src="front_equilibre\.js(\?v=[\w-]+)?"', f'src="front_equilibre.js?v={digests["equilibre"]}"', s2)
+    s2 = re.sub(r'src="front_nowcast\.js(\?v=[\w-]+)?"', f'src="front_nowcast.js?v={digests["nowcast"]}"', s2)
     s2 = re.sub(r'const FRONT_V = \{[^}]*\}', "const FRONT_V = " + json.dumps(digests), s2)
     if s2 != s:
         open(page, "w", encoding="utf-8").write(s2)

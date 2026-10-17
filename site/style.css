@@ -160,6 +160,21 @@ footer p{margin:0 0 8px}
 .mapfoot{font-size:11.5px;color:var(--faint);margin:10px 0 30px}
 .mapfoot a{color:var(--muted)}
 @media (max-width:560px){
-  .maplegend{font-size:9px;padding:3px 6px;left:6px;bottom:6px;gap:1px}
-  .maplegend svg{width:18px}
+  /* légende sous la carte (et non par-dessus : elle masquait le sud), lisible, sur deux colonnes */
+  .maplegend{position:static;font-size:11px;padding:6px 8px;margin:6px 0 0;opacity:1;display:grid;grid-template-columns:1fr 1fr;gap:3px 10px}
+  .maplegend svg{width:20px;flex:none}
+  /* panneau des calques : une colonne, cibles tactiles d'au moins 40 px */
+  .pgrid{grid-template-columns:1fr;gap:6px}
+  .pgrid fieldset{flex-direction:row;flex-wrap:wrap}
+  .pgrid fieldset legend{flex-basis:100%}
+  .pgrid .chk{min-height:40px;padding:6px 10px;font-size:12.5px}
+  .pgrid .chk input{width:18px;height:18px}
+  .pgrid .seg .btn{min-height:40px;padding:6px 12px}
+  .selrow{flex-wrap:wrap}
+  .selrow select{min-height:40px;flex:1 1 200px}
+  .controls .btn{min-height:40px}
 }
+
+.selrow{display:flex;align-items:center;gap:8px;font:12px "JetBrains Mono",monospace;color:var(--ink)}
+.selrow select{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--rule);border-radius:4px;padding:5px 8px;min-height:32px;max-width:100%}
+.varbanner:not(:empty){border-left:3px solid var(--accent);padding:4px 8px;color:var(--ink);background:var(--chip)}
