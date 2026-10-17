@@ -684,6 +684,8 @@ def load_layers(months):
     return combat, presence_ru, presence_ua, (ucdp if O else {})
 
 
+LOCAL_SIGMA_ON = False  # σ local ajusté et validé, mais non appliqué : erreur de calibration stable 0,052 → 0,062, actif 0,019 → 0,071
+LOCAL_MIN = 0.5      # σ local : rétrécissement maximal (0,2 rendait les secteurs actifs trop sûrs : 95 % → 86 % observés)
 DAILY_DAYS = 0       # période récente en pas de quelques jours (90 à l'étape « NOWCAST 2 » ; 0 : tout mensuel)
 STEP_DAYS = 3        # pas de la période récente
 WINDOW_DAYS = 14     # fenêtre glissante des indicateurs de combat d'un pas récent
@@ -994,6 +996,25 @@ class Model:
                 if abs(v) > abs(target.get(u, 0.0)):
                     target[u] = v
 
+    def local_features(self, m, dist, held=None):
+        """Variables du σ local au mois m sur U : (activité anormale z ≥ 0, volatilité de la ligne, désaccord, Dnipro)."""
+        import numpy as np
+        f = self.feat[m if m in self.feat else m[:7]]
+        srcs = [s for s in ("dsm", "isw", "wiki") if s in dist and s != held]
+        if len(srcs) >= 2:
+            A = np.array([[np.nan if v is None else max(-30.0, min(30.0, v)) for v in dist[s]] for s in srcs], np.float32)
+            D = np.nan_to_num(np.nanstd(A, axis=0), nan=0.0)
+        else:
+            D = np.zeros(self.nU, np.float32)
+        return f["zA"], f["vol"], D, f["bar"]
+
+    def local_mult(self, m, dist):
+        import numpy as np
+        zA, vol, D, bar = self.local_features(m, dist)
+        c = self.local["coef"]
+        fx = c[0] + c[1] * zA + c[2] * np.log1p(vol) + c[3] * np.log1p(D) + c[4] * np.exp(-bar / 5.0)
+        return np.clip(np.exp(fx - self.local["fmean"]), LOCAL_MIN, 3.0)
+
     def stale_sigma(self, st, v_km, P):
         """Élargissement de σ (km) par maille, d'après l'âge réel (jours) de la carte à chaque localité."""
         if not st:
@@ -1113,10 +1134,19 @@ class Model:
         lv = {}
         lmax = P["lmax"]
         extra = {s: self.stale_sigma(stale.get(s), v_km, P) for s in dist}
+        # σ local (calibré, voir calibrate) : σ0 × m(x) d'après la volatilité de la ligne, l'activité anormale (z), le
+        # désaccord local entre sources et le Dnipro ; plancher 1 km ; le terme d'âge reste additif
+        loc = self.local_mult(m, dist) if getattr(self, "local", None) else None
         for s in dist:
             sg = sigma[s]
             col, ex = dist[s], extra[s]
-            lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / (sg * widen[u] + ex.get(u, 0.0)))) for u in range(self.nU)]
+            if loc is None:
+                lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / (sg * widen[u] + ex.get(u, 0.0)))) for u in range(self.nU)]
+            else:
+                b0 = sigma0[s] * P["sigma_scale"]
+                agep = sg - b0
+                lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / ((max(1.0, b0 * loc[u]) + agep) * widen[u] + ex.get(u, 0.0))))
+                         for u in range(self.nU)]
         return {"day": day, "ndays": ndays or 30, "base": base, "dist": dist, "sigma": sigma, "extra": extra, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
                 "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active, "band_ev": band_ev}
 
@@ -1307,6 +1337,21 @@ class Model:
         # intervalle à 95 % : centiles 2,5 et 97,5 (100 tirages : ~2-3 tirages dans chaque queue)
         return [areas[int(0.025 * (len(areas) - 1))], areas[int(round(0.975 * (len(areas) - 1)))], sd]
 
+    def grey_strata(self, p, f):
+        """Largeur de la zone grise 0,05-0,95 du champ fusionné, par strate (même définition que validate_local) :
+        mailles grises / mailles de bord de la ligne 50 % de la strate × 2 km."""
+        g, e = defaultdict(int), defaultdict(int)
+        for u, k in enumerate(self.U):
+            if self.cell[k] < 0:
+                continue
+            st = "dnipro" if f["bar"][u] < 10 else "actif" if f["vol"][u] >= 0.5 or f["zA"][u] >= 1.0 else "stable"
+            v = p[u]
+            if 0.05 <= v <= 0.95:
+                g[st] += 1
+            if v >= 0.5 and any(p[q] < 0.5 for q in self.nb[u]):
+                e[st] += 1
+        return {st: round(g[st] * CELL_KM / e[st], 1) for st in e if e[st] >= 20}
+
     def metrics(self, p, crimea, pre, sectors=False):
         """Surfaces (espérance, médiane, zone grise 0,05-0,95, contrôle russe > 0,95) par périmètre ;
         largeur moyenne de la zone grise = surface grise / longueur de la ligne médiane."""
@@ -1358,6 +1403,7 @@ def calibrate(model, months_sample, P):
     """Validation croisée des tracés (σ0) : voir la page. Renvoie (σ0, écarts moyens, diagramme, pente)."""
     held = ["dsm", "isw", "wiki"]
     sig0 = {s: 4.0 for s in POLY}
+    loc_rows = []
     mae, bins, slope = {}, [], 1.0
     for it in range(3):
         bins = [[0.0, 0] for _ in range(10)]
@@ -1404,6 +1450,13 @@ def calibrate(model, months_sample, P):
                         edge = False
                     if edge and k in dmed:
                         err[s].append(min(abs(dmed[k]), P["cap_km"]))
+                        # σ local : erreur de la source retirée à cette maille et variables locales (dernière passe)
+                        if it == 2 and getattr(model, "feat", None):
+                            u = model.uidx[k]
+                            f = model.feat[m]
+                            ds = [max(-30.0, min(30.0, dist[o][k])) for o in others if o in ("dsm", "isw", "wiki") and dist[o].get(k) is not None]
+                            dsd = (sum((x - sum(ds) / len(ds)) ** 2 for x in ds) / len(ds)) ** 0.5 if len(ds) >= 2 else 0.0
+                            loc_rows.append((min(abs(dmed[k]), P["cap_km"]), float(f["zA"][u]), float(f["vol"][u]), dsd, float(f["bar"][u])))
                     if it >= 1 and k in L:
                         pv = sig(L[k])
                         if 0.02 < pv < 0.98:
@@ -1432,7 +1485,102 @@ def calibrate(model, months_sample, P):
         sig0["rumax"] = sig0["uamin"] = 1.5 * max(sig0[s] for s in held)
         print("  calibration passe %d : %s" % (it + 1, ", ".join(f"{s} σ0 = {sig0[s]:.1f} km" for s in held)), flush=True)
     print(f"  pente de calibration avant recalage : {slope:.2f}", flush=True)
+    if loc_rows:
+        model.local = fit_local_sigma(loc_rows)
+        model.local["validation"] = validate_local(model, months_sample, P, sig0)
+        model.local["applied"] = LOCAL_SIGMA_ON
+        if not LOCAL_SIGMA_ON:  # mesuré puis écarté : la calibration par strate se dégrade (voir la page méthode)
+            model.local_report, model.local = model.local, None
     return sig0, {s: round(v, 2) for s, v in mae.items()}, [[round((i + 0.5) / 10, 2), round(o / n, 3) if n else None, n] for i, (o, n) in enumerate(bins)], slope
+
+
+def fit_local_sigma(rows):
+    """Moindres carrés : log(1 + erreur locale) ~ 1 + z activité + log(1 + volatilité) + log(1 + désaccord) + Dnipro.
+    Renvoie les coefficients et la moyenne de f sur les mailles de calibration (multiplicateur moyen 1)."""
+    import numpy as np
+    R = np.array(rows, np.float64)
+    y = np.log1p(R[:, 0])
+    X = np.c_[np.ones(len(R)), R[:, 1], np.log1p(R[:, 2]), np.log1p(R[:, 3]), np.exp(-R[:, 4] / 5.0)]
+    c = np.linalg.lstsq(X, y, rcond=None)[0]
+    fmean = float((X @ c).mean())
+    pred = np.exp(X @ c - fmean)
+    print("σ local : coefficients " + ", ".join(f"{n} {v:+.3f}" for n, v in zip(["const", "z activité", "volatilité", "désaccord", "Dnipro"], c))
+          + f" ; multiplicateur médian {np.median(pred):.2f} (1er décile {np.percentile(pred, 10):.2f}, 9e {np.percentile(pred, 90):.2f}) sur {len(R)} mailles", flush=True)
+    return {"coef": [float(x) for x in c], "fmean": fmean, "n": len(R)}
+
+
+def validate_local(model, months_sample, P, sig0):
+    """Calibration par strate (stable / active) : chaque carte prédite par les autres avec σ global puis σ local ; part
+    observée russe par tranche de p prédit, et largeur médiane de la bande 5-95 % (mailles 0,05 < p < 0,95 par km de
+    ligne). Strate active : volatilité ≥ 0,5 bascule sur 6 mois ou activité anormale z ≥ 1."""
+    import numpy as np
+    out = {}
+    held = ["dsm", "isw", "wiki"]
+    acc = {(mode, st): [[0.0, 0] for _ in range(10)] for mode in ("global", "local") for st in ("stable", "actif", "dnipro")}
+    band = {(mode, st): [0, 0] for mode in ("global", "local") for st in ("stable", "actif", "dnipro")}
+    for m in months_sample:
+        base = model.base_codes(model.snap[m].strftime("%Y%m%d"))
+        signs = model.poly_signs(base, proxies=False)
+        bandc = [k for k in model.U if model.cell[k] == -2]
+        for a in signs.values():
+            for k in bandc:
+                a[k] = None
+        dist = {s: signed_distance(a, model.U, model.inU, P["cap_km"]) for s, a in signs.items()}
+        f = model.feat[m]
+        for s in held:
+            if s not in dist:
+                continue
+            others = [o for o in ("dsm", "isw", "wiki", "boost") if o in dist and o != s and not (s == "wiki" and o == "boost")]
+            if not others:
+                continue
+            arr = signs[s]
+            for k in model.U:
+                sk = arr[k]
+                if sk is None or model.cell[k] < 0:
+                    continue
+                u = model.uidx[k]
+                ds = [max(-30.0, min(30.0, dist[o][k])) for o in others if o in held and dist[o].get(k) is not None]
+                dsd = float(np.std(ds)) if len(ds) >= 2 else 0.0
+                c = model.local["coef"]
+                mloc = min(3.0, max(LOCAL_MIN, math.exp(c[0] + c[1] * f["zA"][u] + c[2] * math.log1p(f["vol"][u]) + c[3] * math.log1p(dsd)
+                                                  + c[4] * math.exp(-f["bar"][u] / 5.0) - model.local["fmean"])))
+                st = "dnipro" if f["bar"][u] < 10 else "actif" if f["vol"][u] >= 0.5 or f["zA"][u] >= 1.0 else "stable"
+                for mode in ("global", "local"):
+                    num = den = 0.0
+                    for o in others:
+                        dd = dist[o].get(k)
+                        if dd is None:
+                            continue
+                        so = sig0[o] if mode == "global" else max(1.0, sig0[o] * mloc)
+                        num += W[o] * max(-P["lmax"], min(P["lmax"], dd / so))
+                        den += W[o]
+                    if not den:
+                        continue
+                    pv = sig(num / den)
+                    if 0.05 < pv < 0.95:
+                        band[(mode, st)][0] += 1
+                    if sk == 1 and any(arr[model.U[q]] == -1 for q in model.nb[u]):  # bord de la ligne de la carte retenue
+                        band[(mode, st)][1] += 1
+                    if 0.02 < pv < 0.98:
+                        b = min(9, int(pv * 10))
+                        acc[(mode, st)][b][0] += 1.0 if sk == 1 else 0.5 if sk == 0 else 0.0
+                        acc[(mode, st)][b][1] += 1
+    for (mode, st), bins in acc.items():
+        out.setdefault(mode, {})[st] = {
+            "bins": [[round((i + 0.5) / 10, 2), round(o / n, 3) if n else None, n] for i, (o, n) in enumerate(bins)],
+            # largeur moyenne de la bande 5-95 % : mailles dans la bande / mailles de bord de la ligne × 2 km (avant correctif
+            # d'octobre 2026, le dénominateur comptait toutes les mailles à ±2 km de chaque autre ligne : largeur sous-estimée ~×5)
+            "band_km": round(band[(mode, st)][0] / max(band[(mode, st)][1], 1) * CELL_KM, 1)}
+    for st in ("stable", "actif", "dnipro"):
+        ece = {}
+        for mode in ("global", "local"):
+            b = [x for x in out[mode][st]["bins"] if x[1] is not None]
+            n = sum(x[2] for x in b)
+            ece[mode] = round(sum(abs(x[0] - x[1]) * x[2] for x in b) / n, 3) if n else None
+            out[mode][st]["ece"] = ece[mode]
+        print(f"  strate {st} : bande 5-95 % ≈ {out['global'][st]['band_km']} km (σ global) → {out['local'][st]['band_km']} km (σ local) ; "
+              f"erreur de calibration {ece['global']} → {ece['local']}", flush=True)
+    return out
 
 
 def calibrate_claims(model, fm, P):
@@ -1592,6 +1740,22 @@ def main():
         P["alpha"] = 0.0
     layers = load_layers(months)
     model.window = WindowLayers(months, layers)
+    # mesures sectorielles (zone de contact, z-scores) et variables du σ local, mois par mois (scripts/sectors.py)
+    import numpy as np
+    from sectors import Sectors
+    sect = Sectors(model.U, [cell[k] for k in model.U], NX, NY, CELL_KM, months, grid_index, ROOT)
+    model.feat = {}
+    hist_cons = []
+    ok_t = {months.index(m) for m in fm}
+    for m in fm:
+        b = model.base_codes(snap[m].strftime("%Y%m%d"))
+        hist_cons.append([1 if [x for x in c[:3] if x in (1, 2)].count(2) > [x for x in c[:3] if x in (1, 2)].count(1)
+                          else 0 if [x for x in c[:3] if x in (1, 2)].count(1) > [x for x in c[:3] if x in (1, 2)].count(2) else -1 for c in b])
+        Z = sect.z(months.index(m), ok_t)
+        model.feat[m] = {"zA": np.maximum(0, np.sort(Z, axis=0)[-2:].mean(0)).astype(np.float32),
+                         "vol": sect.volatility(hist_cons[-7:]).astype(np.float32), "bar": sect.barrier}
+    print(f"σ local : variables prêtes ({len(model.feat)} mois) ; Dnipro et réservoir de Kakhovka à moins de 5 km : "
+          f"{int((sect.barrier < 5).sum())} mailles", flush=True)
 
     v_km, speeds = estimate_speed(model, fm)
     print(f"vitesse typique du front : {v_km:.2f} km/mois", flush=True)
@@ -1611,8 +1775,9 @@ def main():
     U = model.U
     months_out = {m: None for m in months}
     days_out = {}
-    allf = list(fields) + ["nowcast", "combat", "contact"]
+    allf = list(fields) + ["nowcast", "combat", "contact", "zf", "zu", "zw", "zm"]
     contact_prof = []
+    P_now, dis_cell, Zf_store, line_km = {}, {}, {}, {}
     qstore = {f: {} for f in allf}   # champs quantifiés par instantané, encodés à la fin dans l'ordre publié
     sdstore = {}
     last_mc = {}
@@ -1639,6 +1804,9 @@ def main():
                 v = [x for x in b[:3] if x in (1, 2)]
                 cons.append(1 if v.count(2) > v.count(1) else 0 if v.count(1) > v.count(2) else -1)
             ncast.add_month(months.index(m), ps["equilibre"], [cons[cell[k]] if cell[k] >= 0 else -1 for k in U], ind[months.index(m)])
+            # désaccord des cartes (une russe, une ukrainienne) : proxy de contact pour P(contact au sol)
+            dis_pl = [1 if (2 in b[:3] and 1 in b[:3]) else 0 for b in inp["base"]]
+            dis_cell[months.index(m)] = np.array([dis_pl[cell[k]] if cell[k] >= 0 else 0 for k in U], np.int8)
         else:
             day_p[m] = np.asarray(ps["equilibre"], np.float32)
         for f, p in ps.items():
@@ -1649,6 +1817,8 @@ def main():
                 if f == "equilibre":
                     mo["grey"] = {"km2": met["tout"][2], "width_km": met["grey_width_km"], "front_km": met["front_km"],
                                   "sectors": met.get("sectors", {})}
+                    if getattr(model, "feat", None) and m in model.feat:
+                        mo["grey"]["strata"] = model.grey_strata(p, model.feat[m])
             else:
                 mo["v"][f] = {k: met[k] for k in ("tout", "depuis2022")}
                 mo["v"][f]["grey_width_km"] = met["grey_width_km"]
@@ -1745,16 +1915,59 @@ def main():
         d0 = (fdate(m) - dt.timedelta(days=30)).strftime("%Y%m%d")
         mo["ev"] = [x for e in events if d0 < e[0] <= d1 for x in (round(e[1], 3), round(e[2], 3), e[3], EV_SOURCES.index(e[4]))]
         qstore["nowcast"][m] = bytes(min(63, int(x * 63 + 0.5)) for x in pn.tolist())
-        # couche « combats intenses » : score de combat rapporté à sa moyenne nationale près de la ligne (×10, 0-63),
-        # à moins de 30 km de la ligne ; hachures à partir de 2 (deux fois la moyenne)
-        near = ncast.isUA & (dl <= 10)
-        ref = float(sc[near].mean()) if near.any() else 1.0
-        qstore["combat"][m] = bytes(np.where(dl <= 30, np.clip(sc / max(ref, 1e-6) * 10, 0, 63), 0).astype(np.uint8).tolist())
-        # zone grise (contact) : nos seuls signaux de combat, rapportés au fond national à 40-60 km de la ligne
-        ratio, zone, cst = ncast.contact(pn, ncast.IND[t] if len(m) == 7 else ncast.last_ind)
-        qstore["contact"][m] = bytes(np.round(ratio * 10).astype(np.uint8).tolist())
-        contact_prof.append(cst.pop("profile"))
-        mo["contact"] = cst
+        if len(m) == 7:
+            t = months.index(m)
+            P_now[t] = pn
+            # zone grise (contact) : profil de chaque secteur (3 mois), mi-hauteur de part et d'autre de la ligne
+            # profil national de l'activité selon la distance (page méthode) ; la zone elle-même est P(contact) ci-dessous
+            _, _, prof, line_km_t = sect.contact(t, P_now)
+            contact_prof.append(prof)
+            line_km[t] = line_km_t
+            # z-scores du secteur (12 mois précédents) : feux, combats, pertes, mouvement de la ligne ; combats intenses
+            Z = sect.z(t, set(P_now))
+            sdl = sect.signed_dist(("c", t), pn)[0]
+            hot, top2 = sect.intense(Z, sdl)
+            ref = [s for s in range(max(0, t - 12), t) if s in P_now and s - 1 in P_now]
+            mv = sect.smooth(np.abs(pn - P_now[t - 1]), 2.5) if t - 1 in P_now else np.zeros(len(U), np.float32)
+            if len(ref) >= 4:
+                Rm = np.stack([sect.smooth(np.abs(P_now[s] - P_now[s - 1]), 2.5) for s in ref])  # (R est le rayon terrestre)
+                zm = (mv - Rm.mean(0)) / np.maximum(Rm.std(0), 0.01)
+            else:
+                zm = np.zeros(len(U), np.float32)
+            Zf_store[t] = Z[0]
+            for name, zz in (("zf", Z[0]), ("zu", Z[1]), ("zw", Z[2]), ("zm", zm)):
+                qstore[name][m] = bytes(np.clip(np.round((zz + 2) * 5), 0, 63).astype(np.uint8).tolist())  # z de −2 à +10,6
+            qstore["combat"][m] = bytes(np.where(hot, np.clip(np.round(top2 * 10), 20, 63), 0).astype(np.uint8).tolist())
+            mo["intense_km2"] = round(float(hot.sum()) * CELL_KM ** 2)
+
+    # ---------- zone grise de contact : P(contact au sol) par maille, walk-forward ----------
+    BM = json.loads(open(os.path.join(ROOT, "site", "basemap.js"), encoding="utf-8").read().split("=", 1)[1].rstrip().rstrip(";"))
+    urb = sect.urban(BM.get("places", []))
+    tsm = sorted(P_now)
+    SDm = {t: sect.signed_dist(("c", t), P_now[t])[0] for t in tsm}
+    truth = {t: ncast.T[t] for t in tsm if t in ncast.T}
+    ART = sect.artillery()
+    PC, PCwf = sect.pcontact(tsm, SDm, sect.G, urb, Zf_store, truth, dis_cell, ART)
+    print(f"P(contact au sol) : AUC walk-forward {sect.pc_auc:.3f} ; coefficients {sect.pc_coef}" if sect.pc_auc else "P(contact au sol) : pas de validation", flush=True)
+    a2 = CELL_KM ** 2
+    tile = (sect.jj // 25) * 1000 + sect.ii // 25
+    for t in tsm:
+        m = months[t]
+        pc, sd = PC[t], SDm[t]
+        qstore["contact"][m] = bytes(np.clip(np.round(pc * 63), 0, 63).astype(np.uint8).tolist())
+        L = max(line_km.get(t, 1.0), 1.0)
+        tiles = []
+        for tk in np.unique(tile[np.abs(sd) <= 2]):
+            mm = tile == tk
+            Lt = max(float(((np.abs(sd) <= 1) & mm).sum()) * CELL_KM * math.pi / 4, 2.0)
+            near = mm & (np.abs(sd) <= 10)
+            comp = [float(np.log1p(sect.smooth(x, 1.5))[near].mean()) if near.any() else 0.0 for x in (sect.R[0, t], sect.G[t], sect.R[2, t], ART[t])]
+            tot = sum(comp) or 1.0
+            tiles.append((int((tk // 1000) * 25 + 12), int((tk % 1000) * 25 + 12),
+                          round(float((pc * mm * (sd > 0)).sum() * a2 / Lt), 1), round(float((pc * mm * (sd <= 0)).sum() * a2 / Lt), 1),
+                          round(float(pc[near].mean()) if near.any() else 0.0, 2), [round(c / tot, 2) for c in comp]))
+        months_out[m]["contact"] = {"km2": round(float(pc.sum() * a2)), "w_ru": round(float((pc * (sd > 0)).sum() * a2 / L), 1),
+                                    "w_ua": round(float((pc * (sd <= 0)).sum() * a2 / L), 1), "tiles": tiles, "wf": bool(PCwf[t])}
 
     variants = [
         ("défaut : camps à un tiers chacun", {}),
@@ -1839,12 +2052,18 @@ def main():
         "mcDraws": MC_DRAWS, "calibSlope": round(slope, 2), "calibMonths": len(sample),
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
         "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30},
-        "contact": {"factor": 2.0, "bins": list(range(-58, 62, 4)), "profile": [round(float(x), 4) for x in np.mean(np.array(contact_prof), axis=0)] if contact_prof else []},
+        "contact": {"method": "P(contact au sol), régression logistique walk-forward", "auc": sect.pc_auc, "coef": sect.pc_coef,
+                    "features": sect.PC_NAMES, "artillery": {"source": "canal officiel des alertes « Повітряна тривога » (t.me/air_alert_ua), menaces d'artillerie agrégées par hromada (limites OCHA COD-AB, CC BY-IGO) puis par maille", "gain": "AUC à distance égale 0,681 → 0,714 en walk-forward"}, "bins": list(range(-58, 62, 4)),
+                    "profile": [round(float(x), 4) for x in np.mean(np.array(contact_prof), axis=0)] if contact_prof else []},
+        "localSigma": getattr(model, "local", None) or getattr(model, "local_report", None),
+        "zscores": {"refMonths": 12, "names": ["feux", "UCDP", "pertes", "mouvement"], "encoding": "q = (z + 2) × 5"},
         "nowcast": dict(rep, names=["feux", "UCDP", "pertes"], widthKm=30, r0=0.03, grid=[0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]),
         "nMonths": len(months), "steps": dk, "stepDays": STEP_DAYS, "windowDays": WINDOW_DAYS,
         "months": mlist,
     }
-    js = "window.FRONT=" + json.dumps(meta, ensure_ascii=False, separators=(",", ":")) + ";"
+    # valeurs numpy (σ local, zone de contact, z) converties en types natifs
+    js = "window.FRONT=" + json.dumps(meta, ensure_ascii=False, separators=(",", ":"),
+                                      default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o)) + ";"
     open(os.path.join(ROOT, "site", "front.js"), "w", encoding="utf-8").write(js)
     digests = {}
     for f in allf:

@@ -486,7 +486,10 @@ window.__uafMoves = (fi, L) => { const save = {...ARROW_PARAMS}; Object.assign(A
   const out = computeArrows(fi, L || 20, "equilibre").map(a => a.vm[0]); Object.assign(ARROW_PARAMS, save); arrowCache = {}; return out; };
 // diagnostic (headless) : part des mailles d'une boîte situées dans la zone grise de contact
 window.__uafContactShare = (fi, b) => { const F = viewFields("contact"); if (!F || !F[fi]) return null; let n = 0, z = 0;
-  for (let u = 0; u < UCELLS.length; u++) { const c = UCELLS[u]; if (cellPlace[c] < 0 || !inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) continue; n++; if (F[fi][u] >= 10) z++; } return n ? z / n : null; };
+  for (let u = 0; u < UCELLS.length; u++) { const c = UCELLS[u]; if (cellPlace[c] < 0 || !inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) continue; n++; z += F[fi][u] / 63; } return n ? z / n : null; };
+// diagnostic (headless) : P(contact au sol) maximale à moins de 4 km d'un point
+window.__uafContactAt = (fi, lon, lat) => { const F = viewFields("contact"); if (!F || !F[fi]) return null; const k = cellOf(lon, lat), j0 = Math.floor(k / GX), i0 = k % GX; let best = 0;
+  for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) { const u = d3.bisectLeft(UCELLS, (j0 + dj) * GX + i0 + di); if (UCELLS[u] === (j0 + dj) * GX + i0 + di) best = Math.max(best, F[fi][u] / 63); } return best; };
 window.__uafP = (fi, lon, lat) => { const g = fullField("equilibre", fi); return g ? g[cellOf(lon, lat)] : null; };
 window.__uafArea = (fi, b, band) => { const g = fullField("equilibre", fi), a = (FR.grid.size / 1000) ** 2; let s = 0; for (let c = 0; c < GX * GY; c++) if ((band ? cellPlace[c] === -2 : cellPlace[c] >= 0) && inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) s += (band ? 1 - g[c] : g[c]) * a; return s; };
 window.__uafLine = (fi, b) => lines50("equilibre", fi).flat().filter(p => inBox(p[0], p[1], b)).length;
@@ -654,14 +657,57 @@ function buildContact(fi){
   const cx = cv.getContext("2d"), img = cx.createImageData(GX * S, GY * S), d = img.data, q = F[fi];
   const [r, g, b] = C["grey-rgb"].split(",").map(Number);
   for (let u = 0; u < UCELLS.length; u++) {
-    if (q[u] < 10) continue;
-    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.55 + (q[u] - 10) / 60);
+    if (q[u] < 6) continue;  // P(contact au sol) ≥ 0,1 ; opacité proportionnelle à P
+    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.15 + q[u] / 63 * 1.4);
     for (let dy = 0; dy < S; dy++) for (let dx = 0; dx < S; dx++) {
       if (((x0 + dx) - (y0 + dy) + 6000) % 4 > 0) continue;  // hachures fines
       const o = ((y0 + dy) * GX * S + x0 + dx) * 4; d[o] = r; d[o+1] = g; d[o+2] = b; d[o+3] = Math.round(255 * a);
     }
   }
   cx.putImageData(img, 0, 0); contactPat = cv;
+}
+// infrastructures statiques et publiques (contexte des combats) : voies ferrées, gares principales, centrales, grands sites
+// industriels, cokeries et mines, aéroports. Aucune information de frappe ni de dommages. Chargées à la demande.
+let showInfra = false, INF = null;
+function loadInfra(then){
+  if (INF) return then();
+  const go = () => { const I = window.INFRA; if (!I) return;
+    const g = (lon, lat) => { const q = proj([lon, lat]); return [(q[0] - gAff[0]) / gAff[2], (q[1] - gAff[1]) / gAff[2]]; };
+    const pts = [];
+    for (const s of I.stations || []) pts.push({x: g(s[0], s[1]), label: "gare de " + s[2], k: "gare"});
+    for (const p of I.plants || []) pts.push({x: g(p[0], p[1]), label: `centrale ${({Nuclear: "nucléaire", Coal: "au charbon", Gas: "au gaz", Hydro: "hydraulique", Oil: "au fioul"})[p[3]] || ""} ${p[2]} (${p[4]} MW)`, k: "centrale"});
+    for (const h of I.heavy || []) pts.push({x: g(h[0], h[1]), label: `${h[2]} (${h[3]})`, k: "lourd"});
+    for (const a of I.airports || []) pts.push({x: g(a[0], a[1]), label: `${a[3]} ${a[2]}`, k: "air"});
+    for (const z of I.industrial || []) { const c = z[2]; let sx = 0, sy = 0; for (let n = 0; n < c.length; n += 2) { sx += c[n]; sy += c[n + 1]; } const m = c.length / 2;
+      pts.push({x: g(sx / m, sy / m), label: `zone industrielle${z[1] ? " " + z[1] : ""} (${String(z[0]).replace(".", ",")} km²)`, k: "zone"}); }
+    const rails = (I.rail || []).map(l => { const p = new Path2D(); for (let n = 0; n < l.length; n += 2) { const q = proj([l[n], l[n + 1]]); n ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1]); } return p; });
+    const zones = (I.industrial || []).map(z => { const p = new Path2D(), c = z[2]; for (let n = 0; n < c.length; n += 2) { const q = proj([c[n], c[n + 1]]); n ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1]); } p.closePath(); return p; });
+    INF = {pts, rails, zones, src: I.sources}; then(); };
+  if (window.INFRA) return go();
+  const sc = document.createElement("script"); sc.src = "infra.js"; sc.onload = go; document.head.appendChild(sc);
+}
+function drawInfra(k){
+  if (!showInfra || !INF) return;
+  const u = 1 / k;
+  ctx.save(); ctx.globalAlpha = 0.7; ctx.strokeStyle = C.ink; ctx.lineWidth = 0.9 * u; ctx.setLineDash([3 * u, 2 * u]);
+  for (const p of INF.rails) ctx.stroke(p);
+  ctx.setLineDash([]); ctx.lineWidth = 0.7 * u; ctx.globalAlpha = 0.5;
+  for (const p of INF.zones) ctx.stroke(p);
+  ctx.globalAlpha = 0.85; ctx.fillStyle = C.ink;
+  for (const p of INF.pts) { if (p.k === "zone") continue;
+    const q = [gAff[0] + p.x[0] * gAff[2], gAff[1] + p.x[1] * gAff[2]], r = 2.4 * u;
+    if (p.k === "centrale") { ctx.beginPath(); ctx.moveTo(q[0], q[1] - r * 1.3); ctx.lineTo(q[0] + r, q[1] + r); ctx.lineTo(q[0] - r, q[1] + r); ctx.closePath(); ctx.fill(); }
+    else if (p.k === "air") { ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, 2 * Math.PI); ctx.stroke(); }
+    else ctx.fillRect(q[0] - r * 0.8, q[1] - r * 0.8, r * 1.6, r * 1.6);
+  }
+  ctx.restore();
+}
+// infrastructure la plus proche d'une maille (survol), à moins de 6 km
+function nearInfra(j, i){
+  if (!INF) return null;
+  let best = null, bd = 6 / (FR.grid.size / 1000);
+  for (const p of INF.pts) { const d = Math.hypot(p.x[0] - i - 0.5, p.x[1] - j - 0.5); if (d < bd) { bd = d; best = p; } }
+  return best ? {label: best.label, d: Math.max(1, Math.round(bd * FR.grid.size / 1000))} : null;
 }
 // « combats intenses (anomalie) » : score de combat au moins deux fois sa moyenne nationale près de la ligne, sans
 // direction ; hachures dessinées sur la grille (4 pixels par maille pour la finesse du trait)
@@ -814,6 +860,7 @@ function draw(){
   ctx.lineWidth = 0.5/k; ctx.strokeStyle = C.admin; ctx.stroke(paths.regions);
   ctx.lineWidth = 1.1/k; ctx.strokeStyle = C.border; ctx.stroke(paths.borders);
 
+  drawInfra(k);
   if (showRef) drawRef(k);
   if (showFire) { if (mode === "pts") drawPoints(k); else drawDensity(k); }
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
@@ -1011,6 +1058,7 @@ if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.chec
 if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.checked; if ($("lgCombatRow")) $("lgCombatRow").hidden = !showCombat; ensureView("combat", () => { combatFor = -2; legend(); draw(); }); };
 $("lyrArrows").onchange = e => { showArrows = e.target.checked; if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); legend(); draw(); };
 $("lyrBase").onchange = e => { showBase = e.target.checked; if (showBase) loadBasemap(); draw(); };
+if ($("lyrInfra")) $("lyrInfra").onchange = e => { showInfra = e.target.checked; if (showInfra) loadInfra(() => { legend(); draw(); }); legend(); draw(); };
 const tip = $("tip");
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -1045,18 +1093,27 @@ function hover(e){
   const b = monthCodes[fi][k], fl = pFlags[k], F = viewFields(fieldName());
   const u = d3.bisectLeft(UCELLS, j * GX + i), p = F && F[fi] ? F[fi][u] / 63 : NaN;
   const st = isNaN(p) ? "…" : p > 0.95 ? "contrôle russe" : p < 0.05 ? "contrôle ukrainien" : "incertitude des cartes";
-  // zone de contact (nos signaux) : la maille, et les largeurs du tronçon de 50 km le plus proche, par côté
-  const CF = viewFields("contact"), cq = CF && CF[fi] ? CF[fi][d3.bisectLeft(UCELLS, j * GX + i)] : 0, ct = FR.months[fi].contact;
-  let ctxt = "";
+  // zone grise de contact : P(contact au sol) à la maille ; tronçon de 50 km le plus proche : largeurs par côté et
+  // composition du signal ; z-scores de la maille (secteur jugé par rapport à ses 12 mois précédents)
+  const uu = d3.bisectLeft(UCELLS, j * GX + i), CF = viewFields("contact"), pcv = CF && CF[fi] ? CF[fi][uu] / 63 : null, ct = FR.months[fi].contact;
+  let ctxt = pcv === null ? "" : `<div class="r"><span>P(contact au sol)</span><b>${Math.round(pcv * 100)} %</b></div>`;
   if (ct && ct.tiles && ct.tiles.length) {
     let tb = null, td = 1e9;
     for (const t of ct.tiles) { const dd = Math.hypot(t[0] - j, t[1] - i); if (dd < td) { td = dd; tb = t; } }
     if (tb && td * FR.grid.size / 1000 < 40) {
-      const wr = tb[2], wu = tb[3], tot = wr + wu, asym = tot > 4 && Math.abs(wr - wu) / tot > 0.3 ? (wr > wu ? " ; plus étendue côté russe" : " ; plus étendue côté ukrainien") : "";
-      ctxt = `<div class="r"><span>zone de contact${cq >= 10 ? " (cette maille en fait partie)" : ""}</span><b>${tot ? `${String(wr).replace(".", ",")} km côté russe · ${String(wu).replace(".", ",")} km côté ukr.` : "non détectée"}</b></div>` +
-        (asym ? `<div style="color:var(--faint)">tronçon de 50 km, nos signaux de combat${asym} (une pression possible, sans direction établie)</div>` : "");
+      const wr = tb[2], wu = tb[3], tot = wr + wu, asym = tot > 2 && Math.abs(wr - wu) / tot > 0.3 ? (wr > wu ? " ; plus étendue côté russe" : " ; plus étendue côté ukrainien") : "";
+      const cp = tb[5] || [0, 0, 0, 0];
+      ctxt += `<div class="r"><span>tronçon : largeur de contact</span><b>${String(wr).replace(".", ",")} km côté russe · ${String(wu).replace(".", ",")} km côté ukr.</b></div>` +
+        `<div style="color:var(--faint)">composition près de la ligne : feux ${Math.round(cp[0] * 100)} %, combats au sol (UCDP) ${Math.round(cp[1] * 100)} %, pertes de matériel ${Math.round(cp[2] * 100)} %, menaces d’artillerie ${Math.round((cp[3] || 0) * 100)} %${asym}</div>`;
     }
   }
+  const zt = ["zf", "zu", "zw", "zm"].map(v => { const Fz = viewFields(v); return Fz && Fz[fi] ? Fz[fi][uu] / 5 - 2 : null; });
+  if (zt.some(v => v !== null)) {
+    const zs = v => v === null ? "–" : (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1).replace(".", ",");
+    ctxt += `<div style="color:var(--faint)">z (mois affiché / 12 mois précédents) : feux ${zs(zt[0])} · combats ${zs(zt[1])} · pertes ${zs(zt[2])} · mouvement ${zs(zt[3])}</div>`;
+  } else ["zf", "zu", "zw", "zm"].forEach(v => ensureView(v, () => {}));
+  const inf = nearInfra(j, i);
+  if (inf) ctxt += `<div style="color:var(--faint)">à ${inf.d} km : ${inf.label}</div>`;
   // votes des sources à cette maille (statuts par localité) et part de chaque source dans le pool
   const avail = s => !!(FR.months[fi].sigma && FR.months[fi].sigma[s] != null);
   const sv = n => (b >> (2*n) & 3) || (avail(FR.viina[n]) ? 1 : 0), av = FR.viina.map((s, n) => sv(n)).filter(Boolean);
@@ -1092,7 +1149,7 @@ function legend(){
   const front = showFront || showLines ? (showStates ? `<span><i style="background:rgba(${C["front-rgb"]},.6);border-radius:0"></i>contrôle russe (p > 0,95)</span><span><i style="background:rgba(${C["grey-rgb"]},.7);border-radius:0"></i>incertitude des cartes (0,05 – 0,95)</span><span>sans couleur : contrôle ukrainien (p < 0,05)</span>` : `<span><i style="background:rgba(${C["front-rgb"]},.75);border-radius:0"></i>probabilité d'occupation russe</span>`) +
     (showLines ? `<span><i style="background:${C.front};height:2px;border-radius:0;vertical-align:3px"></i>ligne médiane (p = 50 %)</span>` : "") +
     (showUnc ? `<span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>incertitude des cartes : lignes 5 % et 95 % (désaccord et imprécision des sources)</span>` : "") +
-    (showContact ? `<span><i style="background:repeating-linear-gradient(-45deg,rgba(${C["grey-rgb"]},.9) 0 1px,transparent 1px 4px);border-radius:0"></i>zone grise : contact mesuré par nos signaux de combat (feux, UCDP, pertes au-dessus de deux fois le fond)</span>` : "") +
+    (showContact ? `<span><i style="background:repeating-linear-gradient(-45deg,rgba(${C["grey-rgb"]},.9) 0 1px,transparent 1px 4px);border-radius:0"></i>zone grise de contact : probabilité d'un contact au sol (opacité), estimée par nos signaux de combat et la distance à la ligne</span>` : "") +
     `<span><i style="border-top:1px dotted ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>occupé avant 2022</span><span style="flex-basis:100%;height:0"></span>` : "";
   const items = mode === "pts"
     ? [[C["fire-now"], "feu en excès, mois affiché"], [C["fire-old"], "mois précédents (traînée)"]]
@@ -1108,7 +1165,8 @@ function legend(){
     `<span>flèche pleine : déplacement de la ligne 50 % (km par 30 jours, sur 3 périodes de 30 jours)</span>` +
     `<span><i style="background:${C.front};height:5px;border-radius:0;vertical-align:2px;outline:1.5px solid ${C.ink}"></i>flèche cerclée : changements de contrôle annoncés et datés des 30 derniers jours (journal DeepStateMap, état-major UA, MoD RF, bascules des cartes), pondérés par la fiabilité mesurée de chaque source</span>` +
     `<span><i style="border:1.3px solid ${C.front};width:8px;height:8px;border-radius:50%;vertical-align:0;background:transparent"></i>cercle creux : confirmé par annonce (changement que les cartes montraient déjà, pas un mouvement nouveau)</span>`;
-  if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>combats intenses : signaux de combat (feux, UCDP, pertes) au moins deux fois leur moyenne nationale près de la ligne, sur 14 jours ; ne dit pas qui avance</span>`;
+  if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 2 par rapport à ses 12 mois précédents ; ne dit pas qui avance</span>`;
+  if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1.2px dashed ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>voies ferrées</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>gares principales, sites lourds</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>centrales électriques</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>aéroports et aérodromes</span><span>contours : zones industrielles de plus de 1 km² ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)</span>`;
   if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>missiles et drones lancés du lieu annoncé vers l'oblast visé, agrégés sur le mois (${O.launch.specificShare}\u00a0% des lancements ont une cible précisée ; source : armée de l'air ukrainienne)</span>`;
@@ -1270,6 +1328,15 @@ function methodTables(){
     $("pNow").textContent = `β = ${String(N.beta_final).replace(".", ",")} ; échelles (90e centile dans la bande) : ${Object.entries(N.scales).map(([k, v]) => k + " " + String(v).replace(".", ",")).join(", ")} ; validation ${N.period ? N.period.join(" → ") : ""}`;
     $("nowTab").innerHTML = `<tr><th>période ou cas</th><th>Brier, bande de 30 km (cartes seules → nowcast)</th><th>Brier, mailles qui changent de camp</th><th>mailles qui changent</th></tr>` +
       row("<b>ensemble (walk-forward)</b>", N.overall) + Object.entries(N.years).map(([y, x]) => row(y, x)).join("") + Object.entries(N.cases).map(([c, x]) => row(c, x)).join("");
+  }
+  if (FR.contact && FR.contact.auc != null) {
+    $("pContactAuc").textContent = FR.contact.auc.toFixed(3).replace(".", ",");
+    $("pContactCoef").textContent = Object.entries(FR.contact.coef || {}).filter(([k]) => k !== "const").map(([k, v]) => `${k} ${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2).replace(".", ",")}`).join(" ; ") + " (variables standardisées)";
+  }
+  if (FR.localSigma && FR.localSigma.validation) {
+    const V = FR.localSigma.validation, f = x => x == null ? "–" : String(x).replace(".", ",");
+    $("pLocal").textContent = ["stable", "actif", "dnipro"].filter(s => V.global[s]).map(s =>
+      `${({stable: "secteurs stables", actif: "secteurs actifs", dnipro: "Dnipro"})[s]} : bande 5-95 % ≈ ${f(V.global[s].band_km)} → ${f(V.local[s].band_km)} km, erreur de calibration ${f(V.global[s].ece)} → ${f(V.local[s].ece)}`).join(" ; ");
   }
   if (FR.events && $("evTab")) {
     const LB = {dsmlog: "journal DeepStateMap (déclarations datées)", gsua: "état-major ukrainien", modru: "MoD RF", dsm: "bascules de DeepStateMap (VIINA)", wiki: "bascules de Wikipédia (VIINA)"};

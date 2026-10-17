@@ -82,6 +82,7 @@
     <label class="chk"><input type="checkbox" id="lyrUcdp"> combats (UCDP)</label>
     <label class="chk"><input type="checkbox" id="lyrArcs"> missiles et drones</label>
     <label class="chk"><input type="checkbox" id="lyrBase" checked> routes / localités</label>
+    <label class="chk" hidden><input type="checkbox" id="lyrInfra"> infrastructures (contexte)</label><!-- masquée tant que site/infra.js n'est pas construit (collecte OSM en cours) -->
     <div class="controls" id="fireOpts" hidden style="margin:4px 0 0">
       <span class="seg" role="group"><button class="btn" id="modePts" type="button" aria-pressed="true">points</button><button class="btn" id="modeDen" type="button" aria-pressed="false">densité</button></span>
       <button class="btn" id="ref" type="button" aria-pressed="false">2021</button>
@@ -103,9 +104,9 @@
 <script src="data.js?v=adb36d30d0"></script>
 <script src="front_equilibre.js?v=d61894e7d1"></script>
 <script src="front_nowcast.js?v=95ef4a8b8b"></script>
-<script src="front_contact.js?v=375402d9aa"></script>
-<script src="front.js?v=ef8c26f52f"></script>
-<script src="osint.js?v=f8b7973154"></script>
+<script src="front_contact.js?v=ceb9fe5287"></script>
+<script src="front.js?v=cdff72f4d2"></script>
+<script src="osint.js?v=46ed380b81"></script>
 <script>
 // quelques libellés en quatre langues (la carte elle-même reste en français)
 (function(){

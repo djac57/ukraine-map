@@ -121,8 +121,12 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.__uafArrowCheck||!w.__uafArrow
   {let miss=[], wr=[], wu=[]; for(const m of months){ if(m<'2024-01'||m>'2026-09') continue; const i=months.indexOf(m); const c=w.FRONT.months[i]&&w.FRONT.months[i].contact; if(!c) continue; if(!c.km2) miss.push(m); wr.push(c.w_ru); wu.push(c.w_ua);}
    const med=a=>a.length?a.slice().sort((x,y)=>x-y)[Math.floor(a.length/2)]:0;
    o.textContent+='CONTACT|zone grise de contact détectée chaque mois 2024-2026|'+(miss.length?'ECHEC':'OK')+'|'+(miss.length?'absente : '+miss.join(', '):'largeur moyenne médiane : '+med(wr)+' km côté russe, '+med(wu)+' km côté ukrainien')+'\\n';
+   // diagnostics seulement (non bloquants, aucun calibrage dessus) : saillant de Vivaldi, centres urbains loin de la ligne
    const sh=w.__uafContactShare(months.indexOf('2026-06'),[37.6,37.95,49.0,49.25]);
-   o.textContent+='CONTACT|Vivaldi : saillant en zone de contact en juin 2026|'+(sh!==null&&sh>=0.3?'OK':'ALERTE')+'|'+(sh===null?'-':Math.round(sh*100)+' % des mailles')+'\\n';}
+   o.textContent+='DIAG|Vivaldi : P(contact au sol) moyenne sur le saillant, juin 2026|'+(sh===null?'-':Math.round(sh*100)+' %')+'\\n';
+   const CITIES={'Kharkiv':[36.23,49.99],'Zaporijjia':[35.14,47.84],'Soumy':[34.80,50.91],'Dnipro':[35.05,48.46],'Poltava':[34.55,49.59]};
+   for(const [nm,[lo,la]] of Object.entries(CITIES)){let mx=0,at=''; for(const m of months){ if(m<'2024-01'||m>'2026-09') continue; const v=w.__uafContactAt(months.indexOf(m),lo,la); if(v!==null&&v>mx){mx=v;at=m;}}
+     o.textContent+='DIAG|'+nm+' (centre) : P(contact au sol) maximale 2024-2026|'+Math.round(mx*100)+' %'+(at?' ('+at+')':'')+(mx>0.3?' ; à surveiller':'')+'\\n';}}
   {const [name,ms,box]=CALM; let n=0, ex=[]; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; for(const L of [50,20]) for(const a of w.__uafArrows(i,L)){ if(inb(a,box)){n++; if(ex.length<4) ex.push(m+' '+(a.ru?'RU':'UA')+' '+a.v);}}}
     const per={}; for(const m of ms){const i=months.indexOf(m); if(i<0) continue; let c=0; for(const a of w.__uafArrows(i,20)) if(inb(a,box)) c++; if(c) per[m]=c;}
     o.textContent+='CALME|'+name+'|'+(n<=8?'OK':'ALERTE')+'|'+n+' flèche(s) '+ex.join(', ')+' '+JSON.stringify(per)+'\\n';}
@@ -163,8 +167,36 @@ def check_workflows():
     return ok
 
 
+def check_schema():
+    """Schéma de site/front.js (bloquant) : clés et types attendus. Une variable du calcul a déjà écrasé le rayon
+    terrestre grid.R (une liste à la place de 6 371 007,2), sans erreur visible."""
+    import json
+    s = open(os.path.join(SITE, "front.js"), encoding="utf-8").read()
+    try:
+        d = json.loads(s[s.index("=") + 1:].rstrip().rstrip(";"))
+    except ValueError as e:
+        print(f"check_arrows.py : front.js illisible ({e})")
+        return False
+    num = (int, float)
+    expect = {"grid": dict, "months": list, "params": dict, "sigma0": dict, "nowcast": dict, "events": dict, "contact": dict, "runs": str, "flags": str}
+    grid = {"nx": int, "ny": int, "size": num, "x0": num, "y1": num, "lon0": num, "lat0": num, "R": num}
+    errs = [f"{k} absent ou de type {type(d.get(k)).__name__}" for k, t in expect.items() if not isinstance(d.get(k), t)]
+    if isinstance(d.get("grid"), dict):
+        errs += [f"grid.{k} de type {type(d['grid'].get(k)).__name__}" for k, t in grid.items() if not isinstance(d["grid"].get(k), t)]
+        R = d["grid"].get("R")
+        if isinstance(R, num) and not 6.3e6 < R < 6.4e6:
+            errs.append(f"grid.R = {R} (rayon terrestre attendu)")
+    mo = [m for m in d.get("months", []) if m]
+    if not mo or not all(isinstance(m.get("a"), dict) and isinstance(m.get("date"), str) for m in mo):
+        errs.append("months : instantanés incomplets")
+    if errs:
+        print("check_arrows.py : schéma de front.js invalide : " + " ; ".join(errs))
+        return False
+    return True
+
+
 def main():
-    if not check_workflows():
+    if not check_workflows() or not check_schema():
         return 1
     chrome = chrome_path(sys.argv[1] if len(sys.argv) > 1 else None)
     if not chrome:

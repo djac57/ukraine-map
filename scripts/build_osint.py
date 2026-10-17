@@ -246,8 +246,10 @@ def ucdp(months, cutoff):
     for f in sorted(glob.glob(os.path.join(RAW, "ucdp", "GEDEvent_v*.csv"))):
         rows += [r for r in csv.DictReader(open(f, encoding="utf-8")) if r["id"] not in seen]
     cells = defaultdict(lambda: [0, 0])
+    ground = defaultdict(lambda: [0, 0])
     per = [0] * len(months)
     last = None
+    remote_n = 0
     for r in rows:
         if r["country"] not in ("Ukraine", "Russia", "Russia (Soviet Union)") or r["where_prec"] not in ("1", "2"):
             continue
@@ -258,13 +260,32 @@ def ucdp(months, cutoff):
             continue
         i = midx[m]
         lat, lon = float(r["latitude"]), float(r["longitude"])
-        c = cells[(math.floor(lat / CELL), math.floor(lon / CELL), i)]
+        key = (math.floor(lat / CELL), math.floor(lon / CELL), i)
+        c = cells[key]
         c[0] += 1
         c[1] += int(float(r["best"] or 0))
         per[i] += 1
         last = max(last or m, m)
+        # contact ou frappe à distance : mots du titre de la dépêche, sinon victimes (civils seulement = frappe)
+        txt = (r.get("source_headline") or "") + " " + (r.get("source_article") or "")
+        civ_only = float(r.get("deaths_civilians") or 0) > 0 and float(r.get("deaths_a") or 0) + float(r.get("deaths_b") or 0) == 0
+        remote = not UCDP_GROUND.search(txt) and (bool(UCDP_REMOTE.search(txt)) or (civ_only and not UCDP_ART.search(txt)))
+        if remote:
+            remote_n += 1
+        else:
+            g = ground[key]
+            g[0] += 1
+            g[1] += int(float(r["best"] or 0))
     pts = [x for (a, b, i), (n, d) in sorted(cells.items(), key=lambda kv: kv[0][2]) for x in (a, b, i, n, d)]
-    return {"pts": pts, "perMonth": per, "last": last}
+    gpts = [x for (a, b, i), (n, d) in sorted(ground.items(), key=lambda kv: kv[0][2]) for x in (a, b, i, n, d)]
+    print(f"UCDP : {sum(per)} événements, dont {remote_n} frappes à distance écartées du contact (missiles, drones, aviation, victimes civiles seules)", flush=True)
+    return {"pts": pts, "ground": gpts, "perMonth": per, "last": last}
+
+
+# classement des événements UCDP (contact au sol et artillerie / frappe à distance)
+UCDP_REMOTE = re.compile(r"missile|drone|uav|shahed|air ?strike|airstrike|guided bomb|glide bomb|\bkab\b|bomb|rocket|ballistic|cruise", re.I)
+UCDP_GROUND = re.compile(r"clash|assault|fight|battle|storm|offensive|infantry|skirmish|counter-?attack|ground", re.I)
+UCDP_ART = re.compile(r"shell|artillery|mortar|mlrs|grad|howitzer", re.I)
 
 
 def main():
