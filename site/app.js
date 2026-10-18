@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"asym": "c117dc9222", "combat": "6f6fcc18b2", "contact": "76fed3e6c2", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "76fed3e6c2", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -668,7 +668,7 @@ function drawEventArrows(k){
     if (L < 1e-3) continue;
     dx /= L; dy /= L;
     const ov = k < 1.6, w = ov ? Math.min(3, 1.4 + a.w * 0.3) : Math.min(6, 1.6 + a.w * 0.9), col = a.ru ? C.front : C.uactl, hs = (ov ? 2 : 3) + w * 1.5, hx = -dy, hy = dx;
-    const Lmin = hs * 1.6 + 12;  // toujours un fût visible au-delà de la pointe
+    const Lmin = hs * 1.6 + (a.uncertain ? 40 : 12);  // toujours un fût visible au-delà de la pointe (40 px si incertaine)
     if (L < Lmin) { ex = sx + dx * Lmin; ey = sy + dy * Lmin; L = Lmin; }
     const path = () => { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs, ey - dy * hs); };
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
@@ -796,9 +796,10 @@ function drawArrows(k){
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - a.dx * hs * 1.6 + hx * hs, ey - a.dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - a.dx * hs * 1.6 - hx * hs, ey - a.dy * hs * 1.6 - hy * hs); ctx.closePath(); };
     ctx.lineCap = "round"; ctx.lineJoin = "round";   // flèches de gradient : pleines, sans contour
     ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = overview ? 0.8 : 0.95; ctx.lineWidth = w;
-    if (a.uncertain && Math.hypot(ex - sx, ey - sy) < 30) { const L0 = Math.hypot(ex - sx, ey - sy) || 1; ex = sx + (ex - sx) * 30 / L0; ey = sy + (ey - sy) * 30 / L0; }
-    if (a.uncertain) {   // sens incertain : même taille qu'une flèche normale, trait en tirets, tête creuse
-      ctx.setLineDash([Math.max(5, w * 2), Math.max(4, w * 1.4)]); ctx.lineWidth = Math.max(2, w); ctx.lineCap = "butt";
+    // incertaines et « poussée possible » : hampe d'au moins 40 px après la tête, même épaisseur que les flèches pleines
+    if (a.uncertain && Math.hypot(ex - sx, ey - sy) < 40 + hs * 1.6) { const L0 = Math.hypot(ex - sx, ey - sy) || 1, Lw = 40 + hs * 1.6; ex = sx + (ex - sx) * Lw / L0; ey = sy + (ey - sy) * Lw / L0; }
+    if (a.uncertain) {   // sens incertain : trait en tirets, tête creuse
+      ctx.setLineDash([Math.max(6, w * 3), Math.max(4, w * 2)]); ctx.lineWidth = Math.max(2.4, w * 1.2); ctx.lineCap = "butt";
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * hs * 1.6, ey - a.dy * hs * 1.6); ctx.stroke();
       ctx.setLineDash([]); ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke();
     } else {
@@ -1389,7 +1390,7 @@ function hover(e){
       const fi = frontIdx(), camp = _t(best.a.ru ? "russe" : "ukrainienne");
       if (!full) {
         tip.innerHTML = (best.a.ev ? (best.a.undirected ? _t("localités qui ont basculé ({c}), sens non établi", {c: camp}) : best.a.late ? _t("confirmé par annonce ({c}), pas un mouvement nouveau", {c: camp})
-          : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.possible ? _t("poussée ukrainienne possible : on se bat derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 4)") : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
+          : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.possible ? _t("poussée ukrainienne possible : on se bat anormalement derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 3, peu de cas)") : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
         tip.style.display = "block";
         const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
         return;
@@ -1520,7 +1521,7 @@ function legend(){
     `<span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px;box-shadow:-4px 0 0 -1px ${C.uactl}"></i>${_t("flèche avec un cercle à la base : localités qui ont basculé selon les sources dans les 30 derniers jours (journal DeepStateMap, état-major UA, MoD RF, bascules des cartes), pondérées par la fiabilité mesurée de chaque source")}</span>` +
     `<span><i style="border-top:2px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>${_t("flèche en pointillés : sens incertain (on se bat derrière la ligne, ou sens non établi le long de la limite)")}</span>` +
     `<span><i style="border:1.3px solid ${C.front};width:8px;height:8px;border-radius:50%;vertical-align:0;background:transparent"></i>${_t("cercle creux : confirmé par annonce (changement que les cartes montraient déjà, pas un mouvement nouveau) ou sens non établi")}</span>`;
-  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(0deg,rgba(30,30,30,.85) 0 1px,transparent 1px 3px);border-radius:0"></i>${_t("combats derrière la ligne : endroits où l'activité de combat vue des deux côtés (feux, UCDP, pertes) se concentre d'un côté de la ligne (asymétrie ≥ 0,2, fenêtre de 12 km), hachures de ce côté ; ne dit pas qui avance")}</span>`;
+  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(0deg,rgba(30,30,30,.85) 0 1px,transparent 1px 3px);border-radius:0"></i>${_t("combats derrière la ligne : endroits où l'activité de combat vue des deux côtés (feux, UCDP, pertes) se concentre anormalement d'un côté de la ligne (asymétrie ≥ 0,2 et au-dessus de sa normale des 12 mois précédents, z ≥ 2, signal gardé 3 mois), hachures de ce côté ; ne dit pas qui avance")}</span>`;
   if (showDestr) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:rgba(40,40,40,.7);border-radius:0"></i>${_t("destruction cumulée (radar Sentinel-1) : part du bâti dont la rétrodiffusion s'écarte durablement de 2021, jusqu'au mois précédent, mailles de 2 km ; contient des données Copernicus Sentinel modifiées")}</span>`;
   if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>${_t("combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 2 par rapport à ses 12 mois précédents ; ne dit pas qui avance")}</span>`;
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;

@@ -127,8 +127,27 @@ class Sectors:
         m_ru = g(A * ru_m) / np.maximum(n_ru, 1e-6)
         m_ua = g(A * ua_m) / np.maximum(n_ua, 1e-6)
         tot = m_ru + m_ua
-        aw = np.where((tot >= 0.05) & (n_ru > 0.05) & (n_ua > 0.05), (m_ru - m_ua) / np.maximum(tot, 1e-6), 0.0)
-        fld = np.where(near & (np.abs(aw) >= thr) & ((aw > 0) == (sd > 0)), np.abs(aw), 0.0).astype(np.float32)
+        aw = np.where((tot >= 0.05) & (n_ru > 0.05) & (n_ua > 0.05), (m_ru - m_ua) / np.maximum(tot, 1e-6), 0.0).astype(np.float32)
+        # version RELATIVE : on ne garde que les endroits où la concentration est ANORMALE pour le lieu, z de l'asymétrie
+        # par rapport aux 12 mois précédents (au moins 4) ≥ 1,5. L'asymétrie absolue hachurait presque tout le côté russe
+        # (frappes de drones et en profondeur) ; bilan 2023-2026 : voir la page méthode
+        if not hasattr(self, "_aw"):
+            self._aw = {}
+        self._aw[t] = aw
+        past = [self._aw[q] for q in range(t - 12, t) if q in self._aw]
+        if len(past) >= 4:
+            P_ = np.stack(past)
+            z = (aw - P_.mean(0)) / np.maximum(P_.std(0), 0.2)
+        else:
+            z = np.zeros_like(aw)
+        self.asym_z = z
+        # anomalie : z ≥ 2 ce mois-ci ou dans les deux mois précédents (une concentration anormale qui dure reste
+        # signalée même quand elle devient la nouvelle normale du lieu), et asymétrie actuelle toujours ≥ seuil
+        if not hasattr(self, "_an"):
+            self._an = {}
+        self._an[t] = (np.abs(z) >= 2.0) & ((z > 0) == (aw > 0))
+        anom = self._an[t] | self._an.get(t - 1, np.zeros_like(aw, bool)) | self._an.get(t - 2, np.zeros_like(aw, bool))
+        fld = np.where(near & anom & (np.abs(aw) >= thr) & ((aw > 0) == (sd > 0)), np.abs(aw), 0.0).astype(np.float32)
         tile = (self.jj // TILE_ASYM) * 1000 + self.ii // TILE_ASYM
         out = np.zeros(len(sd), np.float32)
         tiles = {}
