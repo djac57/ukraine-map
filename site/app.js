@@ -860,7 +860,14 @@ window.__uafArrowCheck = function(){
     const o = overviewArrows(fi, "equilibre").filter(a => a.uncertain).length, z = computeArrows(fi, 20, "equilibre").filter(a => a.uncertain).length + computeArrows(fi, 10, "equilibre").filter(a => a.uncertain).length,
       e = eventArrows(fi).filter(a => a.uncertain).length;
     if (o + z + e) unc[FR.months[fi].date.slice(0, 7)] = [o, z, e]; }
-  return {total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc, heads, headMoved, headDropped};
+  // missiles et drones (bloquant) : aucun lieu de lancement en territoire ukrainien contrôlé (p < 0,5 au mois du lancement)
+  let launches = 0;
+  const pl = O.launch.places;
+  for (const [mi, li] of O.launch.arcs) { const fl = FR.months.findIndex(m => m && m.date.startsWith(D.months[mi])); if (fl < 0) continue;
+    const c = cellOf(pl[li][1], pl[li][2]); if (!(c >= 0 && c < GX * GY) || cellPlace[c] < 0) continue;
+    launches++; const g = fullField("equilibre", fl);
+    if (g && g[c] < 0.5) fails.push({mois: D.months[mi], lancement: pl[li][0], p: +g[c].toFixed(2)}); }
+  return {total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc, heads, headMoved, headDropped, launches};
 };
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
@@ -1210,21 +1217,75 @@ function drawUcdp(k){
 }
 const regionCentroid = {};
 for (const f of G.regions) if (f.properties.id) regionCentroid[f.properties.id] = d3.geoCentroid(f);
+// missiles et drones (P. Ivaniuk, CC BY-NC-SA 4.0) : choroplèthe des oblasts visés (volume du mois, échelle
+// séquentielle) et zones de lancement (cercles ∝ √n, lieux identiques regroupés) ; les arcs ne sont dessinés que pour
+// la zone ou l'oblast survolé (ses flux seulement), avec une tête côté cible. Un lancement part de Russie, des territoires
+// occupés, de la mer Noire, de la mer d'Azov, de la Caspienne ou de Biélorussie (contrôlé par check_arrows.py).
+let arcFocus = null, arcCache = {m: -1};
+const regionPath = {}, regionFeat = {};
+function arcMonth(){
+  if (arcCache.m === cur) return arcCache;
+  const pl = O.launch.places, zones = new Map(), regs = {};
+  for (const [mi, li, tid, n] of O.launch.arcs) {
+    if (mi !== cur || !regionCentroid[tid]) continue;
+    const key = pl[li][1] + "," + pl[li][2];
+    let z = zones.get(key); if (!z) zones.set(key, z = {key, lon: pl[li][1], lat: pl[li][2], names: [], n: 0, flows: {}});
+    if (!z.names.includes(pl[li][0])) z.names.push(pl[li][0]);
+    z.n += n; z.flows[tid] = (z.flows[tid] || 0) + n; regs[tid] = (regs[tid] || 0) + n;
+  }
+  const zs = [...zones.values()], mz = Math.max(1, ...zs.map(z => z.n)), mr = Math.max(1, ...Object.values(regs));
+  return arcCache = {m: cur, zones: zs, regs, mz, mr};
+}
+const zoneR = (z, A) => 3.5 + 10 * Math.sqrt(z.n / A.mz);
 function drawArcs(k){
   if (cur > cutIdx) return;
-  const arcs = O.launch.arcs, pl = O.launch.places;
-  ctx.strokeStyle = C.arc; ctx.lineCap = "round";
-  for (const [mi, li, tid, n] of arcs) {
-    if (mi !== cur || !regionCentroid[tid]) continue;
-    const a = proj([pl[li][1], pl[li][2]]), b = proj(regionCentroid[tid]);
-    if (!a || !b) continue;
-    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1];
-    const cx = mx - dy * 0.18, cy = my + dx * 0.18;
-    ctx.globalAlpha = 0.55; ctx.lineWidth = Math.min(9, 0.6 + Math.sqrt(n) * 0.35) / k;
-    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.quadraticCurveTo(cx, cy, b[0], b[1]); ctx.stroke();
-    ctx.globalAlpha = 0.9; ctx.fillStyle = C.arc; ctx.beginPath(); ctx.arc(b[0], b[1], 2.2 / k, 0, 7); ctx.fill();
+  const A = arcMonth();
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  // choroplèthe des oblasts visés
+  for (const [tid, n] of Object.entries(A.regs)) { const p = regionPath[tid]; if (!p) continue;
+    ctx.globalAlpha = 0.1 + 0.5 * Math.sqrt(n / A.mr); ctx.fillStyle = C.arc; ctx.fill(p);
+    if (arcFocus && arcFocus.kind === "region" && arcFocus.id === tid) { ctx.globalAlpha = 1; ctx.strokeStyle = C.arc; ctx.lineWidth = 2 / k; ctx.stroke(p); } }
+  // flux de la zone ou de l'oblast survolé
+  if (arcFocus) {
+    const flows = arcFocus.kind === "zone" ? Object.entries((A.zones.find(z => z.key === arcFocus.id) || {flows: {}}).flows).map(([t, n]) => [arcFocus.id, t, n])
+      : A.zones.filter(z => z.flows[arcFocus.id]).map(z => [z.key, arcFocus.id, z.flows[arcFocus.id]]);
+    const mf = Math.max(1, ...flows.map(f => f[2]));
+    for (const [zk, tid, n] of flows) {
+      const z = A.zones.find(q => q.key === zk), a = proj([z.lon, z.lat]), b = proj(regionCentroid[tid]); if (!a || !b) continue;
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], cx = mx - dy * 0.15, cy = my + dx * 0.15;
+      const w = (1 + 4 * Math.sqrt(n / mf)) / k;
+      ctx.globalAlpha = 0.85; ctx.strokeStyle = C.arc; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.quadraticCurveTo(cx, cy, b[0], b[1]); ctx.stroke();
+      // tête côté cible, dans l'axe de la fin de la courbe
+      const tx = b[0] - cx, ty = b[1] - cy, tl = Math.hypot(tx, ty) || 1, ux = tx / tl, uy = ty / tl, hs = Math.min(6, 2.5 + w * k) / k;
+      ctx.globalAlpha = 1; ctx.fillStyle = C.arc; ctx.beginPath(); ctx.moveTo(b[0], b[1]);
+      ctx.lineTo(b[0] - ux * hs * 1.8 - uy * hs, b[1] - uy * hs * 1.8 + ux * hs); ctx.lineTo(b[0] - ux * hs * 1.8 + uy * hs, b[1] - uy * hs * 1.8 - ux * hs); ctx.closePath(); ctx.fill();
+    }
   }
+  // zones de lancement
+  for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (!a) continue;
+    const r = zoneR(z, A) / k, on = arcFocus && arcFocus.kind === "zone" && arcFocus.id === z.key;
+    ctx.globalAlpha = on ? 1 : 0.8; ctx.fillStyle = C.arc; ctx.strokeStyle = C.bg; ctx.lineWidth = 1.2 / k;
+    ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, 7); ctx.fill(); ctx.stroke(); }
   ctx.globalAlpha = 1;
+}
+// diagnostic (headless) : zones de lancement du mois affiché, en pixels de la carte
+window.__uafArcZones = () => arcMonth().zones.map(z => { const a = proj([z.lon, z.lat]); return {name: z.names.join(", "), x: a[0] * tr.k + tr.x, y: a[1] * tr.k + tr.y, n: Math.round(z.n)}; }).sort((p, q) => q.n - p.n);
+// survol de la couche : zone de lancement (cercle) ou oblast visé ; renvoie le texte de l'info-bulle ou null
+function arcHover(mx, my){
+  if (!showArcs || cur > cutIdx) return null;
+  const A = arcMonth(), k = tr.k, gx = (mx - tr.x) / k, gy = (my - tr.y) / k;
+  let f = null;
+  for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (a && Math.hypot((a[0] - gx) * k, (a[1] - gy) * k) <= zoneR(z, A) + 3) { f = {kind: "zone", id: z.key, z}; break; } }
+  if (!f) { const ll = proj.invert([gx, gy]);
+    for (const tid of Object.keys(A.regs)) if (regionFeat[tid] && d3.geoContains(regionFeat[tid], ll)) { f = {kind: "region", id: tid}; break; } }
+  const key = f ? f.kind + f.id : null, old = arcFocus ? arcFocus.kind + arcFocus.id : null;
+  arcFocus = f ? {kind: f.kind, id: f.id} : null;
+  if (key !== old) draw();
+  if (!f) return null;
+  if (f.kind === "zone") return _t("zone de lancement : {z} · {n} lancements vers des cibles précisées ce mois-ci", {z: f.z.names.join(", "), n: fmt(Math.round(f.z.n))});
+  const nm = (regionFeat[f.id].properties || {}).n || f.id;
+  return _t("oblast visé : {o} · {n} lancements (cibles précisées) ce mois-ci", {o: topoC(nm), n: fmt(Math.round(A.regs[f.id]))});
 }
 // mobile : cadrage d'ouverture sur le front (est et sud, de Kharkiv à Kherson)
 const zoneM = {type:"MultiPoint", coordinates:[[32.2,46.1],[39.6,46.1],[39.6,50.5],[32.2,50.5]]};
@@ -1245,6 +1306,7 @@ function layout(){
   paths.uaClip = mk(G.regions.filter(f => f.properties.c === "UKR" || f.properties.id === "UA-43" || f.properties.id === "UA-40")
     .concat(G.countries.filter(f => f.properties.iso === "UA")));
   paths.regions = mk(G.regions);
+  for (const f of G.regions) if (f.properties.id) { regionPath[f.properties.id] = mk([f]); regionFeat[f.properties.id] = f; }
   paths.borders = mk(G.borders);
   paths.rivers = mk(G.rivers);
   paths.lakes = mk(G.lakes);
@@ -1544,7 +1606,7 @@ document.querySelectorAll("[data-raw]").forEach(cb => cb.onchange = () => { rawO
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
-$("lyrArcs").onchange = e => { showArcs = e.target.checked; legend(); draw(); };
+$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; legend(); draw(); };
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
 if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };
 if ($("lyrPm")) $("lyrPm").onchange = e => { showPm = e.target.checked; ensureView("pmove", () => { pmFor = -2; legend(); draw(); }); legend(); draw(); };
@@ -1580,6 +1642,9 @@ const tip = $("tip");
 let tipKey = null, tipFull = false;   // position du dernier affichage, détails ouverts ou non
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const at = arcHover(mx, my);
+  if (at) { tip.innerHTML = at; tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return; }
   // vue d'ensemble : aucune info-bulle (même seuil que les infrastructures)
   if (kmPerPx(tr.k) > INFRA_KMPX) { tip.style.display = "none"; return; }
   // les détails ouverts par un clic restent affichés tant que la souris ne s'éloigne pas de plus de 12 px
@@ -1743,7 +1808,7 @@ function legend(){
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>${_t("événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)")}</span>`;
-  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones lancés du lieu annoncé vers l'oblast visé, agrégés sur le mois ({n} % des lancements ont une cible précisée ; source : armée de l'air ukrainienne)", {n: O.launch.specificShare})}</span>`;
+  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : oblasts visés (teinte selon le volume du mois) · zones de lancement (cercles selon le nombre) ; survoler une zone ou un oblast montre ses flux ({n} % des lancements ont une cible précisée ; source : armée de l'air ukrainienne, compilation P. Ivaniuk)", {n: O.launch.specificShare})}</span>`;
   $("legend").innerHTML = html;
 }
 

@@ -359,6 +359,12 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir : couche « missiles et drones » refaite (retour « tout part et arrive de partout »). Diagnostic : pas
+  d'inversion ni de lieu de lancement en territoire ukrainien contrôlé (61 lieux, tous en Russie, en zone occupée, en
+  mer ou en Biélorussie ; test bloquant MISSILES : 161 lancements situés en Ukraine, tous en zone tenue par la Russie au
+  mois du lancement). Le « spaghetti » venait du produit cartésien lieux × oblasts visés de chaque rapport, dessiné en
+  arcs pleins. Nouvelle vue : choroplèthe des oblasts visés (volume du mois) et zones de lancement (cercles ∝ √n, lieux
+  identiques regroupés) ; arcs seulement au survol d'une zone ou d'un oblast (ses flux, tête côté cible) ; décochée.
 - 18/10 soir : couche « destruction cumulée » RETIRÉE du site (case et légende) : échec de la validation UNOSAT
   (agent signaux 4 : AUC 0,49 sur 246 mailles de Marioupol, Kharkiv, Tchernihiv, 2022 ; rappel nul au seuil 0,2 ;
   artefact saisonnier : médiane nationale 0,35 en juillet-septembre ; Bakhmout 0,03 en mai 2023, 0,52 en juillet 2024).
