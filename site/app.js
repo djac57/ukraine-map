@@ -1399,13 +1399,18 @@ const rlfImgs = {};
 let rlfCont = null, rlfContLoading = false;
 // « over » (défaut) : au-dessus de la densité en multiply léger, visible des deux côtés de la ligne ; « under » (?relief=under) :
 // sous la densité, masqué là où la densité russe est opaque
-const RELIEF_MODE = new URLSearchParams(location.search).get("relief") === "under" ? "under" : "over";
+// relief : en clair, teinte HYPSOMÉTRIQUE (vert pâle selon l'altitude, eaux bleu pâle, ombrage discret), opaque, dessinée
+// à la place du fond terrestre, SOUS les routes, la densité et les étiquettes ; en sombre (non réglé pour l'hypsométrie)
+// ou avec ?relief=ombrage : ombrage seul, au-dessus de la densité en multiply léger (?relief=under : sous la densité)
+const RQ = new URLSearchParams(location.search).get("relief"), RELIEF_KIND = () => (C.dark || RQ === "ombrage" || RQ === "under") ? "shade" : "hypso";
+let RELIEF_MODE = "under";
 function loadRelief(then){
   if (RLF) return then && then();
   if (rlfLoading) return; rlfLoading = true;
-  const go = () => { RLF = window.RELIEF || null; rlfLoading = false; if (then) then(); };
-  if (window.RELIEF) return go();
-  const sc = document.createElement("script"); sc.src = "relief/relief.js"; sc.onload = go; document.head.appendChild(sc);
+  const kind = RELIEF_KIND(); RELIEF_MODE = kind === "hypso" || RQ === "under" ? "under" : "over";
+  const go = () => { RLF = (kind === "hypso" ? window.HYPSO : window.RELIEF) || null; rlfLoading = false; if (then) then(); };
+  if (kind === "hypso" ? window.HYPSO : window.RELIEF) return go();
+  const sc = document.createElement("script"); sc.src = kind === "hypso" ? "relief/hypso.js" : "relief/relief.js"; sc.onload = go; document.head.appendChild(sc);
 }
 function rlfImg(src){
   let im = rlfImgs[src];
@@ -1418,8 +1423,9 @@ function drawRelief(k){
   ctx.save();
   ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]);          // unités : mailles de 2 km
   if (typeof domainPath !== "undefined" && domainPath) ctx.clip(domainPath);   // Ukraine et bande russe du modèle
-  ctx.globalCompositeOperation = "multiply";
-  ctx.globalAlpha = RELIEF_MODE === "over" ? 0.5 : 0.85;
+  const hyp = RLF === window.HYPSO;
+  ctx.globalCompositeOperation = hyp ? "source-over" : "multiply";
+  ctx.globalAlpha = hyp ? 1 : RELIEF_MODE === "over" ? 0.5 : 0.85;
   ctx.imageSmoothingEnabled = true;
   const z0 = rlfImg(L[0].file), z1 = kmpx < 0.9 ? rlfImg(L[1].file) : null;
   const full = z1 || z0, z2 = L[2], tiles = [];

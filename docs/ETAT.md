@@ -359,6 +359,9 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 nuit : relief HYPSOMÉTRIQUE par défaut (agent terrain : vert pâle selon l'altitude, eaux bleu pâle, ombrage
+  discret ; `site/relief/hypso*`, 1,53 Mo), dessiné à la place du fond terrestre, SOUS routes, densité et étiquettes ;
+  en thème sombre (non réglé) ou avec `?relief=ombrage`, l'ombrage seul. Case toujours décochée par défaut.
 - 18/10 nuit : annonces officielles (MoD RF, état-major UA) en couche DÉDIÉE décochée « annonces officielles
   (30 jours) » : seulement les 30 jours précédant le pas affiché, estompées de 30 à 60 jours, jamais plus ; cliquables
   (date, localité, source, confirmation par une autre carte avec le délai, ou « non confirmée », « non jugeable »,
