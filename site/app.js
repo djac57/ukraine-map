@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"combat": "6aacf1046b", "contact": "ceb9fe5287", "equilibre": "d61894e7d1", "mcsd": "336766faa8", "nowcast": "95ef4a8b8b", "ru": "3be56b1e70", "sans_dsm": "2137fc3519", "sans_enveloppes": "eaaaccfec7", "sans_gsua": "fb1195d689", "sans_indices": "eb631fb8a8", "sans_isw": "7204391fa3", "sans_medias": "b2cb9b17f8", "sans_modru": "116a72119e", "sans_presence": "e432ec76fa", "sans_wiki": "790ac0f34b", "tiers": "b5e93517b4", "ua": "11ab8e7462", "zf": "7d771a092c", "zm": "ddd95172d7", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"combat": "6aacf1046b", "contact": "930c6a34df", "equilibre": "35e418b269", "mcsd": "336766faa8", "nowcast": "94d06c4f26", "ru": "07538b653e", "sans_dsm": "2137fc3519", "sans_enveloppes": "eaaaccfec7", "sans_gsua": "fb1195d689", "sans_indices": "eb631fb8a8", "sans_isw": "7204391fa3", "sans_medias": "b2cb9b17f8", "sans_modru": "116a72119e", "sans_presence": "e432ec76fa", "sans_wiki": "790ac0f34b", "tiers": "904738b1de", "ua": "86181fe08c", "zf": "7d771a092c", "zm": "ddd95172d7", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
@@ -1188,6 +1188,15 @@ function hover(e){
   // composition du signal ; z-scores de la maille (secteur jugé par rapport à ses 12 mois précédents)
   const uu = d3.bisectLeft(UCELLS, j * GX + i), CF = viewFields("contact"), pcv = CF && CF[fi] ? CF[fi][uu] / 63 : null, ct = FR.months[fi].contact;
   let ctxt = pcv === null ? "" : `<div class="r"><span>P(contact au sol)</span><b>${Math.round(pcv * 100)} %</b></div>`;
+  // bande d'incertitude locale (intervalle conforme du secteur de 24 km le plus proche, dernier mois calculé)
+  const LB = FR.localBand && FR.localBand[fieldName() === "nowcast" ? "nowcast" : "equilibre"];
+  if (LB && LB.tiles && LB.tiles.length) {
+    const ll = proj.invert([gAff[0] + (i + 0.5) * gAff[2], gAff[1] + (j + 0.5) * gAff[2]]), c = Math.cos(ll[1] * Math.PI / 180);
+    let tb = null, td = 1e9;
+    for (const t of LB.tiles) { const d = Math.hypot((t[0] - ll[0]) * c, t[1] - ll[1]) * 111; if (d < td) { td = d; tb = t; } }
+    if (tb && td < 30 && tb[2] != null) ctxt += `<div class="r"><span>bande 95 % du secteur</span><b>${String(tb[2]).replace(".", ",")} km côté ukr. · ${String(tb[3]).replace(".", ",")} km côté russe</b></div>` +
+      `<div style="color:var(--faint)">secteur de ${tb[7] || "…"} : la ligne réelle est tombée dans sa bande ${Math.round(tb[5] * 100)} % du temps (${tb[6]} points, 2023-2026, sur le seul passé)</div>`;
+  }
   if (ct && ct.tiles && ct.tiles.length) {
     let tb = null, td = 1e9;
     for (const t of ct.tiles) { const dd = Math.hypot(t[0] - j, t[1] - i); if (dd < td) { td = dd; tb = t; } }
@@ -1239,7 +1248,7 @@ function legend(){
   if (typeof layerNotes === "function" && $("mSub")) $("mSub").innerHTML = layerNotes().join("<br>");
   const front = showFront || showLines ? (showStates ? `<span><i style="background:rgba(${C["front-rgb"]},.6);border-radius:0"></i>contrôle russe (p > 0,95)</span><span><i style="background:rgba(${C["grey-rgb"]},.7);border-radius:0"></i>incertitude des cartes (0,05 – 0,95)</span><span>sans couleur : contrôle ukrainien (p < 0,05)</span>` : `<span><i style="background:rgba(${C["front-rgb"]},.75);border-radius:0"></i>probabilité d'occupation russe</span>`) +
     (showLines ? `<span><i style="background:${C.front};height:2px;border-radius:0;vertical-align:3px"></i>ligne médiane (p = 50 %)</span>` : "") +
-    (showUnc ? `<span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>incertitude des cartes : lignes 5 % et 95 % (désaccord et imprécision des sources)</span>` : "") +
+    (showUnc ? `<span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>incertitude des cartes : lignes 5 % et 95 % (bande calibrée secteur par secteur)</span>` : "") +
     (showContact ? `<span><i style="background:repeating-linear-gradient(-45deg,rgba(${C["grey-rgb"]},.9) 0 1px,transparent 1px 4px);border-radius:0"></i>zone grise de contact : probabilité d'un contact au sol (opacité), estimée par nos signaux de combat et la distance à la ligne</span>` : "") +
     `<span><i style="border-top:1px dotted ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>occupé avant 2022</span><span style="flex-basis:100%;height:0"></span>` : "";
   const items = mode === "pts"
@@ -1419,6 +1428,27 @@ function methodTables(){
     $("pNow").textContent = `β = ${String(N.beta_final).replace(".", ",")} ; échelles (90e centile dans la bande) : ${Object.entries(N.scales).map(([k, v]) => k + " " + String(v).replace(".", ",")).join(", ")} ; validation ${N.period ? N.period.join(" → ") : ""}`;
     $("nowTab").innerHTML = `<tr><th>période ou cas</th><th>Brier, bande de 30 km (cartes seules → nowcast)</th><th>Brier, mailles qui changent de camp</th><th>mailles qui changent</th></tr>` +
       row("<b>ensemble (walk-forward)</b>", N.overall) + Object.entries(N.years).map(([y, x]) => row(y, x)).join("") + Object.entries(N.cases).map(([c, x]) => row(c, x)).join("");
+  }
+  if (FR.localBand && FR.localBand.nowcast && $("lbTab")) {
+    const B = FR.localBand.nowcast, f = x => x == null ? "–" : String(x).replace(".", ","), pc = x => x == null ? "–" : String(Math.round(x * 1000) / 10).replace(".", ",") + " %";
+    $("lbSum").textContent = `${B.tilesN} secteurs de ${B.params.tile_km} km ; couverture par secteur : médiane ${pc(B.local.median)}, 10e centile ${pc(B.local.p10)}, minimum ${pc(B.local.min)} ; ` +
+      `secteurs entre 90 et 99 % : ${Math.round(B.local.in90_99 * 100)} % (bande unique pour tout le front : ${Math.round(B.global.in90_99 * 100)} %) ; sous 90 % : ${Math.round(B.local.below90 * 100)} % (bande unique : ${Math.round(B.global.below90 * 100)} %). ` +
+      `Ancienne bande publiée (σ0 par source) : couverture ${pc(B.rawCoverage)}, donc trop large.`;
+    $("lbStrata").innerHTML = `<tr><th>strate</th><th>couverture, bande locale</th><th>couverture, bande unique</th><th>points</th></tr>` +
+      Object.entries(B.strata).map(([k, v]) => `<tr><td>${k}</td><td>${pc(v.local)}</td><td>${pc(v.global)}</td><td>${fmt(v.n)}</td></tr>`).join("");
+    const rows = [...B.tiles].filter(t => t[2] != null).sort((a, b) => (b[2] + b[3]) - (a[2] + a[3]));
+    $("lbTab").innerHTML = `<tr><th>secteur (localité la plus proche)</th><th>largeur actuelle : côté ukr. + côté russe</th><th>largeur médiane 2023-2026</th><th>couverture passée</th><th>points</th></tr>` +
+      rows.map(t => `<tr><td>${t[7] || ""} <span style="color:var(--faint)">${f(t[1])} N, ${f(t[0])} E</span></td><td>${f(t[2])} + ${f(t[3])} = ${f(Math.round((t[2] + t[3]) * 10) / 10)} km</td><td>${f(t[4])} km</td><td>${pc(t[5])}</td><td>${fmt(t[6])}</td></tr>`).join("");
+    // carte : un disque par secteur, couleur selon la largeur actuelle, projection équirectangulaire simple
+    const svg = d3.select("#lbMap"), Wm = 640, Hm = 380, x = d3.scaleLinear([29.5, 40.5], [10, Wm - 10]), y = d3.scaleLinear([44.3, 52.6], [Hm - 10, 10]);
+    const col = d3.scaleSequential(d3.interpolateYlOrRd).domain([4, 30]);
+    svg.attr("viewBox", `0 0 ${Wm} ${Hm}`).selectAll("*").remove();
+    svg.selectAll("circle").data(rows).join("circle").attr("cx", t => x(t[0])).attr("cy", t => y(t[1])).attr("r", 7)
+      .attr("fill", t => col(t[2] + t[3])).attr("stroke", "var(--ink)").attr("stroke-width", 0.4).append("title").text(t => `${t[7]} : ${f(Math.round((t[2] + t[3]) * 10) / 10)} km, couverture ${pc(t[5])}`);
+    for (const [n, lo, la] of [["Kharkiv", 36.25, 49.98], ["Lyman", 37.8, 48.99], ["Pokrovsk", 37.18, 48.28], ["Zaporijjia", 35.14, 47.84], ["Kherson", 32.62, 46.64]])
+      svg.append("text").attr("x", x(lo) + 9).attr("y", y(la) + 3).attr("font-size", 10).attr("fill", "var(--ink)").text(n);
+    const lg = svg.append("g").attr("transform", `translate(12,${Hm - 24})`);
+    [5, 10, 15, 20, 25].forEach((v, k) => { lg.append("rect").attr("x", k * 34).attr("width", 34).attr("height", 8).attr("fill", col(v)); lg.append("text").attr("x", k * 34).attr("y", 18).attr("font-size", 9).attr("fill", "var(--ink)").text(v + " km"); });
   }
   if (FR.contact && FR.contact.auc != null) {
     $("pContactAuc").textContent = FR.contact.auc.toFixed(3).replace(".", ",");

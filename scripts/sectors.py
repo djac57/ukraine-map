@@ -180,12 +180,12 @@ class Sectors:
             g[sl] |= (yy[sl] - j0) ** 2 + (xx[sl] - i0) ** 2 <= r * r
         return g[self.jj, self.ii].astype(np.float32)
 
-    PC_NAMES = ["|distance|", "côté", "UCDP au sol", "part au sol", "pertes", "feux", "z feux", "urbain", "continuité", "urbain × distance",
-                "menace d'artillerie"]
+    PC_NAMES = ["|distance|", "côté", "UCDP au sol", "part au sol", "pertes", "feux", "z feux", "urbain", "continuité", "urbain × distance"]
 
-    def artillery(self, carry=2):
+    def artillery(self, carry=0):
         """Heures de « menace d'artillerie » par maille et par mois (canal officiel des alertes, agrégé par hromada puis
-        par maille ; data/alertes_artillerie.csv). Au-delà du dernier mois collecté, la valeur est reportée `carry` mois."""
+        par maille ; data/alertes_artillerie.csv). Le canal s'est tu le 7 septembre 2026 (aperçu public et jeu de données
+        miroir lu par l'API) : rien n'est reporté au-delà (carry = 0) ; sans alerte, P(contact) est celle du modèle sans alertes."""
         A = np.zeros((len(self.months), len(self.U)), np.float32)
         path = os.path.join(self.root, "data", "alertes_artillerie.csv")
         if not os.path.exists(path):
@@ -205,7 +205,7 @@ class Sectors:
             A[t] = A[last]
         return A
 
-    def pc_features(self, t, sd, ground, urb, zf, art):
+    def pc_features(self, t, sd, ground, urb, zf):
         sm = lambda v: self.smooth(v, 1.5)  # noqa: E731
         g, ua, w, f = sm(ground[t]), sm(self.R[1, t]), sm(self.R[2, t]), sm(self.R[0, t])
         act = (np.log1p(g) + np.log1p(w) + np.log1p(f)) > 0.05
@@ -215,14 +215,17 @@ class Sectors:
         cont = np.isin(lu, keep[keep > 0]).astype(np.float32)
         a = np.clip(np.abs(sd), 0, 60) / 10
         return np.stack([a, np.clip(sd, -60, 60) / 30, np.log1p(g), g / (ua + 0.05), np.log1p(w), np.log1p(f),
-                         np.clip(zf, -3, 10) / 3, urb, cont, urb * a, np.log1p(sm(art[t]))], axis=1).astype(np.float32)
+                         np.clip(zf, -3, 10) / 3, urb, cont, urb * a], axis=1).astype(np.float32)
 
     def pcontact(self, ts, SD, ground, urb, Zf, truth, dis, art, start_wf="2023-06"):
         """P(contact au sol) par maille et par mois, régression logistique réentraînée chaque mois sur les seuls mois
         dont la vérité est connue (t' ≤ t − 3) ; avant la période walk-forward, ajustement sur tout l'historique
         étiqueté (indiqué). Vérité (proxy) : la maille change de camp dans les 3 mois, ou les cartes s'y contredisent."""
         rng = np.random.default_rng(0)
-        F = {t: self.pc_features(t, SD[t], ground, urb, Zf[t], art) for t in ts}
+        F = {t: self.pc_features(t, SD[t], ground, urb, Zf[t]) for t in ts}
+        # menaces d'artillerie : indice « certain mais rare », en deuxième étape (voir plus bas)
+        Ha = {t: self.smooth(art[t], 1.5) for t in ts}
+        Za = {t: np.c_[np.log1p(Ha[t]), (Ha[t] > 0.05).astype(np.float32)] for t in ts}
         L = {}
         for t in ts:
             if t + 3 in truth:
@@ -247,20 +250,50 @@ class Sectors:
             return w, mu, sdv
         labelled = [t for t in ts if t in L]
         full = fit(labelled) if labelled else None
-        out, wf = {}, {}
+        out, wf, base = {}, {}, {}
         sc, ys = [], []
+        self.pc_boost = {}
+
+        def boost(train):
+            """logit P = logit P_base (décalage fixe, modèle sans alertes ajusté sur son propre passé) + γ·log1p(h) + δ·1[h > 0],
+            γ, δ ≥ 0 : une alerte relève P, son absence ne le change pas (P = P_base exactement)."""
+            bl, zz, yy = [], [], []
+            for s in train[-12:]:
+                if s not in base:
+                    continue
+                m = np.abs(SD[s]) <= 60
+                idx = rng.choice(np.flatnonzero(m), size=min(6000, int(m.sum())), replace=False)
+                bl.append(base[s][idx]); zz.append(Za[s][idx]); yy.append(L[s][idx])
+            if not bl:
+                return np.zeros(2)
+            b0, Zt, Yt = np.concatenate(bl), np.concatenate(zz), np.concatenate(yy)
+            g = np.zeros(2)
+            for _ in range(25):
+                p = 1 / (1 + np.exp(-np.clip(b0 + Zt @ g, -30, 30)))
+                gr = Zt.T @ (Yt - p) - 0.1 * g
+                Hs = (Zt * (p * (1 - p))[:, None]).T @ Zt + 0.1 * np.eye(2)
+                g = np.maximum(0, g + np.linalg.solve(Hs, gr))
+            return g
         for t in ts:
             tr = [s for s in labelled if s <= t - 3]
             in_wf = self.months[t] >= start_wf and len(tr) >= 6
             w, mu, sdv = fit(tr) if in_wf else full
             Z = (F[t] - mu) / sdv
-            out[t] = 1 / (1 + np.exp(-np.clip(w[0] + Z @ w[1:], -30, 30)))
+            base[t] = w[0] + Z @ w[1:]
+            g = boost(tr) if in_wf else np.zeros(2)
+            self.pc_boost[t] = g
+            out[t] = 1 / (1 + np.exp(-np.clip(base[t] + Za[t] @ g, -30, 30)))
             wf[t] = in_wf
             # composition : contribution de chaque signal de combat au logit (UCDP au sol, pertes, feux)
             if in_wf and t in L:
                 m = np.abs(SD[t]) <= 60
                 sc.append(out[t][m]); ys.append(L[t][m])
         self.pc_coef = dict(zip(["const"] + self.PC_NAMES, [round(float(x), 3) for x in full[0]])) if full else {}
+        last = [t for t in ts if wf.get(t)]
+        if last:
+            g = self.pc_boost[last[-1]]
+            self.pc_coef["menace d'artillerie (étape 2) : log1p(h)"] = round(float(g[0]), 3)
+            self.pc_coef["menace d'artillerie (étape 2) : présence"] = round(float(g[1]), 3)
         auc = None
         if sc:
             s, y = np.concatenate(sc), np.concatenate(ys)

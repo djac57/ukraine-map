@@ -1969,6 +1969,72 @@ def main():
         months_out[m]["contact"] = {"km2": round(float(pc.sum() * a2)), "w_ru": round(float((pc * (sd > 0)).sum() * a2 / L), 1),
                                     "w_ua": round(float((pc * (sd <= 0)).sum() * a2 / L), 1), "tiles": tiles, "wf": bool(PCwf[t])}
 
+    # ---------- bande d'incertitude locale : intervalles conformes par secteur, walk-forward (scripts/conformal.py) ----------
+    from conformal import LocalBand
+    TS_LB = 12
+    tl_lb = (sect.jj // TS_LB) * 1000 + sect.ii // TS_LB
+
+    def tile_ll(k):
+        return inv_laea(X0 + (k % 1000 + 0.5) * TS_LB * SIZE, Y1 - (k // 1000 + 0.5) * TS_LB * SIZE)
+    # strate de chaque tuile, mois par mois (même règle que validate_local), sur les mailles à moins de 6 km de la ligne
+    strata_lb = {}
+    for t in tsm:
+        fm_ = model.feat.get(months[t])
+        if fm_ is None:
+            continue
+        near = np.abs(SDm[t]) <= 6
+        bar, vol, zA = (np.asarray(fm_[x]) for x in ("bar", "vol", "zA"))
+        st_t = {}
+        for k in np.unique(tl_lb[near]):
+            mm = near & (tl_lb == k)
+            st_t[int(k)] = ("dnipro" if np.median(bar[mm]) < 10 else "actif" if np.median(vol[mm]) >= 0.5 or np.median(zA[mm]) >= 1.0 else "stable")
+        strata_lb[t] = st_t
+    truth_lb = {t: np.asarray(ncast.T[t]) for t in ncast.T}
+    local_band = {}
+    for f in list(VIEWS) + ["nowcast"]:
+        Pf = {months.index(m): np.frombuffer(qstore[f][m], np.uint8).astype(np.float32) / 63 for m in frames if len(m) == 7 and m in qstore[f]}
+        lb = LocalBand(sect, months, truth_lb, TS=TS_LB, name=f).fit(Pf, strata_lb)
+        if f in ("equilibre", "nowcast"):
+            local_band[f] = lb.report(tile_ll)
+            local_band[f]["rawCoverage"] = lb.raw_coverage(Pf)
+            # localité de repère (≥ 5 000 habitants) la plus proche du centre de chaque secteur, pour le tableau
+            big_pl = [pl for pl in BM.get("places", []) if len(pl) > 3 and (pl[3] or 0) >= 5000]
+            for row in local_band[f]["tiles"]:
+                c = math.cos(math.radians(row[1]))
+                row.append(min(big_pl, key=lambda pl: ((pl[0] - row[0]) * c) ** 2 + (pl[1] - row[1]) ** 2)[2] if big_pl else "")
+            r = local_band[f]
+            print(f"bande locale ({f}) : couverture par secteur médiane {r['local']['median']} (10e centile {r['local']['p10']}), secteurs dans [90 ; 99] % "
+                  f"{r['local']['in90_99']} contre {r['global']['in90_99']} avec une bande unique ; bande publiée jusqu'ici : couverture {r['rawCoverage']} ; "
+                  + " ; ".join(f"{st} {v['local']} (unique {v['global']}, {v['n']} points)" for st, v in r["strata"].items()), flush=True)
+        for m in frames:
+            if m not in qstore[f]:
+                continue
+            t = months.index(m if len(m) == 7 else m[:7])
+            p0 = np.frombuffer(qstore[f][m], np.uint8).astype(np.float32) / 63
+            p1 = lb.remap(p0, t, ("lbr", f, m))
+            qstore[f][m] = bytes(np.clip(np.round(p1 * 63), 0, 63).astype(np.uint8).tolist())
+            mo = months_out[m] if len(m) == 7 else days_out[m]
+            met = model.metrics(p1.tolist(), crimea, pre, sectors=(f == "equilibre"))
+            if f == "nowcast":
+                mo["a"]["nowcast"] = {k: met[k] for k in ("tout", "horsCrimee", "depuis2022")}
+                mo["a"]["nowcast"]["russie"] = met["russie_ua"]
+                mo["greyNow"] = {"km2": met["tout"][2], "width_km": met["grey_width_km"]}
+                d = met["tout"][0] - mo["a"]["equilibre"]["tout"][0]
+                mo["mcNow"] = {per: [x + d for x in mo["mc"][per]] for per in mo["mc"]}
+                continue
+            old = mo["a"][f]
+            mo["a"][f] = {k: met[k] for k in ("tout", "horsCrimee", "depuis2022")}
+            mo["a"][f]["russie"] = met["russie_ua"]
+            if f == "equilibre":
+                if mo.get("mc"):
+                    mo["mc"] = {per: [x + met[per][0] - old[per][0] for x in mo["mc"][per]] if per in met else mo["mc"][per] for per in mo["mc"]}
+                mo["grey"] = {"km2": met["tout"][2], "width_km": met["grey_width_km"], "front_km": met["front_km"], "sectors": met.get("sectors", {})}
+                if m in model.feat:
+                    mo["grey"]["strata"] = model.grey_strata(p1, model.feat[m])
+        sect._sd = {k: v for k, v in sect._sd.items() if k[0] not in ("lb", "lbr")}
+    lastm_lb = months_out[fm[-1]]
+    print(f"zone grise après bande locale ({fm[-1]}) : {lastm_lb['grey']['km2']:,} km², {lastm_lb['grey']['width_km']} km de large ; par strate {lastm_lb['grey'].get('strata')}", flush=True)
+
     variants = [
         ("défaut : camps à un tiers chacun", {}),
         ("poids par source, sans équilibre des camps", {"camp_balance": False}),
@@ -2053,9 +2119,10 @@ def main():
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
         "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30},
         "contact": {"method": "P(contact au sol), régression logistique walk-forward", "auc": sect.pc_auc, "coef": sect.pc_coef,
-                    "features": sect.PC_NAMES, "artillery": {"source": "canal officiel des alertes « Повітряна тривога » (t.me/air_alert_ua), menaces d'artillerie agrégées par hromada (limites OCHA COD-AB, CC BY-IGO) puis par maille", "gain": "AUC à distance égale 0,681 → 0,714 en walk-forward"}, "bins": list(range(-58, 62, 4)),
+                    "features": sect.PC_NAMES, "artillery": {"source": "canal officiel des alertes « Повітряна тривога » (t.me/air_alert_ua), menaces d'artillerie agrégées par hromada (limites OCHA COD-AB, CC BY-IGO) puis par maille", "gain": "AUC à distance égale 0,681 → 0,731 en walk-forward (deux étapes : une alerte relève P, son absence ne le change pas)", "stopped": "2026-09-07"}, "bins": list(range(-58, 62, 4)),
                     "profile": [round(float(x), 4) for x in np.mean(np.array(contact_prof), axis=0)] if contact_prof else []},
         "localSigma": getattr(model, "local", None) or getattr(model, "local_report", None),
+        "localBand": local_band,
         "zscores": {"refMonths": 12, "names": ["feux", "UCDP", "pertes", "mouvement"], "encoding": "q = (z + 2) × 5"},
         "nowcast": dict(rep, names=["feux", "UCDP", "pertes"], widthKm=30, r0=0.03, grid=[0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]),
         "nMonths": len(months), "steps": dk, "stepDays": STEP_DAYS, "windowDays": WINDOW_DAYS,

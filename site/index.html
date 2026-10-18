@@ -26,7 +26,7 @@
   <div class="maplegend" aria-hidden="true">
     <div><svg width="30" height="10"><defs><linearGradient id="lgm"><stop offset="0" stop-color="var(--front)" stop-opacity=".06"/><stop offset="1" stop-color="var(--front)" stop-opacity=".7"/></linearGradient></defs><rect width="30" height="10" fill="url(#lgm)"/></svg><span data-t="lgP">contrôle russe probable</span></div>
     <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/></svg><span data-t="lg50">ligne la plus probable (50 %)</span></div>
-    <div><svg width="30" height="10"><defs><pattern id="hct" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="1" height="3" fill="var(--ink)" opacity=".55"/></pattern></defs><rect width="30" height="10" fill="url(#hct)"/></svg><span data-t="lgGrey">zone grise : contact mesuré par nos signaux</span></div>
+    <div><svg width="30" height="10"><defs><pattern id="hct" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="1" height="3" fill="var(--ink)" opacity=".55"/></pattern></defs><rect width="30" height="10" fill="url(#hct)"/></svg><span data-t="lgGrey">zone grise : contact mesuré par nos signaux (alertes d’artillerie : données arrêtées le 7 sept. 2026)</span></div>
     <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--ink)" stroke-width="1" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgPre">occupé avant 2022</span></div>
     <div><svg width="30" height="10"><rect width="30" height="10" fill="var(--uactl)" opacity=".55"/></svg><span data-t="lgUa">contrôle ukrainien en Russie</span></div>
     <div><svg width="30" height="10"><path d="M2 5h17" stroke="var(--front)" stroke-width="1.8"/><path d="M19 1l7 4-7 4z" fill="var(--front)"/></svg><span data-t="lgArr">qui avance (rouge : Russie, bleu : Ukraine)</span></div>
@@ -102,26 +102,26 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
-<script src="front_equilibre.js?v=d61894e7d1"></script>
-<script src="front_nowcast.js?v=95ef4a8b8b"></script>
-<script src="front_contact.js?v=ceb9fe5287"></script>
-<script src="front.js?v=cdff72f4d2"></script>
+<script src="front_equilibre.js?v=35e418b269"></script>
+<script src="front_nowcast.js?v=94d06c4f26"></script>
+<script src="front_contact.js?v=930c6a34df"></script>
+<script src="front.js?v=1887a4d02e"></script>
 <script src="osint.js?v=46ed380b81"></script>
 <script>
 // quelques libellés en quatre langues (la carte elle-même reste en français)
 (function(){
   const T = {
     fr: {title: "Où passe le front ?", purpose: "Une probabilité de contrôle agrégée de toutes les sources ouvertes, ukrainiennes, russes et tierces à poids égal, et, par son évolution dans le temps, qui pousse où.",
-         lgP: "contrôle russe probable", lg50: "ligne la plus probable (50 %)", lgGrey: "zone grise : contact mesuré par nos signaux", lgPre: "occupé avant 2022", lgUa: "contrôle ukrainien en Russie", lgArr: "qui avance (rouge : Russie, bleu : Ukraine)", lgEv: "cerclée : changements annoncés (30 jours)", lgCombat: "combats intenses (sans direction)", layers: "calques", gView: "Vue", gSrc: "Sources du calcul", gRaw: "Tracés bruts", gCtx: "Contexte",
+         lgP: "contrôle russe probable", lg50: "ligne la plus probable (50 %)", lgGrey: "zone grise : contact mesuré par nos signaux (alertes d’artillerie : données arrêtées le 7 sept. 2026)", lgPre: "occupé avant 2022", lgUa: "contrôle ukrainien en Russie", lgArr: "qui avance (rouge : Russie, bleu : Ukraine)", lgEv: "cerclée : changements annoncés (30 jours)", lgCombat: "combats intenses (sans direction)", layers: "calques", gView: "Vue", gSrc: "Sources du calcul", gRaw: "Tracés bruts", gCtx: "Contexte",
          data: "Données", lag: "quotidien, décalé de 7 jours (fenêtre de 14 jours)", method: "méthode et sources", km: "occupés", ru: "en Russie, sous contrôle ukrainien"},
     en: {title: "Where is the front line?", purpose: "A probability of control aggregated from all open sources, Ukrainian, Russian and third-party with equal weight, and, from how it shifts over time, who is pushing where.",
-         lgP: "likely Russian control", lg50: "most likely line (50%)", lgGrey: "grey zone: contact measured by our signals", lgPre: "occupied before 2022", lgUa: "Ukrainian control in Russia", lgArr: "who is advancing (red: Russia, blue: Ukraine)", lgEv: "outlined: announced changes (30 days)", lgCombat: "intense fighting (no direction)", layers: "layers", gView: "View", gSrc: "Sources in the model", gRaw: "Raw lines", gCtx: "Context",
+         lgP: "likely Russian control", lg50: "most likely line (50%)", lgGrey: "grey zone: contact measured by our signals (artillery alerts: data stopped on 7 Sept 2026)", lgPre: "occupied before 2022", lgUa: "Ukrainian control in Russia", lgArr: "who is advancing (red: Russia, blue: Ukraine)", lgEv: "outlined: announced changes (30 days)", lgCombat: "intense fighting (no direction)", layers: "layers", gView: "View", gSrc: "Sources in the model", gRaw: "Raw lines", gCtx: "Context",
          data: "Data", lag: "daily, lagged 7 days (14-day window)", method: "method and sources", km: "occupied", ru: "in Russia, under Ukrainian control"},
     uk: {title: "Де проходить лінія фронту?", purpose: "Імовірність контролю, зведена з усіх відкритих джерел — українських, російських і сторонніх, з однаковою вагою, — а за її зміною в часі видно, хто де наступає.",
-         lgP: "імовірний російський контроль", lg50: "найімовірніша лінія (50 %)", lgGrey: "сіра зона: контакт за нашими сигналами", lgPre: "окуповано до 2022 року", lgUa: "український контроль у Росії", lgArr: "хто наступає (червоне — Росія, синє — Україна)", lgEv: "з обводкою: оголошені зміни (30 днів)", lgCombat: "інтенсивні бої (без напрямку)", layers: "шари", gView: "Погляд", gSrc: "Джерела моделі", gRaw: "Вихідні лінії", gCtx: "Контекст",
+         lgP: "імовірний російський контроль", lg50: "найімовірніша лінія (50 %)", lgGrey: "сіра зона: контакт за нашими сигналами (загрози артобстрілу: дані до 7.09.2026)", lgPre: "окуповано до 2022 року", lgUa: "український контроль у Росії", lgArr: "хто наступає (червоне — Росія, синє — Україна)", lgEv: "з обводкою: оголошені зміни (30 днів)", lgCombat: "інтенсивні бої (без напрямку)", layers: "шари", gView: "Погляд", gSrc: "Джерела моделі", gRaw: "Вихідні лінії", gCtx: "Контекст",
          data: "Дані", lag: "щодня, затримка 7 днів (вікно 14 днів)", method: "методика й джерела", km: "окуповано", ru: "у Росії, під контролем України"},
     ru: {title: "Где проходит линия фронта?", purpose: "Вероятность контроля, сведённая из всех открытых источников — украинских, российских и сторонних, с равным весом, — а по её изменению во времени видно, кто где наступает.",
-         lgP: "вероятный российский контроль", lg50: "наиболее вероятная линия (50 %)", lgGrey: "серая зона: контакт по нашим сигналам", lgPre: "занято до 2022 года", lgUa: "украинский контроль в России", lgArr: "кто наступает (красное — Россия, синее — Украина)", lgEv: "с обводкой: объявленные изменения (30 дней)", lgCombat: "интенсивные бои (без направления)", layers: "слои", gView: "Вид", gSrc: "Источники модели", gRaw: "Исходные линии", gCtx: "Контекст",
+         lgP: "вероятный российский контроль", lg50: "наиболее вероятная линия (50 %)", lgGrey: "серая зона: контакт по нашим сигналам (угрозы артобстрела: данные до 7.09.2026)", lgPre: "занято до 2022 года", lgUa: "украинский контроль в России", lgArr: "кто наступает (красное — Россия, синее — Украина)", lgEv: "с обводкой: объявленные изменения (30 дней)", lgCombat: "интенсивные бои (без направления)", layers: "слои", gView: "Вид", gSrc: "Источники модели", gRaw: "Исходные линии", gCtx: "Контекст",
          data: "Данные", lag: "ежедневно, задержка 7 дней (окно 14 дней)", method: "методика и источники", km: "занято", ru: "в России, под контролем Украины"},
   };
   function set(l){
@@ -136,6 +136,6 @@
   set(l);
 })();
 </script>
-<script src="app.js?v=3d6f8c999a"></script>
+<script src="app.js?v=6aabac9ff0"></script>
 </body>
 </html>
