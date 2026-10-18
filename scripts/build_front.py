@@ -2350,7 +2350,7 @@ def main():
     # indicateur INTERNE de dépendance aux cartes (non publié ; suivi version par version dans docs/ETAT.md)
     try:
         import map_dependence
-        print("dépendance aux cartes (interne) : " + json.dumps(map_dependence.summary(map_dependence.measures(os.path.join(ROOT, "site"))), ensure_ascii=False))
+        print("KPI principal, information hors cartes (a, à faire monter ; interne) : " + json.dumps(map_dependence.summary(map_dependence.measures(os.path.join(ROOT, "site"))), ensure_ascii=False))
     except Exception as e:  # noqa: BLE001 (diagnostic seulement, ne bloque pas le build)
         print(f"dépendance aux cartes : non calculée ({e})")
 

@@ -277,6 +277,15 @@ Chiffres du build d'octobre 2026 (journal du build et méta de `site/front.js`).
 
 ---
 
+### KPI PRINCIPAL : information hors cartes (indicateur INTERNE, non publié)
+
+**Objectif fixé par l'utilisateur le 18/10/2026** : faire MONTER la part d'information hors cartes (a), aujourd'hui
+3,9 % (soit 96 % de dépendance aux cartes), TOUT EN améliorant la précision. Cible de v4 : (a) ≥ 10 % sur 12 mois,
+sans dégrader le Brier à t+2 (mailles à ≤ 30 km et mailles qui changent) ni la couverture de la bande 95 % par secteur
+(médiane ≥ 95 %, aucune strate sous 90 %). **Règle** : tout lot qui touche le champ rapporte AVANT et APRÈS les deux
+familles de chiffres, dépendance (a, b, c) et précision (Brier, couverture par secteur). Une couche d'information qui
+ne modifie pas le champ ne compte pas.
+
 ### Dépendance aux cartes (indicateur INTERNE, non publié)
 
 Demandé par l'utilisateur le 18/10/2026 : on veut voir ce chiffre MONTER, c'est-à-dire la dépendance aux cartes baisser,
@@ -332,7 +341,7 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 - 18/10 : MAX abandonné ; bilans MoD RF de 2026 comblés par les reprises ouvertes (faits seulement).
 - 18/10 : Telegram à tester comme indice de sens (fait : non retenu).
 - 18/10 : couche « secteurs susceptibles de bouger » (P(mouvement), AUC 0,83) validée, COCHÉE par défaut : liseré
-  violet sans sens, ⓘ avec AUC et taux de base, P en % au survol (§ 3.12).
+  sans sens (violet, puis AMBRE côté ukrainien le 18/10 au soir), ⓘ avec AUC et taux de base, P en % au survol (§ 3.12).
 - 18/10 : flèches : une seule règle de longueur pour tous les types (pleines, pointillées, « poussée possible »,
   annonces) : proportionnelle au mouvement, plancher de lisibilité 20 px (hampe comprise), plafond 40 px en vue
   d'ensemble et 70 px au zoom (relevé le 18/10 au soir : 26 px ne laissait voir que des têtes) ; le minimum des
@@ -342,7 +351,8 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   Vovtchansk, septembre 2026.
 - 18/10 : légende dynamique : une entrée par case cochable, avec échantillon, visible seulement si la case est cochée
   (test bloquant LEGENDE : chaque case a son entrée en 4 langues). Styles distincts : zone grise = hachures grises,
-  combats intenses = diagonales rouges, combats derrière la ligne = pointillé brun.
+  combats intenses = diagonales rouges, combats derrière la ligne = pointillé violet (brun, puis violet quand
+  P(mouvement) est passé en ambre), secteurs susceptibles de bouger = liseré ambre #E8A200 côté ukrainien.
   Légende groupée (Ligne / Mouvements / Combats / Contexte), groupes repliables, groupe vide masqué.
 - 18/10 : liseré P(mouvement) élargi en vue d'ensemble (± 10 km affichés), rien sous P = 10 %, opacité selon P.
 - 18/10 : sous la carte, un seul lien « Données, méthode et sources » (4 langues) vers `methode.html#sources` ; section

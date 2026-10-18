@@ -110,4 +110,4 @@ def summary(rows):
 if __name__ == "__main__":
     site = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "site")
     r = measures(site)
-    print("dépendance aux cartes (interne) : " + json.dumps(summary(r), ensure_ascii=False))
+    print("KPI principal, information hors cartes (a, à faire monter ; interne) : " + json.dumps(summary(r), ensure_ascii=False))

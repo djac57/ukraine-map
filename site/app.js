@@ -1081,21 +1081,22 @@ function buildAsym(fi){
   const cx = cv.getContext("2d"), img = cx.createImageData(GX * S, GY * S), d = img.data, q = F[fi];
   for (let u = 0; u < UCELLS.length; u++) {
     if (q[u] < 13) continue;
-    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.6 + q[u] / 63), [r, g, b] = C.dark ? [235, 160, 70] : [166, 86, 18];
+    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.6 + q[u] / 63), [r, g, b] = C.dark ? [195, 155, 240] : [115, 55, 170];   // violet : distinct de l'ambre (P(mouvement)), du gris et du rouge
     for (let dy = 0; dy < S; dy++) { if ((y0 + dy) % 4 > 1) continue;
       for (let dx = 0; dx < S; dx++) { if ((x0 + dx) % 4 > 1) continue; const o = ((y0 + dy) * GX * S + x0 + dx) * 4; d[o] = r; d[o+1] = g; d[o+2] = b; d[o+3] = Math.round(240 * a); } }
   }
   cx.putImageData(img, 0, 0); asymPat = cv;
 }
 // « secteurs susceptibles de bouger » : P(la ligne bouge d'au moins 0,5 km d'ici t+2) par tronçon de 24 km, sans sens,
-// liseré violet sur les mailles à ≤ 3 km de la ligne (q = 1 + P × 62), opacité croissante avec P
+// liseré ambre côté ukrainien, mailles à ≤ 3 km de la ligne (q = 1 + P × 62), opacité croissante avec P
 let pmFor = -2, pmImg = null, showPm = !!(document.getElementById("lyrPm") && document.getElementById("lyrPm").checked);
 function buildPm(fi, k){
-  // en vue d'ensemble, le liseré (± 3 km) est élargi à l'affichage pour rester visible
-  const r = k < 1.6 ? 5 : k < 3 ? 2 : 0, key = fi + ":" + r;
+  // liseré AMBRE du côté ukrainien de la ligne seulement (distinct des hachures grises de contact, du rouge et du bleu) ;
+  // élargi à l'affichage en vue d'ensemble pour rester visible ; opacité selon P
+  const r = k < 1.6 ? 5 : k < 3 ? 2 : 1, key = fi + ":" + r + ":" + fieldName();
   if (pmFor === key) return;
   pmFor = key; pmImg = null;
-  const F = viewFields("pmove"); if (!F || !F[fi]) return;
+  const F = viewFields("pmove"), g = fullField(fieldName(), fi); if (!F || !F[fi] || !g) return;
   const cv = document.createElement("canvas"); cv.width = GX; cv.height = GY;
   const cx = cv.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data, q = F[fi];
   for (let u = 0; u < UCELLS.length; u++) {
@@ -1105,7 +1106,8 @@ function buildPm(fi, k){
     const c0 = UCELLS[u], i0 = c0 % GX, j0 = Math.floor(c0 / GX), al = Math.round(255 * (0.2 + 0.75 * a));
     for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
       if (di * di + dj * dj > r * r || i0 + di < 0 || i0 + di >= GX || j0 + dj < 0 || j0 + dj >= GY) continue;
-      const o = ((j0 + dj) * GX + i0 + di) * 4; if (d[o + 3] < al) { d[o] = 138; d[o+1] = 79; d[o+2] = 184; d[o+3] = al; } }
+      const c = (j0 + dj) * GX + i0 + di; if (!(g[c] < 0.5) || cellPlace[c] < 0) continue;
+      const o = c * 4; if (d[o + 3] < al) { d[o] = 232; d[o+1] = 162; d[o+2] = 0; d[o+3] = al; } }
   }
   cx.putImageData(img, 0, 0); pmImg = cv;
 }
@@ -1712,8 +1714,8 @@ function legend(){
     `<span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px;box-shadow:-4px 0 0 -1px ${C.uactl}"></i>${_t("flèche avec un cercle à la base : localités qui ont basculé selon les sources dans les 30 derniers jours (journal DeepStateMap, état-major UA, MoD RF, bascules des cartes), pondérées par la fiabilité mesurée de chaque source")}</span>` +
     `<span><i style="border-top:2px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>${_t("flèche en pointillés : sens incertain (on se bat derrière la ligne, ou sens non établi le long de la limite)")}</span>` +
     `<span><i style="border:1.3px solid ${C.front};width:8px;height:8px;border-radius:50%;vertical-align:0;background:transparent"></i>${_t("cercle creux : confirmé par annonce (changement que les cartes montraient déjà, pas un mouvement nouveau) ou sens non établi")}</span>`;
-  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:radial-gradient(#a65612 40%,transparent 45%) 0 0/4px 4px;border-radius:0"></i>${_t("combats derrière la ligne : endroits où l'activité de combat vue des deux côtés (feux, UCDP, pertes) se concentre anormalement d'un côté de la ligne (asymétrie ≥ 0,2 et au-dessus de sa normale des 12 mois précédents, z ≥ 2, signal gardé 3 mois), pointillé brun de ce côté ; ne dit pas qui avance")}</span>`;
-  if (showPm && FR.pmove) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,rgba(138,79,184,.1),rgba(138,79,184,.7));border-radius:0"></i>${_t("secteurs susceptibles de bouger : probabilité que la ligne bouge d'au moins 0,5 km d'ici 2 mois dans ce tronçon de 24 km, dans un sens ou dans l'autre (plus foncé = plus probable ; AUC {a}, taux de base {b} %, estimée sur le seul passé) ; ne dit pas qui avance", {a: dec(FR.pmove.auc.toFixed(2)), b: Math.round(FR.pmove.base * 100)})}</span>`;
+  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:radial-gradient(#7337aa 40%,transparent 45%) 0 0/4px 4px;border-radius:0"></i>${_t("combats derrière la ligne : endroits où l'activité de combat vue des deux côtés (feux, UCDP, pertes) se concentre anormalement d'un côté de la ligne (asymétrie ≥ 0,2 et au-dessus de sa normale des 12 mois précédents, z ≥ 2, signal gardé 3 mois), pointillé violet de ce côté ; ne dit pas qui avance")}</span>`;
+  if (showPm && FR.pmove) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,rgba(232,162,0,.15),rgba(232,162,0,.9));border-radius:0"></i>${_t("secteurs susceptibles de bouger : probabilité que la ligne bouge d'au moins 0,5 km d'ici 2 mois dans ce tronçon de 24 km, dans un sens ou dans l'autre (plus foncé = plus probable ; AUC {a}, taux de base {b} %, estimée sur le seul passé) ; ne dit pas qui avance", {a: dec(FR.pmove.auc.toFixed(2)), b: Math.round(FR.pmove.base * 100)})}</span>`;
   if (showDestr) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:rgba(40,40,40,.7);border-radius:0"></i>${_t("destruction cumulée (radar Sentinel-1) : part du bâti dont la rétrodiffusion s'écarte durablement de 2021, jusqu'au mois précédent, mailles de 2 km ; contient des données Copernicus Sentinel modifiées")}</span>`;
   if (showRelief) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,#fff,#b9b9b9,#fff);border-radius:0"></i>${_t("relief : ombrage du modèle numérique de surface Copernicus GLO-90 (90 m), exagéré pour un pays plat ; arbres et bâti y laissent une texture ; © DLR e.V. 2010-2014 et © Airbus Defence and Space GmbH 2014-2018, fourni dans le cadre de COPERNICUS par l'Union européenne et l'ESA ; tous droits réservés")}</span>`;
   if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>${_t("combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 2 par rapport à ses 12 mois précédents ; ne dit pas qui avance")}</span>`;
