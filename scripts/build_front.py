@@ -686,7 +686,7 @@ def load_layers(months):
 
 LOCAL_SIGMA_ON = False  # σ local ajusté et validé, mais non appliqué : erreur de calibration stable 0,052 → 0,062, actif 0,019 → 0,071
 LOCAL_MIN = 0.5      # σ local : rétrécissement maximal (0,2 rendait les secteurs actifs trop sûrs : 95 % → 86 % observés)
-DAILY_DAYS = 0       # période récente en pas de quelques jours (90 à l'étape « NOWCAST 2 » ; 0 : tout mensuel)
+DAILY_DAYS = int(os.environ.get("DAILY_DAYS", "0"))   # période récente en pas de quelques jours (90 prévu ; 0 : tout mensuel)
 STEP_DAYS = 3        # pas de la période récente
 WINDOW_DAYS = 14     # fenêtre glissante des indicateurs de combat d'un pas récent
 

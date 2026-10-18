@@ -477,8 +477,12 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
    chargés seulement quand la case est cochée ; au-dessus de la densité, opacité 0,5 ; `?relief=under` en option).
    Vue 3D (MapLibre) : NON sur la carte principale (LAEA non gérée) ; page « 3D d'un secteur » possible (2-4 j).
    L'agent terrain teste l'a priori « barrière » pour placer la ligne et prépare l'instantané des fortifications.
-8 ter. **Telegram dans P(mouvement)** : signal de MOUVEMENT seulement, jamais de sens. À brancher dans le modèle publié
-   dès que la collecte Telegram par tronçon tourne en CI (aujourd'hui dans le dossier de recherche).
+8 ter. **Telegram dans P(mouvement)** : signal de MOUVEMENT seulement, jamais de sens. Testé le 18/10 au soir avec le
+   code de production (`sectors.pmove(..., tg=…)`, mentions de combat localisées par tronçon-mois, 15 canaux, fichier
+   de recherche `signals3/sens_troncons_month.csv`) : AUC 0,8038 → 0,8056 (+0,002, n = 5 239), dans le bruit. La collecte
+   en CI (crawler de 15 canaux, géoparsing GeoNames, agrégats seuls) n'est PAS construite : coût élevé pour un gain
+   non démontré. Le paramètre `tg` reste disponible. À reprendre avec un meilleur géoparsing (phrase par phrase,
+   fenêtres de 10 jours) ou plus de canaux.
 9. Messages à Clément Molin (X @clement_molin, t.me/clement_molin) et à Tytelman, une fois v4 en ligne.
 10. **PROJET LLM — non abandonné, à démarrer après tout le reste.** L'utilisateur y tient.
     - Un LLM qui lit la carte et les signaux : tenailles, saillants, poussées cachées, explications par secteur.

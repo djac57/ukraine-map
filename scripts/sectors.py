@@ -545,7 +545,7 @@ class Sectors:
             flips[ok] += ch[self.cellU[ok]]
         return self.smooth(flips, 2.5)
 
-    def pmove(self, tsm, SD, truth, pnow, ind=None, win=20, thr_km=0.5):
+    def pmove(self, tsm, SD, truth, pnow, ind=None, tg=None, win=20, thr_km=0.5):
         """« Secteurs susceptibles de bouger » : par tronçon de 24 km traversé par la ligne, P(la ligne bougera d'au moins
         0,5 km de profondeur d'ici t+2), SANS sens. Position Y = surface russe du tronçon (consensus des cartes ; à défaut,
         champ du mois > 0,5) / 24 km. Variables à t, moyennes à ≤ 20 km de la ligne : assauts de l'état-major, asymétrie
@@ -590,7 +590,10 @@ class Sectors:
                 nr = us[np.abs(sd[us]) <= 20]
                 r1 = abs(Y[(t, k)] - Y[(t - 1, k)]) if (t - 1, k) in Y else 0.0
                 r3 = abs(Y[(t, k)] - Y[(t - 3, k)]) if (t - 3, k) in Y else 0.0
-                F[(t, k)] = np.array([gs[nr].mean(), (aw[nr] * ru[nr]).mean(), az[nr].mean(), sig[0][nr].mean(), sig[1][nr].mean(), sig[2][nr].mean(), r1, r3])
+                f = [gs[nr].mean(), (aw[nr] * ru[nr]).mean(), az[nr].mean(), sig[0][nr].mean(), sig[1][nr].mean(), sig[2][nr].mean(), r1, r3]
+                if tg is not None:   # Telegram : mentions de combat localisées dans le tronçon (signal de MOUVEMENT, pas de sens)
+                    f.append(np.log1p(tg.get((self.months[t], k), 0.0)))
+                F[(t, k)] = np.array(f)
 
         def logi(X, y, lam=3.0):
             X = np.c_[np.ones(len(X)), X]
