@@ -349,7 +349,26 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
    changé de camp : 0,362 / 0,334 / 0,277. Les signaux récupèrent environ un tiers de ce qu'apportent trois mois de
    cartes sur les mailles qui bougent, mais créent trop de fausses bascules ailleurs : recalibré en walk-forward, le
    poids appris tombe à 0 (pas mieux que la persistance). Avec la liste rejouée et le radar en plus (`v4_dataonly3.py`) :
-   0,0524 / 0,334, même conclusion. Il faut des signaux plus spécifiques du lieu de bascule
+   0,0524 / 0,334, même conclusion.
+   **Variante hybride** (`v4_hybrid3.py` : les cartes restent l'ossature, une correction du logit des cartes apprise
+   en walk-forward anticipe le mouvement d'ici t+2). Brier (≤ 30 km, 2023-2026 ; champ de cartes ancien, avant la
+   bande conforme) : cartes 0,0466 ; cartes recalibrées (a·logit p + b) 0,0296 ; hybride avec signaux 0,0264 (−11 %
+   par rapport aux cartes recalibrées). Sur les mailles qui changent de camp : 0,455 → 0,457 (pas de gain : l'apport
+   est près de la ligne, pas sur les bascules). Contributions (perte quand on retire) : état-major +0,0009, artillerie
+   +0,0006, feux/UCDP/pertes +0,0006 ; radar, Telegram, asymétrie et liste ≈ 0 ou négatifs dans ce cadre.
+   **Espace-état par tronçon** (`v4_kalman.py` : position de la ligne en km de profondeur par tuile de 24 km, filtre
+   de Kalman position-vitesse ; signaux de lieu en dérive walk-forward). Erreur absolue à t+2 (toutes les tuiles /
+   tuiles qui bougent ≥ 0,5 km) : persistance 0,269 / 2,013 km ; Kalman seul 0,286 / 2,010 ; Kalman + signaux
+   0,441 / 1,823 (meilleur là où ça bouge, mais dérive parasite ailleurs) ; **persistance + signaux déclenchés au-delà
+   d'un seuil appris : 0,267 / 1,953 km** (bat la persistance sur les deux, modestement : −3 % sur les tuiles qui
+   bougent). Piste : un classifieur « le tronçon va bouger » (Telegram en P(mouvement), asymétrie relative, radar
+   récent) pour déclencher la dérive, puis un vrai modèle le long de la ligne (processus gaussien).
+   **P(mouvement) par tronçon** (même script) : « la ligne bougera d'au moins 0,5 km d'ici t+2 », classifieur
+   walk-forward : AUC 0,831 (13 % des tronçons bougent). Apports (perte d'AUC quand on retire) : feux/UCDP/pertes
+   0,037 ; mouvement récent 0,015 ; état-major 0,007 ; Telegram 0,003 ; liste 0 ; radar bâti −0,001 ; asymétrie −0,006.
+   Le mouvement récent seul : 0,731. Utilisé pour déclencher la dérive : 0,272 / 1,995 km, pas mieux que le seuil
+   simple. Le « où » se prévoit bien, le « de combien et dans quel sens » beaucoup moins. Une couche « secteurs
+   susceptibles de bouger » (AUC 0,83) serait publiable après validation de l'affichage ; non publiée. Il faut des signaux plus spécifiques du lieu de bascule
    (radar d'abandon et de destruction récents, liste rejouée, asymétrie relative, P(mouvement) Telegram) et un vrai
    modèle espace-état le long de la ligne.
 5. Cadence quotidienne (fenêtre de 14 jours, décalage de 7 jours ; code présent, `DAILY_DAYS = 0`), puis prévision
