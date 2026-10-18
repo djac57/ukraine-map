@@ -359,6 +359,8 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir : bouton « 2021 » des feux SUPPRIMÉ (bouton, tracé, légende, ligne « même mois en 2021 » du tableau) ;
+  la normale 2012-2021 ne sert plus qu'au calcul des feux anormaux (décision de l'utilisateur).
 - 18/10 soir : missiles et drones à DEUX SENS (une seule case). Bleu pétrole : frappes russes sur l'Ukraine (Ivaniuk ;
   Kyiv ville sans volume propre prend la teinte de l'oblast, les rapports disant « oblast de Kyiv »). Olive : frappes
   ukrainiennes SIGNALÉES sur la Russie et les zones occupées, par région et par mois (`build_strikes_ru.py`,

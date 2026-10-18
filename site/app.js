@@ -78,7 +78,7 @@ $("stats").innerHTML = [
 // ---------- carte ----------
 const canvas = $("map"), ctx = canvas.getContext("2d");
 let W = 0, H = 0, dpr = 1, proj, paths = {}, px, py, cellXY, cities = [];
-let tr = d3.zoomIdentity, cur = lastIdx, mode = "pts", showRef = false, showFire = false, showLoss = false, showFront = true, showLines = true, showUcdp = false, showArcs = false, perim = "tout";
+let tr = d3.zoomIdentity, cur = lastIdx, mode = "pts", showFire = false, showLoss = false, showFront = true, showLines = true, showUcdp = false, showArcs = false, perim = "tout";
 const lossOn = O.groups.map(() => true);
 const cutIdx = D.months.indexOf(O.cutoff);
 if (cutIdx >= 0 && cutIdx < cur) cur = cutIdx;  // par défaut : dernier mois où toutes les couches sont publiées
@@ -1463,7 +1463,6 @@ function draw(){
   ctx.lineWidth = 1.1/k; ctx.strokeStyle = C.border; ctx.stroke(paths.borders);
 
   drawInfra(k);
-  if (showRef) drawRef(k);
   if (showFire) { if (mode === "pts") drawPoints(k); else drawDensity(k); }
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
   if (showUcdp) drawUcdp(k);
@@ -1588,16 +1587,6 @@ function drawLosses(k){
   }
   ctx.globalAlpha = 1;
 }
-function drawRef(k){
-  const m = +D.months[cur].slice(5) - 1, c = D.ref2021[m];
-  ctx.strokeStyle = C.cool; ctx.lineWidth = 0.8/k; ctx.globalAlpha = C.dark ? 0.8 : 0.7;
-  ctx.beginPath();
-  for (let j = 0; j < c.length; j += 3) {
-    const q = proj([(c[j+1]+0.5)*D.cell, (c[j]+0.5)*D.cell]), rr = Math.min(6, 0.9 + Math.sqrt(c[j+2]) * 0.55) / Math.sqrt(k);
-    ctx.moveTo(q[0]+rr, q[1]); ctx.arc(q[0], q[1], rr, 0, 7);
-  }
-  ctx.stroke(); ctx.globalAlpha = 1;
-}
 
 // zoom
 const zoom = d3.zoom().scaleExtent([1, 14]).on("zoom", e => { tr = e.transform; draw(); });
@@ -1632,7 +1621,7 @@ $("play").onclick = () => {
 };
 function setMode(m){ mode = m; $("modePts").setAttribute("aria-pressed", m === "pts"); $("modeDen").setAttribute("aria-pressed", m === "den"); legend(); draw(); }
 $("modePts").onclick = () => setMode("pts"); $("modeDen").onclick = () => setMode("den");
-$("ref").onclick = () => { showRef = !showRef; $("ref").setAttribute("aria-pressed", showRef); legend(); draw(); updateReadout(); };
+// comparaison 2021 retirée le 18/10/2026 (décision de l'utilisateur) : la normale 2012-2021 ne sert plus qu'au calcul des feux anormaux
 $("lyrFront").onchange = e => { showFront = e.target.checked; legend(); draw(); };
 $("lyrLines").onchange = e => { showLines = e.target.checked; legend(); draw(); };
 if ($("lyrContact")) $("lyrContact").onchange = e => { showContact = e.target.checked; ensureView("contact", () => { contactFor = -2; legend(); draw(); }); };
@@ -1842,7 +1831,6 @@ function legend(){
     ? [[C["fire-now"], _t("feu en excès, mois affiché")], [C["fire-old"], _t("mois précédents (traînée)")]]
     : [[denColor(1), _t("excès cumulé élevé")], [denColor(.25), _t("faible")], ["transparent;border:1px solid " + C.ember + ";border-radius:0", _t("maille anormale ce mois")]];
   if (!showFire) items.length = 0;
-  if (showRef) items.push(["transparent;border:1.5px solid " + C.cool, _t("tous les feux du même mois en 2021")]);
   let html = front + items.map(([c,t]) => `<span><i style="background:${c}"></i>${t}</span>`).join("");
   if (showLoss) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("pertes russes documentées (WarSpotting), cliquer pour filtrer :")}</span>` +
     O.groups.map((g,i) => `<span class="lchip" role="button" tabindex="0" data-g="${i}" aria-pressed="${lossOn[i]}">${pictoSvg(i, C["loss-now"])}${g}</span>`).join("");
@@ -1866,7 +1854,6 @@ function legend(){
   $("legend").innerHTML = html;
 }
 
-const ref2021Tot = D.ref2021.map(c => { let s = 0; for (let j = 2; j < c.length; j += 3) s += c[j]; return s; });
 function updateReadout(){
   const s = D.series[cur], m = +D.months[cur].slice(5) - 1;
   let cum = 0; for (let i = 0; i <= cur; i++) cum += D.series[i][2];
@@ -1876,7 +1863,6 @@ function updateReadout(){
   $("readout").innerHTML = [
     ["feux détectés ce mois-ci", nd(s[0])],
     ["normale du mois (2012-2021)", fmt(s[1])],
-    ["même mois en 2021", fmt(ref2021Tot[m])],
     ["en excès ce mois-ci", nd(s[2]), "ex"]
   ].map(([t,v,c]) => `<div class="${c||""}">${t}<b>${v}</b></div>`).join("") +
   `<div style="grid-column:1/-1">cumul depuis le 24 février 2022 : <span style="color:var(--ember)">${fmt(cum)}</span> détections au-dessus de la normale</div>`;
