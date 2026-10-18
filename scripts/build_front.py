@@ -308,6 +308,7 @@ def control_events(status, places, official, dsm_events):
     # mention ancienne : localité que les cartes (2 sur 3) donnaient déjà au camp annonceur 60 jours avant l'annonce ;
     # ce n'est pas une prise (ex. : « Vouhledar » dans des communiqués du MoD RF de novembre 2024, prise début octobre)
     stale_n = defaultdict(int)
+    stale_keys = set()
 
     def stale(g, d, camp):
         if not g:
@@ -334,6 +335,7 @@ def control_events(status, places, official, dsm_events):
             for d in dates:
                 if stale(g, d, camp):
                     stale_n[src] += 1
+                    stale_keys.add((src, g, d))
                     continue
                 ev.append((d, lon, lat, camp, src, g))
     print("annonces écartées comme mentions anciennes (localité déjà au camp annonceur 60 jours avant) : " + ", ".join(f"{k} {v}" for k, v in stale_n.items()), flush=True)
@@ -347,7 +349,7 @@ def control_events(status, places, official, dsm_events):
                 if old[n] in (1, 2) and codes[n] in (1, 2) and old[n] != codes[n] and g in pidx:
                     k = pidx[g]
                     ev.append((day, places[k]["lon"], places[k]["lat"], 1 if codes[n] == 2 else 0, src, g))
-    rate, table = {}, {}
+    rate, table, confirm = {}, {}, {}
     for src in EV_SOURCES:
         ok = tot = 0
         delays, years = [], defaultdict(lambda: [0, 0])
@@ -363,6 +365,8 @@ def control_events(status, places, official, dsm_events):
             tot += 1
             want = 2 if camp == 1 else 1
             hit = [x for x, v in judged if v == want]
+            if src in ("modru", "gsua"):
+                confirm[(src, g, d)] = (dt.date(int(hit[0][:4]), int(hit[0][4:6]), int(hit[0][6:])) - d0).days if hit else -1
             years[d[:4]][1] += 1
             if hit:
                 ok += 1
@@ -375,6 +379,8 @@ def control_events(status, places, official, dsm_events):
                       "delay": [dl[int(f * (len(dl) - 1))] for f in (0.25, 0.5, 0.75)] if dl else None,
                       "years": {y: v for y, v in sorted(years.items())}}
     control_events.table = table
+    control_events.confirm = confirm
+    control_events.stale = stale_keys
     print("événements datés : " + ", ".join(f"{s} {sum(1 for e in ev if e[4] == s)} (confirmés par un tiers : {rate[s]:.0%})" for s in EV_SOURCES), flush=True)
     return [e[:5] for e in sorted(ev)], rate
 
@@ -2289,6 +2295,25 @@ def main():
     p_stats = os.path.join(ROOT, "data", "claims_stats.json")
     if os.path.exists(p_stats):
         cstats = json.load(open(p_stats))
+    # journal des annonces officielles (couche cliquable) : par source et par localité, [date, délai de confirmation par une
+    # autre carte en jours (−1 : jamais confirmée sous 90 jours ; null : non jugeable), 1 si mention ancienne écartée] ;
+    # dates jusqu'au dernier instantané publié (J-7)
+    claim_log = {}
+    conf_ = getattr(control_events, "confirm", {})
+    stl_ = getattr(control_events, "stale", set())
+    last_day = max(fdate(k) for k in frames).strftime("%Y%m%d")
+    for src in ("modru", "gsua"):
+        lg = {}
+        for k, dates in official.get(src, {}).items():
+            g = None if isinstance(k, tuple) else places[k]["id"]
+            kk = f"x{k[1]}_{k[2]}" if isinstance(k, tuple) else str(k)
+            ds = sorted(d for d in dates if d <= last_day)
+            if not ds:
+                continue
+            if kk not in claim_places:
+                claim_places[kk] = [k[1], k[2], "Russie"] if isinstance(k, tuple) else [round(places[k]["lon"], 4), round(places[k]["lat"], 4), places[k]["name"]]
+            lg[kk] = [[d, conf_.get((src, g, d)), 1 if (src, g, d) in stl_ else 0] for d in ds]
+        claim_log[src] = lg
     meta = {
         "generated": today.isoformat(), "viinaLast": last_viina, "limit": limit.isoformat(),
         "grid": {"nx": NX, "ny": NY, "size": SIZE, "x0": X0, "y1": Y1, "lon0": LON0, "lat0": LAT0, "R": R},
@@ -2298,6 +2323,7 @@ def main():
         "sigma0": {s: round(v, 2) for s, v in sig0.items()}, "mae": mae, "calibration": calib, "sensitivity": sens,
         "claimStrength": {s: round(v, 2) for s, v in kstrength.items()}, "claimReliability": kdetail, "claimStats": cstats,
         "claimPlaces": claim_places,
+        "claimLog": claim_log,
         "mcDraws": MC_DRAWS, "calibSlope": round(slope, 2), "calibMonths": len(sample),
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
         "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30, "table": getattr(control_events, "table", {})},

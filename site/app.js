@@ -102,7 +102,8 @@ document.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked =
 document.querySelectorAll("select").forEach(sl => { sl.value = [...sl.options].find(o => o.defaultSelected)?.value ?? sl.options[0].value; sl.setAttribute("autocomplete", "off"); });
 window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
 let fmode = "equilibre", fvar = null, showStates = false;
-const rawOn = {dsm: false, isw: false, wiki: false, modru: false, gsua: false};
+const rawOn = {dsm: false, isw: false, wiki: false};
+let showClaims = false, claimHits = [];
 // nowcast (signaux de combat) : par défaut sur la vue équilibrée sans variante de sources ; « cartes seules » sinon
 let nowcastOn = !!(document.getElementById("lyrNowcast") && document.getElementById("lyrNowcast").checked), showCombat = false;
 // zone grise (contact) mesurée par nos signaux : cochée ; incertitude des cartes (lignes 5 et 95 %) : décochée
@@ -1189,15 +1190,24 @@ function drawFront(k){
   }
   ctx.restore();
   ctx.setLineDash([]); ctx.globalAlpha = 1;
-  if (fi >= 0) for (const [src, col, up] of [["modru", C.front, true], ["gsua", C.cool, false]]) {
-    if (!rawOn[src] || !FR.months[fi][src]) continue;
-    const mo = FR.months[fi][src], fresh = new Set(mo.nouvelles);
-    for (const kk of new Set([...mo.actives, ...mo.nouvelles])) {
-      const pl = FR.claimPlaces[kk]; if (!pl) continue;
-      const q = proj([pl[0], pl[1]]); const sz = (fresh.has(kk) ? 5 : 3.2) / k;
-      ctx.fillStyle = col; ctx.globalAlpha = fresh.has(kk) ? 1 : 0.55;
-      ctx.beginPath(); if (up) { ctx.moveTo(q[0], q[1] - sz); ctx.lineTo(q[0] + sz, q[1] + sz*0.8); ctx.lineTo(q[0] - sz, q[1] + sz*0.8); } else { ctx.moveTo(q[0], q[1] + sz); ctx.lineTo(q[0] + sz, q[1] - sz*0.8); ctx.lineTo(q[0] - sz, q[1] - sz*0.8); }
-      ctx.closePath(); ctx.fill();
+  // annonces officielles (couche dédiée, décochée) : seulement celles des 30 jours précédant le pas affiché, estompées
+  // de 30 à 60 jours, jamais plus anciennes ; la plus récente par localité ; cliquables (claimHits)
+  claimHits = [];
+  if (showClaims && fi >= 0 && FR.claimLog) {
+    const fd = Date.parse(FR.months[fi].date);
+    for (const [src, col, up] of [["modru", C.front, true], ["gsua", C.cool, false]]) {
+      for (const [kk, list] of Object.entries(FR.claimLog[src] || {})) {
+        const pl = FR.claimPlaces[kk]; if (!pl) continue;
+        let best = null;
+        for (const e of list) { const t = Date.parse(e[0].slice(0, 4) + "-" + e[0].slice(4, 6) + "-" + e[0].slice(6)), age = (fd - t) / 864e5;
+          if (age >= 0 && age <= 60 && (!best || age < best.age)) best = {age, e}; }
+        if (!best) continue;
+        const q = proj([pl[0], pl[1]]), sz = (best.age <= 30 ? 4.5 : 3.2) / k;
+        ctx.fillStyle = col; ctx.globalAlpha = best.age <= 30 ? 0.95 : 0.35;
+        ctx.beginPath(); if (up) { ctx.moveTo(q[0], q[1] - sz); ctx.lineTo(q[0] + sz, q[1] + sz*0.8); ctx.lineTo(q[0] - sz, q[1] + sz*0.8); } else { ctx.moveTo(q[0], q[1] + sz); ctx.lineTo(q[0] + sz, q[1] - sz*0.8); ctx.lineTo(q[0] - sz, q[1] - sz*0.8); }
+        ctx.closePath(); ctx.fill();
+        claimHits.push({x: q[0] * k + tr.x, y: q[1] * k + tr.y, src, name: pl[2], e: best.e, age: best.age});
+      }
     }
   }
   ctx.globalAlpha = 1;
@@ -1542,19 +1552,27 @@ function drawPoints(k){
   for (let j = 0; j < NP; j++) if (P[j*5+2] === cur) { ctx.moveTo(px[j]+r2/2, py[j]); ctx.arc(px[j], py[j], r2/2, 0, 7); }
   ctx.fill();
 }
-const denColor = v => d3.interpolateRgbBasis(C.dark ? ["#3a1d08","#b0560f","#f2a33a","#ffd9a0","#fff6e8"] : ["#f3d6a8","#e39a3d","#c8361a","#7a1a0c","#3a0a04"])(v);
+// feux en excès cumulés, rendu LISSÉ : chaque maille de 0,1° devient une tache gaussienne (dégradé radial) centrée sur
+// la maille, les recouvrements donnent un champ continu, sans carrés ; palette brique (hors de l'ambre de P(mouvement))
+const denColor = v => d3.interpolateRgbBasis(C.dark ? ["#3a1208", "#8a2a14", "#ff5a4a", "#ffb0a0", "#fff0ea"] : ["#f1d3c9", "#d98c75", "#b0301c", "#7a1a0c", "#3a0a04"])(v);
 function drawDensity(k){
   const acc = new Map();
   for (let m = 0; m <= cur; m++) { const c = D.cells[m]; for (let j = 0; j < c.length; j += 4) { const key = c[j]*10000 + c[j+1]; acc.set(key, (acc.get(key) || 0) + c[j+2] - c[j+3]); } }
   const now = new Set(); { const c = D.cells[cur]; for (let j = 0; j < c.length; j += 4) now.add(c[j]*10000 + c[j+1]); }
   const s = d3.scaleLog().domain([3, 400]).range([0.15, 1]).clamp(true);
-  ctx.globalAlpha = 0.92;
+  ctx.globalCompositeOperation = "source-over";
   for (const [key, v] of acc) {
-    const i = Math.floor(key/10000), jj = key - i*10000, r = cellRect(i, jj);
-    ctx.fillStyle = denColor(s(Math.max(3, v))); ctx.fillRect(r[0], r[1], r[2], r[3]);
+    if (v < 1) continue;
+    const i = Math.floor(key/10000), jj = key - i*10000, r = cellRect(i, jj), cx = r[0] + r[2] / 2, cy = r[1] + r[3] / 2, R = 0.85 * Math.hypot(r[2], r[3]);
+    const col = d3.color(denColor(s(Math.max(3, v)))), a = 0.25 + 0.6 * s(Math.max(3, v));
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    g.addColorStop(0, `rgba(${col.r},${col.g},${col.b},${a})`); g.addColorStop(0.55, `rgba(${col.r},${col.g},${col.b},${a * 0.55})`); g.addColorStop(1, `rgba(${col.r},${col.g},${col.b},0)`);
+    ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
   }
-  ctx.globalAlpha = 1; ctx.lineWidth = 1/k; ctx.strokeStyle = C.ember;
-  for (const key of now) { const i = Math.floor(key/10000), r = cellRect(i, key - i*10000); ctx.strokeRect(r[0], r[1], r[2], r[3]); }
+  // mailles anormales du mois affiché : petit anneau, pas de carré
+  ctx.globalAlpha = 0.9; ctx.lineWidth = 1/k; ctx.strokeStyle = C.ember;
+  for (const key of now) { const i = Math.floor(key/10000), r = cellRect(i, key - i*10000); ctx.beginPath(); ctx.arc(r[0] + r[2] / 2, r[1] + r[3] / 2, Math.min(Math.abs(r[2]), Math.abs(r[3])) * 0.3, 0, 7); ctx.stroke(); }
+  ctx.globalAlpha = 1;
 }
 // pictogrammes des pertes : un par grand type
 function picto(c, g, x, y, s){
@@ -1645,6 +1663,7 @@ $("varSel").onchange = () => {
   frontFor = -2; draw(); updateArea(); legend(); varNote();
 };
 document.querySelectorAll("[data-raw]").forEach(cb => cb.onchange = () => { rawOn[cb.dataset.raw] = cb.checked; legend(); draw(); });
+if ($("lyrClaims")) $("lyrClaims").onchange = e => { showClaims = e.target.checked; legend(); draw(); };
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
@@ -1684,6 +1703,20 @@ const tip = $("tip");
 let tipKey = null, tipFull = false;   // position du dernier affichage, détails ouverts ou non
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (showClaims && claimHits.length) {
+    let best = null, bd = 9;
+    for (const h of claimHits) { const d = Math.hypot(h.x - mx, h.y - my); if (d < bd) { bd = d; best = h; } }
+    if (best) {
+      const [d, conf, stale] = best.e, dd = new Date(d.slice(0, 4) + "-" + d.slice(4, 6) + "-" + d.slice(6) + "T12:00:00Z");
+      const date = dd.toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
+      const st = stale ? _t("mention ancienne : les cartes donnaient déjà la localité à ce camp 60 jours avant") : conf == null ? _t("pas encore jugeable (aucune autre carte ne s'est prononcée sous 90 jours)")
+        : conf < 0 ? _t("non confirmée par une autre carte sous 90 jours") : _t("confirmée par une autre carte après {n} jours", {n: conf});
+      tip.innerHTML = `<div class="r"><span>${_t(best.src === "modru" ? "annonce de prise du MoD RF" : "annonce de reprise de l'état-major ukrainien")}</span><b>${topoC(best.name)}</b></div>` +
+        `<div class="r"><span>${_t("date")}</span><b>${date}</b></div><div style="color:var(--faint)">${st}</div>`;
+      tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
+    }
+  }
   const at = arcHover(mx, my);
   if (at) { tip.innerHTML = at; tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return; }
@@ -1829,13 +1862,14 @@ function legend(){
     `<span><i style="border-top:1px dotted ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>${_t("occupé avant 2022")}</span><span style="flex-basis:100%;height:0"></span>` : "";
   const items = mode === "pts"
     ? [[C["fire-now"], _t("feu en excès, mois affiché")], [C["fire-old"], _t("mois précédents (traînée)")]]
-    : [[denColor(1), _t("excès cumulé élevé")], [denColor(.25), _t("faible")], ["transparent;border:1px solid " + C.ember + ";border-radius:0", _t("maille anormale ce mois")]];
+    : [[denColor(1), _t("excès cumulé élevé")], [denColor(.25), _t("faible")], ["transparent;border:1px solid " + C.ember + ";border-radius:50%", _t("maille anormale ce mois")]];
   if (!showFire) items.length = 0;
   let html = front + items.map(([c,t]) => `<span><i style="background:${c}"></i>${t}</span>`).join("");
   if (showLoss) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("pertes russes documentées (WarSpotting), cliquer pour filtrer :")}</span>` +
     O.groups.map((g,i) => `<span class="lchip" role="button" tabindex="0" data-g="${i}" aria-pressed="${lossOn[i]}">${pictoSvg(i, C["loss-now"])}${g}</span>`).join("");
   const raws = Object.entries(rawOn).filter(([, v]) => v).map(([s]) => s);
-  if (raws.length) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("tracés bruts, au pas affiché :")}</span>` + raws.map(s => s === "modru" ? `<span><i style="background:${C.front};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i>${_t("annonces de prise du MoD RF (actives ; grandes : annoncées dans les 30 derniers jours)")}</span>` : s === "gsua" ? `<span><i style="background:${C.cool};border-radius:0;clip-path:polygon(0 0,100% 0,50% 100%)"></i>${_t("annonces de reprise de l'état-major ukrainien")}</span>` : `<span><i style="border-top:2px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>${_t("tracé {s} : limite de sa zone russe (statut par localité, VIINA)", {s: s === "dsm" ? "DeepStateMap" : s === "isw" ? "ISW" : "Wikipedia"})}</span>`).join("");
+  if (raws.length) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("tracés bruts, au pas affiché :")}</span>` + raws.map(s => `<span><i style="border-top:2px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>${_t("tracé {s} : limite de sa zone russe (statut par localité, VIINA)", {s: s === "dsm" ? "DeepStateMap" : s === "isw" ? "ISW" : "Wikipedia"})}</span>`).join("");
+  if (showClaims) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i><i style="background:${C.cool};border-radius:0;clip-path:polygon(0 0,100% 0,50% 100%)"></i>${_t("annonces officielles des 30 jours précédant le pas affiché (pâles : 30 à 60 jours) : prises annoncées par le MoD RF, reprises annoncées par l'état-major ukrainien ; cliquer un triangle pour sa date et sa confirmation par une autre carte")}</span>`;
   if (showArrows) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée russe")}</span><span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée ukrainienne")}</span>` +
     `<span>${_t("flèche pleine : déplacement de la ligne 50 % (km par 30 jours, sur 3 périodes de 30 jours)")}</span>` +
     `<span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px;box-shadow:-4px 0 0 -1px ${C.uactl}"></i>${_t("flèche avec un cercle à la base : localités qui ont basculé selon les sources dans les 30 derniers jours (journal DeepStateMap, état-major UA, MoD RF, bascules des cartes), pondérées par la fiabilité mesurée de chaque source")}</span>` +

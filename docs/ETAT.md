@@ -359,6 +359,12 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 nuit : annonces officielles (MoD RF, état-major UA) en couche DÉDIÉE décochée « annonces officielles
+  (30 jours) » : seulement les 30 jours précédant le pas affiché, estompées de 30 à 60 jours, jamais plus ; cliquables
+  (date, localité, source, confirmation par une autre carte avec le délai, ou « non confirmée », « non jugeable »,
+  « mention ancienne »). Journal publié dans `FRONT.claimLog` (modru 596 localités, gsua 65). Les cases « annonces »
+  des tracés bruts sont retirées. Densité des feux LISSÉE (taches gaussiennes par maille, palette brique, anneaux pour
+  les mailles du mois, plus de carrés).
 - 18/10 soir : bouton « 2021 » des feux SUPPRIMÉ (bouton, tracé, légende, ligne « même mois en 2021 » du tableau) ;
   la normale 2012-2021 ne sert plus qu'au calcul des feux anormaux (décision de l'utilisateur).
 - 18/10 soir : missiles et drones à DEUX SENS (une seule case). Bleu pétrole : frappes russes sur l'Ukraine (Ivaniuk ;
