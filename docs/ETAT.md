@@ -359,6 +359,9 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir : page méthode, section « Pistes testées et non retenues » (FR et EN, titre et résumé en UK et RU) :
+  19 pistes avec leur raison chiffrée (LLM, données seules, Telegram, Ookla, OIM, GPSJam, IODA, éditions OSM, alertes,
+  Black Marble, terrain, barrière, Sentinel-2, impacts S1, Meteosat, destruction, fortifications, filtre infra, σ local).
 - 18/10 soir : tableau public de fiabilité des sources (page méthode, « Fiabilité des sources ») : par source,
   annonces jugeables, part confirmée par une autre carte sous 90 jours, délai de confirmation (P25 · médiane · P75),
   mentions anciennes écartées, part par année. Valeurs du build : journal DeepState 89 % (322 jugeables, délai médian

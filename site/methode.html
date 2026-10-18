@@ -191,6 +191,29 @@
 <p class="sub">Par tronçon de 24 km traversé par la ligne, Y<sub>t</sub> = surface tenue par la Russie selon le consensus des cartes / 24 km (profondeur en km). Cible : |Y<sub>t+2</sub> − Y<sub>t</sub>| ≥ 0,5 km, dans un sens ou dans l'autre. Variables au mois t, moyennes à 20 km au plus de la ligne : assauts rapportés par l'état-major ukrainien, asymétrie des combats côté russe et son z relatif, feux, combats au sol (UCDP), pertes, mouvement récent |Y<sub>t</sub> − Y<sub>t−1</sub>| et |Y<sub>t</sub> − Y<sub>t−3</sub>|. Régression logistique ridge réentraînée chaque mois sur les tronçons-mois des 20 mois précédents dont la vérité à t+2 était connue. La couche est un liseré ambre le long de la ligne, côté ukrainien, sans direction. Validation walk-forward 2023-2026 : AUC 0,80, pour 13 % de tronçons qui bougent (étude hors ligne avec Telegram et la liste rejouée : 0,83).</p>
 <h3>Relief et terrain : affichés, pas dans le modèle</h3>
 <p class="sub">La case « relief » ajoute un ombrage du modèle numérique de surface Copernicus GLO-90 (90 m, exagéré pour un pays plat), au-dessus de la densité en assombrissement léger. Nous avons testé des covariables de terrain par maille (pente, crêtes et vallées, rivières par débit, forêts et haies WorldCover, nœuds routiers et ferroviaires) dans P(mouvement), la vitesse, le sens et P(contact). Le gain en walk-forward (+0,008 à +0,018 d'AUC) disparaît dès qu'on retire la « mémoire du lieu » (historique du tronçon, validation par blocs de longitude : −0,009 à −0,017). Descriptivement, les crêtes et le Dnipro freinent le front (rapport de cotes 0,83 par 10 m de crête à franchir), mais ce n'est pas exploitable en prévision : les covariables de terrain ne sont pas retenues.</p>
+<h3>Pistes testées et non retenues</h3>
+<p class="sub">Chaque piste a été mesurée en walk-forward, sur le seul passé, avant d'être écartée. Montrer ce qui ne marche pas fait partie de la méthode.</p>
+<ul class="sub">
+<li><strong>Un LLM qui lit la carte (seul ou hybride)</strong> : Backtest à l'aveugle (sans noms ni dates) : AUC 0,62 contre 0,86 pour la persistance ; la variante hybride ne bat pas la régression. Projet gardé pour plus tard.</li>
+<li><strong>Une ligne « données seules », sans les cartes</strong> : Brier 0,0524 contre 0,0481 pour la persistance des cartes : les signaux voient où ça bouge mais créent de fausses bascules ailleurs.</li>
+<li><strong>Telegram (15 canaux) pour le sens, le contact ou le mouvement</strong> : Sens : ne prédit pas qui avance. P(contact) : −0,0014 d'AUC. P(mouvement) : +0,002, dans le bruit.</li>
+<li><strong>Ookla (tests de débit)</strong> : +0,036 contre une base réduite, mais −0,001 à distance égale dans le modèle complet (redondant avec la liste officielle et le radar) ; licence NC-SA contaminante.</li>
+<li><strong>OIM, personnes déplacées par oblast</strong> : Gain entièrement reproduit par un placebo figé (il n'apporte que l'identité des oblasts du front) ; granularité publique trop grossière ; pas de redistribution permise.</li>
+<li><strong>Brouillage GPS (GPSJam)</strong> : Aucun gain mesuré, et pas de licence de réutilisation.</li>
+<li><strong>IODA (coupures d'Internet)</strong> : Aucun gain mesuré.</li>
+<li><strong>Éditions OpenStreetMap</strong> : Aucun gain mesuré.</li>
+<li><strong>Alertes aériennes et bombes planantes (KAB)</strong> : Aucun gain mesuré ; seules les menaces d'artillerie (« rares mais certaines ») sont gardées.</li>
+<li><strong>Lumières nocturnes (Black Marble)</strong> : +0,0006 d'AUC, non significatif.</li>
+<li><strong>Covariables de terrain (pente, rivières, forêts, haies, nœuds)</strong> : +0,008 à +0,018 en walk-forward, mais −0,009 à −0,017 en validation par blocs de longitude : le gain n'était que la mémoire du lieu.</li>
+<li><strong>A priori « barrière » pour placer la ligne</strong> : Erreur de position 2,603 → 2,603 km ; tout poids positif dégrade.</li>
+<li><strong>Sentinel-2 (végétation, sol nu)</strong> : +0,024 seul, mais rien une fois le radar présent (0,583 → 0,582) : il mesure la même chose.</li>
+<li><strong>Impacts d'obus par Sentinel-1</strong> : Aucun gradient vers la ligne (agriculture et chatoiement) ; les impacts Sentinel-2 à 10 m sont réels mais trop clairsemés.</li>
+<li><strong>Feux géostationnaires (Meteosat)</strong> : Non testé : l'archive exige un compte (LSA SAF).</li>
+<li><strong>Destruction cumulée (radar)</strong> : Couche retirée : AUC 0,49 face aux évaluations UNOSAT de 2022, artefact saisonnier ; la version corrigée échoue aussi (0,28).</li>
+<li><strong>Fortifications</strong> : OpenStreetMap trop lacunaire, détection automatique sur Sentinel-2 en échec ; à rouvrir seulement avec l'accord des cartographes qui les relèvent.</li>
+<li><strong>Filtre des feux par les infrastructures</strong> : 0,6812 → 0,6811 : sans effet.</li>
+<li><strong>σ local paramétrique (imprécision des cartes selon le lieu)</strong> : Calibration dégradée (secteurs stables 0,052 → 0,062, actifs 0,019 → 0,071) ; remplacé par des intervalles conformes par secteur.</li>
+</ul>
 <h3>13. Validation</h3>
 <p class="sub">Tout est appris en « walk-forward » : chaque paramètre du mois t n'utilise que des mois dont la vérité était connue à t. On mesure le score de Brier, l'AUC globale et à distance égale (moyenne des AUC par tranche de distance), et la couverture de la bande secteur par secteur ; des contrôles automatiques bloquent la publication en cas d'échec.</p>
 </div>
@@ -227,16 +250,43 @@
 <p class="sub">For each 24 km sector crossed by the line, Y<sub>t</sub> = area held by Russia according to the map consensus / 24 km (depth in km). Target: |Y<sub>t+2</sub> − Y<sub>t</sub>| ≥ 0.5 km, in either direction. Features at month t, averaged within 20 km of the line: assaults reported by the Ukrainian General Staff, combat asymmetry on the Russian side and its relative z, fires, ground fighting (UCDP), losses, recent movement |Y<sub>t</sub> − Y<sub>t−1</sub>| and |Y<sub>t</sub> − Y<sub>t−3</sub>|. Ridge logistic regression retrained each month on the sector-months of the previous 20 months whose truth at t+2 was known. The layer is an amber band along the line, on the Ukrainian side, with no direction. Walk-forward validation 2023–2026: AUC 0.80, with 13% of sectors moving (offline study with Telegram and the replayed list: 0.83).</p>
 <h3>Relief and terrain: shown, not in the model</h3>
 <p class="sub">The “terrain relief” box adds a hillshade of the Copernicus GLO-90 digital surface model (90 m, exaggerated for a flat country), drawn over the density as a light darkening. We tested per-cell terrain covariates (slope, ridges and valleys, rivers by discharge, WorldCover forests and tree lines, road and rail nodes) in P(movement), speed, direction and P(contact). The walk-forward gain (+0.008 to +0.018 AUC) disappears once “memory of the place” is removed (sector history, validation by longitude blocks: −0.009 to −0.017). Descriptively, ridges and the Dnipro slow the front (odds ratio 0.83 per 10 m of ridge to cross), but this is not usable for forecasting: terrain covariates are not retained.</p>
+<h3>Leads tested and not retained</h3>
+<p class="sub">Each lead was measured walk-forward, on the past only, before being dropped. Showing what does not work is part of the method.</p>
+<ul class="sub">
+<li><strong>An LLM reading the map (alone or hybrid)</strong>: Blind backtest (no names or dates): AUC 0.62 vs 0.86 for persistence; the hybrid does not beat the regression. Kept for later.</li>
+<li><strong>A data-only line, without the maps</strong>: Brier 0.0524 vs 0.0481 for map persistence: the signals see where things move but create false flips elsewhere.</li>
+<li><strong>Telegram (15 channels) for direction, contact or movement</strong>: Direction: does not predict who advances. P(contact): −0.0014 AUC. P(movement): +0.002, within noise.</li>
+<li><strong>Ookla (speed tests)</strong>: +0.036 against a reduced baseline, but −0.001 at equal distance in the full model (redundant with the official list and radar); contaminating NC-SA licence.</li>
+<li><strong>IOM displaced persons by oblast</strong>: Gain fully reproduced by a frozen placebo (it only encodes which oblasts are on the front); public granularity too coarse; no redistribution allowed.</li>
+<li><strong>GPS jamming (GPSJam)</strong>: No measured gain, and no reuse licence.</li>
+<li><strong>IODA (Internet outages)</strong>: No measured gain.</li>
+<li><strong>OpenStreetMap edits</strong>: No measured gain.</li>
+<li><strong>Air-raid alerts and glide bombs (KAB)</strong>: No measured gain; only artillery threats (“rare but certain”) are kept.</li>
+<li><strong>Night lights (Black Marble)</strong>: +0.0006 AUC, not significant.</li>
+<li><strong>Terrain covariates (slope, rivers, forests, tree lines, nodes)</strong>: +0.008 to +0.018 walk-forward, but −0.009 to −0.017 with longitude-block validation: the gain was only memory of the place.</li>
+<li><strong>A “barrier” prior to place the line</strong>: Position error 2.603 → 2.603 km; any positive weight makes it worse.</li>
+<li><strong>Sentinel-2 (vegetation, bare soil)</strong>: +0.024 alone, but nothing once radar is present (0.583 → 0.582): it measures the same thing.</li>
+<li><strong>Shell impacts from Sentinel-1</strong>: No gradient towards the line (farming and speckle); Sentinel-2 impacts at 10 m are real but too sparse.</li>
+<li><strong>Geostationary fires (Meteosat)</strong>: Not tested: the archive requires an account (LSA SAF).</li>
+<li><strong>Cumulative destruction (radar)</strong>: Layer withdrawn: AUC 0.49 against 2022 UNOSAT assessments, seasonal artefact; the corrected version also fails (0.28).</li>
+<li><strong>Fortifications</strong>: OpenStreetMap too patchy, automatic Sentinel-2 detection failed; to be reopened only with the agreement of the mappers who record them.</li>
+<li><strong>Filtering fires by infrastructure</strong>: 0.6812 → 0.6811: no effect.</li>
+<li><strong>Parametric local σ (map imprecision by place)</strong>: Worse calibration (stable sectors 0.052 → 0.062, active 0.019 → 0.071); replaced by sector-level conformal intervals.</li>
+</ul>
 <h3>13. Validation</h3>
 <p class="sub">Everything is learned walk-forward: each parameter for month t only uses months whose truth was known at t. We measure the Brier score, the overall AUC and the AUC at equal distance (average of AUCs by distance band), and the band's coverage sector by sector; automatic checks block publication if anything fails.</p>
 </div>
 <div class="algo-l" data-lang="uk" lang="uk" hidden>
 <h2>Алгоритм, крок за кроком</h2>
 <p class="sub">Повний опис алгоритму доступний французькою та англійською (перемкніть мову на FR або EN). Заголовки цієї сторінки перекладено; решта тексту — французькою.</p>
+<h3>Перевірені й відхилені напрями</h3>
+<p class="sub">19 напрямів (LLM, лінія «лише дані», Telegram, Ookla, OIM, GPSJam, IODA, редагування OSM, повітряні тривоги, Black Marble, рельєф, «бар'єр», Sentinel-2, удари за Sentinel-1, Meteosat, накопичені руйнування, укріплення, фільтр пожеж за інфраструктурою, параметрична σ) з цифровими причинами — у версіях FR та EN.</p>
 </div>
 <div class="algo-l" data-lang="ru" lang="ru" hidden>
 <h2>Алгоритм, шаг за шагом</h2>
 <p class="sub">Полное описание алгоритма доступно на французском и английском (переключите язык на FR или EN). Заголовки этой страницы переведены; остальной текст — на французском.</p>
+<h3>Проверенные и отклонённые направления</h3>
+<p class="sub">19 направлений (LLM, линия «только данные», Telegram, Ookla, OIM, GPSJam, IODA, правки OSM, воздушные тревоги, Black Marble, рельеф, «барьер», Sentinel-2, удары по Sentinel-1, Meteosat, накопленные разрушения, укрепления, фильтр пожаров по инфраструктуре, параметрическая σ) с численными причинами — в версиях FR и EN.</p>
 </div>
 </section>
 
@@ -443,7 +493,7 @@
 <script src="front_equilibre.js?v=98b088d2af"></script>
 <script src="front.js?v=273d92ded0"></script>
 <script src="osint.js?v=46ed380b81"></script>
-<script src="methode_i18n.js?v=e75ed6475a"></script>
+<script src="methode_i18n.js?v=7a2b98c824"></script>
 <script src="app.js?v=e291ba6bf7"></script>
 </body>
 </html>

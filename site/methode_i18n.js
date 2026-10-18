@@ -22,6 +22,8 @@ window.METHODE_H = {
   "7. Choix arbitraires et sensibilité": ["7. Arbitrary choices and sensitivity", "7. Довільні вибори й чутливість", "7. Произвольные выборы и чувствительность"],
   "Sources et licences": ["Sources and licences", "Джерела та ліцензії", "Источники и лицензии"],
   "Fiabilité des sources": ["Source reliability", "Надійність джерел", "Надёжность источников"],
+  "Pistes testées et non retenues": ["Leads tested and not retained", "Перевірені й відхилені напрями", "Проверенные и отклонённые направления"],
+  "Leads tested and not retained": ["Leads tested and not retained", "Перевірені й відхилені напрями", "Проверенные и отклонённые направления"],
   "Limites": ["Limits", "Обмеження", "Ограничения"],
   "Normale et excès, mois par mois": ["Normal and excess, month by month", "Норма й надлишок, щомісяця", "Норма и избыток, помесячно"],
   "Par région": ["By region", "За регіонами", "По регионам"],
