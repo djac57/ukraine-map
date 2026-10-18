@@ -658,13 +658,19 @@ function flippedCentroid(pc, pold, cx, cy, camp){
 // Longueur à l'écran : proportionnelle au mouvement v (km par 30 jours), même règle et même plafond pour toutes les
 // flèches (pleines, pointillées, « poussée possible », annonces). Le minimum des flèches pointillées ne sert qu'à
 // garder une hampe lisible et ne dépasse jamais le plafond d'une flèche pleine.
-function arrowPx(v, k, uncertain){
+// Tête : demi-largeur hs plafonnée à HEAD_MAX px et à 28 % de la longueur (tête ≤ 1,6·hs de long, 2·hs de large), même
+// règle pour tous les types ; w imposé pour les flèches d'annonces (épaisseur selon le poids des localités)
+const HEAD_MAX = 6;
+function arrowPx(v, k, uncertain, wForce){
   // plancher de lisibilité (≈ 20 px, hampe comprise) et plafond (40 px en vue d'ensemble, 70 px au zoom), proportionnel entre
-  const overview = k < 1.6, cap = overview ? 40 : 70, floor = 20, w = overview ? 1.8 : Math.min(7, 1.2 + v * 0.5), hs = 3 + w * 1.6;
+  const overview = k < 1.6, cap = overview ? 40 : 70, floor = 20, w = wForce != null ? wForce : overview ? 1.8 : Math.min(7, 1.2 + v * 0.5);
   let len = overview ? Math.min(cap, floor + v * 4) : Math.min(cap, Math.max(floor, 10 + v * 7));
+  let hs = Math.min(HEAD_MAX, 2.5 + w * 0.9, len * 0.28);
   if (uncertain) len = Math.max(len, Math.min(cap, hs * 1.6 + 12));
+  hs = Math.min(hs, len * 0.28);
   return {len, w, hs, overview, cap};
 }
+const evWidth = (a, k) => k < 1.6 ? Math.min(3, 1.4 + a.w * 0.3) : Math.min(5, 1.6 + a.w * 0.7);
 // tête interdite : maille de Russie qui n'est pas nettement tenue par l'Ukraine (bande de Koursk : p < 0,2 au mois
 // précédent ou au mois affiché ; une bande frontalière seulement incertaine, comme au nord de Vovtchansk, ne compte pas) ;
 // sondée le long de la hampe
@@ -678,6 +684,8 @@ function segForbidden(F, ax, ay, ux, uy, Lg){
   // la pointe garde une marge d'une maille (2 km) avec la Russie : une tête posée sur la frontière se lit « en Russie »
   const hx = ax + ux * Lg, hy = ay + uy * Lg;
   for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const c = forbiddenAt(F, hx + di, hy + dj); if (c >= 0) return c; }
+  // et la flèche ne pointe pas vers la Russie toute proche : prolongée de 2 mailles (4 km), elle doit rester hors de Russie
+  for (const e of [1, 2]) { const c = forbiddenAt(F, hx + ux * e, hy + uy * e); if (c >= 0) return c; }
   return -1;
 }
 // garde-fou de tête : si la flèche entre en Russie, elle est projetée sur la tangente de la frontière (côté ukrainien,
@@ -709,7 +717,7 @@ function drawnArrows(fi, k, view){
     out.push({type: a.possible ? "poussée possible" : a.uncertain ? "incertaine" : "gradient", a, ax: a.gx, ay: a.gy, ru: a.ru, g, Lg, P}); }
   for (const a of eventArrows(fi)) { if (a.late) continue;
     const L0 = Math.hypot(a.cx - a.ax, a.cy - a.ay); if (L0 < 1e-6) continue;
-    const P = arrowPx(L0 * km, k, a.uncertain), Lg = P.len / (gAff[2] * k), g = headGuard(F, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, Lg);
+    const P = arrowPx(L0 * km, k, a.uncertain, evWidth(a, k)), Lg = P.len / (gAff[2] * k), g = headGuard(F, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, Lg);
     out.push({type: "annonces", a, ax: a.ax, ay: a.ay, ru: a.ru, g, Lg, P, event: true}); }
   return out;
 }
@@ -728,9 +736,9 @@ function drawEventArrows(k){
       continue;
     }
     const L0 = Math.hypot(a.cx - a.ax, a.cy - a.ay); if (L0 < 1e-6) continue;
-    const ov = k < 1.6, w = ov ? Math.min(3, 1.4 + a.w * 0.3) : Math.min(6, 1.6 + a.w * 0.9), col = a.ru ? C.front : C.uactl, hs = (ov ? 2 : 3) + w * 1.5;
+    const ov = k < 1.6, w = evWidth(a, k), col = a.ru ? C.front : C.uactl;
     // longueur : règle commune (arrowPx, v = déplacement en km sur 30 jours) ; tête jamais en Russie (headGuard)
-    const PX = arrowPx(L0 * FR.grid.size / 1000, k, a.uncertain), L = Math.max(PX.len, Math.min(PX.cap, hs * 1.6 + 8));
+    const PX = arrowPx(L0 * FR.grid.size / 1000, k, a.uncertain, w), L = PX.len, hs = PX.hs;
     const hg = headGuard(HF, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, L / (gAff[2] * k));
     if (!hg) { const r = ov ? 3.5 : 5; ctx.globalAlpha = 0.7; ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI); ctx.stroke();
       arrowList.push({x: sx, y: sy, a: {ru: a.ru, v: 0, ev: a.n, late: true, undirected: true}}); continue; }
@@ -834,16 +842,18 @@ window.__uafArrowCheck = function(){
     }
   }
   // têtes (bloquant) : aucune flèche dessinée, de quelque type que ce soit, dont la hampe ou la tête entre en Russie
-  // hors bande de Koursk tenue par l'Ukraine ; contrôlé à la longueur réellement dessinée (vue d'ensemble, zoom 3 et 6) ;
+  // hors bande de Koursk tenue par l'Ukraine ; contrôlé à la longueur réellement dessinée (zooms 1 à 8) ;
   // longueur : jamais au-delà du plafond des flèches pleines
   let heads = 0, headMoved = 0, headDropped = 0;
   for (let fi = 3; fi < FR.months.length; fi++) { if (!FR.months[fi]) continue;
     const F = headFields(fi, "equilibre");
-    for (const k of [1, 3, 6]) for (const d of drawnArrows(fi, k, "equilibre")) {
+    for (const k of [1, 1.5, 2, 3, 4, 6, 8]) for (const d of drawnArrows(fi, k, "equilibre")) {
       heads++; if (!d.g) { headDropped++; continue; } if (d.g.moved) headMoved++;
       const c = segForbidden(F, d.ax, d.ay, d.g.ux, d.g.uy, d.Lg);
       if (c >= 0) fails.push({mois: FR.months[fi].date, tete: "en Russie", type: d.type, zoom: k, ru: d.ru, base: llg(d.ax, d.ay), pointe: llg(d.ax + d.g.ux * d.Lg, d.ay + d.g.uy * d.Lg)});
       if (d.P.len > d.P.cap + 1e-6) fails.push({mois: FR.months[fi].date, longueur: Math.round(d.P.len), plafond: d.P.cap, type: d.type, zoom: k});
+      // tête (bloquant) : au plus 2·HEAD_MAX px de large et 1,6·HEAD_MAX de long, et jamais plus de 45 % de la flèche
+      if (d.P.hs > HEAD_MAX + 1e-6 || d.P.hs * 1.6 > 0.45 * d.P.len + 1e-6) fails.push({mois: FR.months[fi].date, tete_px: +(2 * d.P.hs).toFixed(1), longueur: Math.round(d.P.len), type: d.type, zoom: k});
     } }
   const unc = {};
   for (let fi = 3; fi < FR.months.length; fi++) { if (!FR.months[fi]) continue;
@@ -1111,6 +1121,17 @@ function buildPm(fi, k){
   }
   cx.putImageData(img, 0, 0); pmImg = cv;
 }
+// liseré P(mouvement) dessiné AU-DESSUS des feux et des hachures, avec un fin contour sombre pour le détacher
+function drawPm(k){
+  const fp = frontIdx(); if (fp < 0) return;
+  buildPm(fp, k); if (!pmImg) return;
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(tr.x, tr.y); ctx.scale(k, k);
+  ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]); ctx.clip(domainPath);
+  ctx.imageSmoothingEnabled = true; ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+  ctx.filter = C.dark ? "drop-shadow(0 0 0.6px rgba(0,0,0,.95))" : "drop-shadow(0 0 0.6px rgba(60,35,0,.9))";
+  ctx.drawImage(pmImg, 0, 0, GX, GY);
+  ctx.restore();
+}
 // destruction cumulée (radar Sentinel-1) : part du bâti modifié depuis 2021, mailles de 2 km, couche d'information
 let destrFor = -1, destrImg = null, showDestr = false;
 function buildDestr(fi){
@@ -1140,7 +1161,6 @@ function drawFront(k){
   ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.55; ctx.lineWidth = 1 * u; ctx.setLineDash([2*u, 3*u]);
   ctx.stroke(prePath);
   { const fc = frontIdx(); if (showContact && fc >= 0) { buildContact(fc); if (contactPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.7; ctx.drawImage(contactPat, 0, 0, GX, GY); ctx.restore(); } } }
-  { const fp = frontIdx(); if (showPm && fp >= 0) { buildPm(fp, k); if (pmImg) { ctx.save(); ctx.clip(domainPath); ctx.imageSmoothingEnabled = true; ctx.drawImage(pmImg, 0, 0, GX, GY); ctx.restore(); } } }
   if ((showLines || showUnc) && isoPaths.length) {
     ctx.save(); ctx.clip(domainPath);
     ctx.strokeStyle = C.front; ctx.globalAlpha = 0.9; ctx.setLineDash([4*u, 3*u]); ctx.lineWidth = 0.9 * u;
@@ -1334,6 +1354,7 @@ function draw(){
   if (showUcdp) drawUcdp(k);
   if (showLoss) drawLosses(k);
   if (showArcs) drawArcs(k);
+  if (showPm) drawPm(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
   if (showArrows) { drawArrows(k); drawEventArrows(k); }
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
 

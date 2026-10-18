@@ -359,6 +359,14 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir : liseré P(mouvement) dessiné AU-DESSUS des feux et des hachures, avec un fin contour sombre
+  (drop-shadow) ; palette des feux passée en rouge brique (clair #b0301c / #9a4a3a, sombre #ff5a4a / #b8604f) : plus
+  d'ocre ni d'orange clair qui noyaient l'ambre. Combinaisons vérifiées (feux + combats + zone grise + P(mouvement) +
+  relief), en clair et en sombre.
+- 18/10 soir : TÊTES de flèche plafonnées pour tous les types : demi-largeur ≤ 6 px (tête ≤ 12 px de large, ≤ 9,6 px
+  de long) et ≤ 28 % de la longueur ; épaisseur des flèches d'annonces ≤ 5 px. Garde-fou de tête durci : la flèche
+  prolongée de 4 km ne doit pas entrer en Russie (Vovtchansk 09/2026 : la flèche d'annonces pointait encore au
+  nord-est aux zooms ≥ 5). Test bloquant aux zooms 1, 1,5, 2, 3, 4, 6 et 8 (taille de tête et tête hors de Russie).
 - 18/10 : couche relief publiée, décochée par défaut, au-dessus de la densité (opacité 0,5). Covariables de terrain
   non retenues pour le modèle.
 - 18/10 : page méthode réduite à : but, algorithme pas à pas, validation (tableaux), décisions et limites, sources et

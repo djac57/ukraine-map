@@ -347,21 +347,34 @@ def control_events(status, places, official, dsm_events):
                 if old[n] in (1, 2) and codes[n] in (1, 2) and old[n] != codes[n] and g in pidx:
                     k = pidx[g]
                     ev.append((day, places[k]["lon"], places[k]["lat"], 1 if codes[n] == 2 else 0, src, g))
-    rate = {}
+    rate, table = {}, {}
     for src in EV_SOURCES:
         ok = tot = 0
+        delays, years = [], defaultdict(lambda: [0, 0])
         for d, lon, lat, camp, s, g in ev:
             if s != src or not g:
                 continue
             d0 = dt.date(int(d[:4]), int(d[4:6]), int(d[6:]))
             later = [x for x in days if d < x <= (d0 + dt.timedelta(days=90)).strftime("%Y%m%d")]
-            codes = [status[x].get(g) for x in later]
-            judged = [c[j] for c in codes if c for j in EV_JUDGES[src] if c[j] in (1, 2)]
+            codes = [(x, status[x].get(g)) for x in later]
+            judged = [(x, c[j]) for x, c in codes if c for j in EV_JUDGES[src] if c[j] in (1, 2)]
             if not judged:
                 continue
             tot += 1
-            ok += (2 if camp == 1 else 1) in judged
+            want = 2 if camp == 1 else 1
+            hit = [x for x, v in judged if v == want]
+            years[d[:4]][1] += 1
+            if hit:
+                ok += 1
+                years[d[:4]][0] += 1
+                # délai : jours entre l'annonce et le premier instantané où une autre carte la confirme
+                delays.append((dt.date(int(hit[0][:4]), int(hit[0][4:6]), int(hit[0][6:])) - d0).days)
         rate[src] = round(ok / tot, 3) if tot else 0.5
+        dl = sorted(delays)
+        table[src] = {"n": tot, "ok": ok, "rate": rate[src], "stale": stale_n.get(src, 0),
+                      "delay": [dl[int(f * (len(dl) - 1))] for f in (0.25, 0.5, 0.75)] if dl else None,
+                      "years": {y: v for y, v in sorted(years.items())}}
+    control_events.table = table
     print("événements datés : " + ", ".join(f"{s} {sum(1 for e in ev if e[4] == s)} (confirmés par un tiers : {rate[s]:.0%})" for s in EV_SOURCES), flush=True)
     return [e[:5] for e in sorted(ev)], rate
 
