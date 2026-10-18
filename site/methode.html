@@ -202,19 +202,29 @@
 <p class="sub">Chaque piste a été mesurée en walk-forward, sur le seul passé, avant d'être écartée. Montrer ce qui ne marche pas fait partie de la méthode.</p>
 <ul class="sub">
 <li><strong>Une ligne « données seules », sans les cartes, telle que testée</strong> : Brier 0,0524 contre 0,0481 pour la persistance des cartes : les signaux voient où ça bouge mais créent de fausses bascules ailleurs.</li>
+<li><strong>Brouillage GPS (GPSJam)</strong> : AUC 0,48 à 0,86 selon le seuil, faute d'avions au-dessus du front ; pas de licence de réutilisation.</li>
+<li><strong>Brouillage GSM et coupures d'Internet (IODA)</strong> : à l'échelle de l'oblast seulement : un placebo constant par oblast fait mieux (0,79 contre 0,76) ; données « tous droits réservés ».</li>
+<li><strong>Fermetures d'agences Nova Poshta</strong> : l'API ne donne pas de date de fermeture : impossible de dater un repli.</li>
+<li><strong>Suspensions de trains (Ukrzaliznytsia)</strong> : aucune archive des suspensions.</li>
+<li><strong>Écoles fermées ou passées à distance</strong> : aucune donnée datée par commune.</li>
+<li><strong>Ordres d'évacuation</strong> : pas de liste structurée et datée.</li>
+<li><strong>Régime d'opération antiterroriste (KTO) côté russe</strong> : granularité de l'oblast seulement.</li>
+<li><strong>Listes OCHA et NRC des communes de première ligne</strong> : circulaires : elles sont dérivées des lignes de front que l'on cherche à estimer.</li>
+<li><strong>Éditions OpenStreetMap</strong> : AUC 0,50, gain +0,001 : aucun pouvoir discriminant.</li>
+<li><strong>Discord</strong> : aucune archive publique ; collecte contraire aux conditions du service.</li>
+<li><strong>Lostarmour et GeoConfirmed</strong> : pas de licence de réutilisation.</li>
+<li><strong>Cartes du MoD RF et de Rybar</strong> : protégées par le droit d'auteur (comme les géométries de DeepStateMap, qui n'entrent que par le statut des localités relevé par VIINA).</li>
+<li><strong>Communiqués du MoD RF sur MAX (depuis mars 2026)</strong> : compte russe requis : refusé ; comblés en partie par les citations d'Interfax et de RIA Novosti.</li>
+<li><strong>Alertes aériennes et bombes planantes (KAB)</strong> : alertes : AUC 0,51 côté ukrainien (elles séparent les camps, pas le contact) ; KAB : 0,58, +0,006 ; seules les menaces d'artillerie sont gardées.</li>
+<li><strong>Lumières nocturnes (Black Marble)</strong> : +0,0006 d'AUC dans le modèle complet, non significatif (les villes frappées s'éteignent aussi).</li>
 <li><strong>Ookla (tests de débit)</strong> : +0,036 contre une base réduite, mais −0,001 à distance égale dans le modèle complet (redondant avec la liste officielle et le radar) ; licence NC-SA contaminante.</li>
 <li><strong>OIM, personnes déplacées par oblast</strong> : gain entièrement reproduit par un placebo figé (il n'apporte que l'identité des oblasts du front) ; granularité publique trop grossière ; pas de redistribution permise.</li>
-<li><strong>Brouillage GPS (GPSJam)</strong> : aucun gain mesuré, et pas de licence de réutilisation.</li>
-<li><strong>IODA (coupures d'Internet)</strong> : aucun gain mesuré.</li>
-<li><strong>Éditions OpenStreetMap</strong> : aucun gain mesuré.</li>
-<li><strong>Alertes aériennes et bombes planantes (KAB)</strong> : aucun gain mesuré ; seules les menaces d'artillerie (« rares mais certaines ») sont gardées.</li>
-<li><strong>Lumières nocturnes (Black Marble)</strong> : +0,0006 d'AUC, non significatif.</li>
 <li><strong>Covariables de terrain génériques (pente, rivières moyennes, forêts, haies, nœuds)</strong> : +0,008 à +0,018 en walk-forward, mais −0,009 à −0,017 en validation par blocs de longitude : le gain n'était que la mémoire du lieu.</li>
 <li><strong>A priori « barrière » général pour placer la ligne (toutes rivières, crêtes, canaux, forêts)</strong> : erreur de position 2,603 → 2,603 km ; tout poids positif dégrade (le terrain dur est testé à part, ci-dessus).</li>
 <li><strong>Sentinel-2 (végétation, sol nu)</strong> : +0,024 seul, mais rien une fois le radar présent (0,583 → 0,582) : il mesure la même chose ; gardé comme remplaçant possible du radar.</li>
+<li><strong>Sentinel-2 pour détecter les fortifications</strong> : détection automatique en échec ; OpenStreetMap trop lacunaire ; à rouvrir seulement avec l'autorisation des cartographes qui les relèvent (densité agrégée, avec crédit, non commerciale).</li>
 <li><strong>Impacts d'obus par Sentinel-1</strong> : aucun gradient vers la ligne (agriculture et chatoiement) ; les impacts Sentinel-2 à 10 m sont réels mais trop clairsemés.</li>
 <li><strong>Feux géostationnaires (Meteosat)</strong> : non testé : l'archive exige un compte (LSA SAF).</li>
-<li><strong>Fortifications</strong> : OpenStreetMap trop lacunaire, détection automatique sur Sentinel-2 en échec ; à rouvrir seulement avec l'autorisation des cartographes qui les relèvent (densité agrégée, avec crédit, non commerciale).</li>
 <li><strong>Filtre des feux par les infrastructures</strong> : 0,6812 → 0,6811 : sans effet.</li>
 <li><strong>σ local paramétrique (imprécision des cartes selon le lieu)</strong> : calibration dégradée (secteurs stables 0,052 → 0,062, actifs 0,019 → 0,071) ; remplacé par des intervalles conformes par secteur.</li>
 </ul>
@@ -265,19 +275,29 @@
 <p class="sub">Each lead was measured walk-forward, on the past only, before being dropped. Showing what does not work is part of the method.</p>
 <ul class="sub">
 <li><strong>A data-only line, without the maps, as tested</strong>: Brier 0.0524 vs 0.0481 for map persistence: the signals see where things move but create false flips elsewhere.</li>
+<li><strong>GPS jamming (GPSJam)</strong>: AUC 0.48 to 0.86 depending on the threshold, for lack of aircraft over the front; no reuse licence.</li>
+<li><strong>GSM jamming and Internet outages (IODA)</strong>: oblast level only: a constant per-oblast placebo does better (0.79 vs 0.76); data “all rights reserved”.</li>
+<li><strong>Nova Poshta branch closures</strong>: the API gives no closure date: a withdrawal cannot be dated.</li>
+<li><strong>Train suspensions (Ukrzaliznytsia)</strong>: no archive of suspensions.</li>
+<li><strong>Schools closed or moved online</strong>: no dated data by municipality.</li>
+<li><strong>Evacuation orders</strong>: no structured, dated list.</li>
+<li><strong>Counter-terrorist operation (KTO) regime on the Russian side</strong>: oblast granularity only.</li>
+<li><strong>OCHA and NRC lists of front-line municipalities</strong>: circular: they are derived from the front lines we are trying to estimate.</li>
+<li><strong>OpenStreetMap edits</strong>: AUC 0.50, gain +0.001: no discriminating power.</li>
+<li><strong>Discord</strong>: no public archive; collection would breach the service's terms.</li>
+<li><strong>Lostarmour and GeoConfirmed</strong>: no reuse licence.</li>
+<li><strong>Russian MoD and Rybar maps</strong>: protected by copyright (like DeepStateMap's geometries, which only enter through the locality status recorded by VIINA).</li>
+<li><strong>Russian MoD bulletins on MAX (since March 2026)</strong>: Russian account required: declined; partly filled from Interfax and RIA Novosti quotes.</li>
+<li><strong>Air-raid alerts and glide bombs (KAB)</strong>: alerts: AUC 0.51 on the Ukrainian side (they separate the sides, not contact); KAB: 0.58, +0.006; only artillery threats are kept.</li>
+<li><strong>Night lights (Black Marble)</strong>: +0.0006 AUC in the full model, not significant (struck cities also go dark).</li>
 <li><strong>Ookla (speed tests)</strong>: +0.036 against a reduced baseline, but −0.001 at equal distance in the full model (redundant with the official list and radar); contaminating NC-SA licence.</li>
 <li><strong>IOM displaced persons by oblast</strong>: gain fully reproduced by a frozen placebo (it only encodes which oblasts are on the front); public granularity too coarse; no redistribution allowed.</li>
-<li><strong>GPS jamming (GPSJam)</strong>: no measured gain, and no reuse licence.</li>
-<li><strong>IODA (Internet outages)</strong>: no measured gain.</li>
-<li><strong>OpenStreetMap edits</strong>: no measured gain.</li>
-<li><strong>Air-raid alerts and glide bombs (KAB)</strong>: no measured gain; only artillery threats (“rare but certain”) are kept.</li>
-<li><strong>Night lights (Black Marble)</strong>: +0.0006 AUC, not significant.</li>
 <li><strong>Generic terrain covariates (slope, medium rivers, forests, tree lines, nodes)</strong>: +0.008 to +0.018 walk-forward, but −0.009 to −0.017 with longitude-block validation: the gain was only memory of the place.</li>
 <li><strong>A general “barrier” prior to place the line (all rivers, ridges, canals, forests)</strong>: position error 2.603 → 2.603 km; any positive weight makes it worse (hard terrain is tested separately, above).</li>
 <li><strong>Sentinel-2 (vegetation, bare soil)</strong>: +0.024 alone, but nothing once radar is present (0.583 → 0.582): it measures the same thing; kept as a possible radar substitute.</li>
+<li><strong>Sentinel-2 to detect fortifications</strong>: automatic detection failed; OpenStreetMap too patchy; to be reopened only with the permission of the mappers who record them (aggregated density, credited, non-commercial).</li>
 <li><strong>Shell impacts from Sentinel-1</strong>: no gradient towards the line (farming and speckle); Sentinel-2 impacts at 10 m are real but too sparse.</li>
 <li><strong>Geostationary fires (Meteosat)</strong>: not tested: the archive requires an account (LSA SAF).</li>
-<li><strong>Fortifications</strong>: OpenStreetMap too patchy, automatic Sentinel-2 detection failed; to be reopened only with the permission of the mappers who record them (aggregated density, credited, non-commercial).</li>
 <li><strong>Filtering fires by infrastructure</strong>: 0.6812 → 0.6811: no effect.</li>
 <li><strong>Parametric local σ (map imprecision by place)</strong>: worse calibration (stable sectors 0.052 → 0.062, active 0.019 → 0.071); replaced by sector-level conformal intervals.</li>
 </ul>
@@ -290,7 +310,7 @@
 <h3>Напрями в роботі</h3>
 <p class="sub">LLM, накопичені руйнування (переробка), «тверда» місцевість (великі річки, круті схили), Telegram як показаний індикатор.</p>
 <h3>Відхилені напрями</h3>
-<p class="sub">16 напрямів з цифровими причинами — у версіях FR та EN.</p>
+<p class="sub">26 напрямів з цифровими причинами — у версіях FR та EN.</p>
 </div>
 <div class="algo-l" data-lang="ru" lang="ru" hidden>
 <h2>Алгоритм, шаг за шагом</h2>
@@ -298,7 +318,7 @@
 <h3>Направления в работе</h3>
 <p class="sub">LLM, накопленные разрушения (переработка), «твёрдый» рельеф (крупные реки, крутые склоны), Telegram как показываемый индикатор.</p>
 <h3>Отклонённые направления</h3>
-<p class="sub">16 направлений с численными причинами — в версиях FR и EN.</p>
+<p class="sub">26 направлений с численными причинами — в версиях FR и EN.</p>
 </div>
 </section>
 

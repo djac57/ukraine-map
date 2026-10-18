@@ -359,6 +359,10 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir : « Pistes écartées » complétée avec toutes les pistes créatives abandonnées (26 au total : brouillage GPS
+  et GSM/IODA, Nova Poshta, Ukrzaliznytsia, écoles, évacuations, KTO, listes OCHA/NRC, Discord, Lostarmour,
+  GeoConfirmed, cartes MoD RF et Rybar, MAX, alertes et KAB, Black Marble, Ookla, OIM, Sentinel-2 fortifications,
+  impacts S1, Meteosat…), chacune avec sa raison en une ligne.
 - 18/10 soir (correction de l'utilisateur) : la section devient « Pistes en cours de travail » (LLM à retravailler ;
   destruction cumulée en refonte : InSAR désaisonnalisé, validation UNOSAT et villes connues ; TERRAIN DUR : grands
   fleuves Dnipro, Siverskyi Donets, Oskil large, reliefs abrupts ; TELEGRAM gardé comme INDICATEUR affiché) et
