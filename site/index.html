@@ -56,7 +56,7 @@
     <details class="lggrp" open data-grp="lgGrpCtx"><summary data-t="lgGrpCtx">contexte</summary>
       <div data-lyr="lyrBase" hidden><svg width="30" height="10"><line x1="0" y1="7" x2="30" y2="3" stroke="var(--road)" stroke-width="1.4"/><circle cx="15" cy="5" r="2" fill="var(--label)"/></svg><span data-t="lgBase">routes et localités</span></div>
       <div data-lyr="lyrInfra" hidden><svg width="30" height="10"><line x1="0" y1="8" x2="30" y2="8" stroke="rgba(95,95,95,.6)" stroke-width="1"/><path d="M15 0l4 6h-8z" fill="var(--ink)"/></svg><span data-t="lgInfra">infrastructures (au zoom)</span></div>
-      <div data-lyr="lyrRelief" hidden><svg width="30" height="10"><defs><linearGradient id="grel" x1="0" x2="1"><stop offset="0" stop-color="#ECF2E2"/><stop offset=".6" stop-color="#CCDEB8"/><stop offset="1" stop-color="#e6dcc4"/></linearGradient></defs><rect width="30" height="10" fill="url(#grel)"/><path d="M0 7Q10 3 30 6" stroke="#96BCDC" stroke-width="1.5" fill="none"/></svg><span data-t="lgRelief">relief (altitude en vert pâle, eaux en bleu ; ombrage en thème sombre)</span></div>
+      <div data-lyr="lyrRelief" hidden><svg width="30" height="10"><defs><linearGradient id="grel" x1="0" x2="1"><stop offset="0" stop-color="#ECF2E2"/><stop offset=".6" stop-color="#CCDEB8"/><stop offset="1" stop-color="#e6dcc4"/></linearGradient></defs><rect width="30" height="10" fill="url(#grel)"/><path d="M0 7Q10 3 30 6" stroke="#96BCDC" stroke-width="1.5" fill="none"/></svg><span data-t="lgRelief">relief (altitude et cours d'eau)</span></div>
     </details>
   </details>
 </div>
@@ -127,7 +127,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="i18n.js?v=774ae7d707"></script>
+<script src="i18n.js?v=8482b3efb9"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
@@ -158,6 +158,8 @@
   set(l);
 })();
 </script>
-<script src="app.js?v=61435d3aa5"></script>
+<script src="barrieres_dures.js?v=661d7567b4"></script>
+<script src="troncature_fleches.js?v=204895c1e8"></script>
+<script src="app.js?v=45fa9c9827"></script>
 </body>
 </html>

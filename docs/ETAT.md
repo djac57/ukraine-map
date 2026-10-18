@@ -359,6 +359,11 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 nuit : flèches TRONQUÉES juste avant une barrière dure (agent terrain : fleuve ≥ 40 m³/s ou plan d'eau,
+  escarpement, canal nommé ; `site/barrieres_dures.js`, `site/troncature_fleches.js`) : ni supprimées ni réorientées,
+  info-bulle « arrêtée par une barrière naturelle » ; test bloquant (aucune flèche dessinée ne franchit une barrière dure) :
+  1 937 flèches tronquées sur 6 653 dessinées (zooms 1 à 8). Sur le passé, la ligne ne dépasse la barrière d'ici t+2 que
+  dans 5,8 % des cas ; la troncature ramène l'écart longueur / avancée réalisée de 3,69 à 2,16 km.
 - 18/10 nuit : relief HYPSOMÉTRIQUE par défaut (agent terrain : vert pâle selon l'altitude, eaux bleu pâle, ombrage
   discret ; `site/relief/hypso*`, 1,53 Mo), dessiné à la place du fond terrestre, SOUS routes, densité et étiquettes ;
   en thème sombre (non réglé) ou avec `?relief=ombrage`, l'ombrage seul. Case toujours décochée par défaut.

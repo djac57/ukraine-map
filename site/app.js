@@ -671,6 +671,13 @@ function arrowPx(v, k, uncertain, wForce){
   hs = Math.min(hs, len * 0.28);
   return {len, w, hs, overview, cap};
 }
+// barrières dures (grands fleuves, plans d'eau, escarpements, canaux : barrieres_dures.js) : une flèche qui en traverse une
+// est TRONQUÉE juste avant (ni supprimée, ni réorientée) ; renvoie la longueur dessinée en px et le code de barrière
+function hardLen(ax, ay, ux, uy, len, k){
+  if (!window.hardTruncate) return {len, code: 0};
+  const Lg = len / (gAff[2] * k), r = window.hardTruncate([ax, ay], [ax + ux * Lg, ay + uy * Lg], 0.5);
+  return r.code ? {len: Math.hypot(r.head[0] - ax, r.head[1] - ay) * gAff[2] * k, code: r.code} : {len, code: 0};
+}
 const evWidth = (a, k) => k < 1.6 ? Math.min(3, 1.4 + a.w * 0.3) : Math.min(5, 1.6 + a.w * 0.7);
 // tête interdite : maille de Russie qui n'est pas nettement tenue par l'Ukraine (bande de Koursk : p < 0,2 au mois
 // précédent ou au mois affiché ; une bande frontalière seulement incertaine, comme au nord de Vovtchansk, ne compte pas) ;
@@ -715,11 +722,13 @@ function arrowsAt(fi, k, view){
 function drawnArrows(fi, k, view){
   const F = headFields(fi, view), km = FR.grid.size / 1000, out = [];
   for (const a of arrowsAt(fi, k, view)) { const P = arrowPx(a.v, k, a.uncertain), Lg = P.len / (gAff[2] * k), g = headGuard(F, a.gx, a.gy, a.dx, a.dy, Lg);
-    out.push({type: a.possible ? "poussée possible" : a.uncertain ? "incertaine" : "gradient", a, ax: a.gx, ay: a.gy, ru: a.ru, g, Lg, P}); }
+    const hb = g ? hardLen(a.gx, a.gy, g.ux, g.uy, P.len, k) : {len: P.len, code: 0};
+    out.push({type: a.possible ? "poussée possible" : a.uncertain ? "incertaine" : "gradient", a, ax: a.gx, ay: a.gy, ru: a.ru, g, Lg: hb.len / (gAff[2] * k), LgGuard: Lg, P: Object.assign({}, P, {len: hb.len, hs: Math.min(P.hs, hb.len * 0.28)}), hard: hb.code}); }
   for (const a of eventArrows(fi)) { if (a.late) continue;
     const L0 = Math.hypot(a.cx - a.ax, a.cy - a.ay); if (L0 < 1e-6) continue;
     const P = arrowPx(L0 * km, k, a.uncertain, evWidth(a, k)), Lg = P.len / (gAff[2] * k), g = headGuard(F, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, Lg);
-    out.push({type: "annonces", a, ax: a.ax, ay: a.ay, ru: a.ru, g, Lg, P, event: true}); }
+    const hb = g ? hardLen(a.ax, a.ay, g.ux, g.uy, P.len, k) : {len: P.len, code: 0};
+    out.push({type: "annonces", a, ax: a.ax, ay: a.ay, ru: a.ru, g, Lg: hb.len / (gAff[2] * k), LgGuard: Lg, P: Object.assign({}, P, {len: hb.len, hs: Math.min(P.hs, hb.len * 0.28)}), event: true, hard: hb.code}); }
   return out;
 }
 function drawEventArrows(k){
@@ -739,10 +748,11 @@ function drawEventArrows(k){
     const L0 = Math.hypot(a.cx - a.ax, a.cy - a.ay); if (L0 < 1e-6) continue;
     const ov = k < 1.6, w = evWidth(a, k), col = a.ru ? C.front : C.uactl;
     // longueur : règle commune (arrowPx, v = déplacement en km sur 30 jours) ; tête jamais en Russie (headGuard)
-    const PX = arrowPx(L0 * FR.grid.size / 1000, k, a.uncertain, w), L = PX.len, hs = PX.hs;
-    const hg = headGuard(HF, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, L / (gAff[2] * k));
+    const PX = arrowPx(L0 * FR.grid.size / 1000, k, a.uncertain, w);
+    const hg = headGuard(HF, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, PX.len / (gAff[2] * k));
     if (!hg) { const r = ov ? 3.5 : 5; ctx.globalAlpha = 0.7; ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI); ctx.stroke();
       arrowList.push({x: sx, y: sy, a: {ru: a.ru, v: 0, ev: a.n, late: true, undirected: true}}); continue; }
+    const L = hardLen(a.ax, a.ay, hg.ux, hg.uy, PX.len, k).len, hs = Math.min(PX.hs, L * 0.28);
     const dx = hg.ux, dy = hg.uy, ex = sx + dx * L, ey = sy + dy * L, hx = -dy, hy = dx;
     const path = () => { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs, ey - dy * hs); };
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
@@ -845,12 +855,15 @@ window.__uafArrowCheck = function(){
   // têtes (bloquant) : aucune flèche dessinée, de quelque type que ce soit, dont la hampe ou la tête entre en Russie
   // hors bande de Koursk tenue par l'Ukraine ; contrôlé à la longueur réellement dessinée (zooms 1 à 8) ;
   // longueur : jamais au-delà du plafond des flèches pleines
-  let heads = 0, headMoved = 0, headDropped = 0;
+  let heads = 0, headMoved = 0, headDropped = 0, headHard = 0;
   for (let fi = 3; fi < FR.months.length; fi++) { if (!FR.months[fi]) continue;
     const F = headFields(fi, "equilibre");
     for (const k of [1, 1.5, 2, 3, 4, 6, 8]) for (const d of drawnArrows(fi, k, "equilibre")) {
-      heads++; if (!d.g) { headDropped++; continue; } if (d.g.moved) headMoved++;
-      const c = segForbidden(F, d.ax, d.ay, d.g.ux, d.g.uy, d.Lg);
+      heads++; if (!d.g) { headDropped++; continue; } if (d.g.moved) headMoved++; if (d.hard) headHard++;
+      // barrière dure (bloquant) : la flèche dessinée ne la franchit pas
+      if (window.hardTruncate && window.hardTruncate([d.ax, d.ay], [d.ax + d.g.ux * d.Lg, d.ay + d.g.uy * d.Lg], 0.5).code) fails.push({mois: FR.months[fi].date, barriere: "franchie", type: d.type, zoom: k, base: llg(d.ax, d.ay)});
+      // contrôlé à la longueur validée par headGuard : la flèche tronquée à une barrière en est un sous-segment
+      const c = segForbidden(F, d.ax, d.ay, d.g.ux, d.g.uy, d.LgGuard || d.Lg);
       if (c >= 0) fails.push({mois: FR.months[fi].date, tete: "en Russie", type: d.type, zoom: k, ru: d.ru, base: llg(d.ax, d.ay), pointe: llg(d.ax + d.g.ux * d.Lg, d.ay + d.g.uy * d.Lg)});
       if (d.P.len > d.P.cap + 1e-6) fails.push({mois: FR.months[fi].date, longueur: Math.round(d.P.len), plafond: d.P.cap, type: d.type, zoom: k});
       // tête (bloquant) : au plus 2·HEAD_MAX px de large et 1,6·HEAD_MAX de long, et jamais plus de 45 % de la flèche
@@ -868,7 +881,7 @@ window.__uafArrowCheck = function(){
     const c = cellOf(pl[li][1], pl[li][2]); if (!(c >= 0 && c < GX * GY) || cellPlace[c] < 0) continue;
     launches++; const g = fullField("equilibre", fl);
     if (g && g[c] < 0.5) fails.push({mois: D.months[mi], lancement: pl[li][0], p: +g[c].toFixed(2)}); }
-  return {total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc, heads, headMoved, headDropped, launches};
+  return {total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc, heads, headMoved, headDropped, headHard, launches};
 };
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
@@ -882,8 +895,9 @@ function drawArrows(k){
     if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
     // vue d'ensemble : un seul style discret ; au zoom, longueur et épaisseur proportionnelles à la vitesse ; même règle
     // pour les flèches pointillées (arrowPx) ; tête jamais en Russie hors bande tenue par l'Ukraine (headGuard)
-    const {len, w, hs, overview} = arrowPx(a.v, k, a.uncertain), hg = headGuard(HF, a.gx, a.gy, a.dx, a.dy, len / (gAff[2] * k));
+    const P0 = arrowPx(a.v, k, a.uncertain), w = P0.w, overview = P0.overview, hg = headGuard(HF, a.gx, a.gy, a.dx, a.dy, P0.len / (gAff[2] * k));
     if (!hg) continue;
+    const hb = hardLen(a.gx, a.gy, hg.ux, hg.uy, P0.len, k), len = hb.len, hs = Math.min(P0.hs, len * 0.28);
     const dx = hg.ux, dy = hg.uy, ex = sx + dx * len, ey = sy + dy * len, col = a.ru ? C.front : C.uactl;
     const hx = -dy, hy = dx;
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
@@ -897,7 +911,7 @@ function drawArrows(k){
     ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * w * 1.6, ey - dy * w * 1.6); ctx.stroke();
     head(); ctx.fill();
     }
-    arrowList.push({x: (sx + ex) / 2, y: (sy + ey) / 2, a});
+    arrowList.push({x: (sx + ex) / 2, y: (sy + ey) / 2, a: hb.code ? Object.assign({}, a, {hard: true}) : a});
   }
   ctx.globalAlpha = 1;
 }
@@ -1740,7 +1754,7 @@ function hover(e){
     if (best) {
       const fi = frontIdx(), camp = _t(best.a.ru ? "russe" : "ukrainienne");
       if (!full) {
-        tip.innerHTML = (best.a.ev ? (best.a.undirected ? _t("localités qui ont basculé ({c}), sens non établi", {c: camp}) : best.a.late ? _t("confirmé par annonce ({c}), pas un mouvement nouveau", {c: camp})
+        tip.innerHTML = (best.a.hard ? `<div style="color:var(--faint)">${_t("flèche arrêtée par une barrière naturelle (grand fleuve, plan d'eau ou escarpement)")}</div>` : "") + (best.a.ev ? (best.a.undirected ? _t("localités qui ont basculé ({c}), sens non établi", {c: camp}) : best.a.late ? _t("confirmé par annonce ({c}), pas un mouvement nouveau", {c: camp})
           : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.possible ? _t("poussée ukrainienne possible : on se bat anormalement derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 3, peu de cas)") : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
         tip.style.display = "block";
         const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
