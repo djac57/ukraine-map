@@ -495,7 +495,15 @@ de dépendance aux cartes (3,87 % d'information hors cartes).
    (consensus à t+2), par mois et par secteur ; au survol d'un tronçon (« sur 12 mois, la source la plus proche de la
    réalité constatée ensuite est X ») et en tableau sur la page méthode, notre ligne comprise (mesure de valeur ajoutée).
 2. **Telegram en CI** : collecte des 15 canaux (agrégats seulement, ~2 h de travail) pour mettre à jour la couche
-   « signaux Telegram » au-delà de septembre 2026.
+   « signaux Telegram » au-delà de septembre 2026. Non fait le 19/10 (mode économe) : il faut porter dans `scripts/`
+   quatre modules de recherche (`signals3/crawl_sens.py`, `sens.py`, `analyse_sens.py` pour les tronçons, et
+   `signals2/telegram/tg_activity.py` avec son `extract.block_of`) et le dictionnaire de lieux russes
+   (`signals3/raw/ru_border.tsv`, 0,8 Mo) ; en CI, ne relire que les ~45 derniers jours et fusionner avec
+   `site/telegram_troncons.js` (même logique que `build_strikes_ru.py`).
+2 bis. **Destruction relative dans les villes** (11 villes, AUC 0,85 intra-ville) : demander à l'agent radar d'écrire
+   `<ville>_cells.csv` (maille 2 km, mois, part détruite persistante) ; il n'existe aujourd'hui que des statistiques
+   T à 10 m (`work_destr_hr/*_T.npz`, 10 villes). Couche ensuite ~20 min : percentile intra-ville, décochée, ⓘ
+   « comparer les quartiers d'une même ville, pas les villes entre elles ».
 3. **Cadence quotidienne** : mesurée le 18/10 avec `DAILY_DAYS=90` (56 mois + 29 pas de 3 jours) : 37 min 45 en local
    contre 30 à 34 min en mensuel ; tient dans le plafond CI de 90 min. Reste : activer, vérifier l'affichage des pas
    récents (couches mensuelles reprises), puis la version « incrémentale » (cache des mois historiques entre deux CI).
