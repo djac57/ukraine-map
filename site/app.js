@@ -1056,22 +1056,26 @@ function loadInfra(then){
 // infrastructures : dessinées seulement à partir d'un zoom sur une localité (INFRA_K) ; en vue d'ensemble, rien,
 // même case cochée ; trait léger, étiquettes au zoom fort seulement (INFRA_LABEL_K)
 // seuils exprimés en km par pixel (même rendu sur ordinateur et sur mobile, quel que soit le cadrage initial)
-const INFRA_KMPX = 0.4, INFRA_LABEL_KMPX = 0.15;
+const INFRA_KMPX = 0.8, INFRA_LABEL_KMPX = 0.3;
 const kmPerPx = k => (FR.grid.size / 1000) / (gAff[2] * k);
 function drawInfra(k){
   if (!showInfra || !INF || kmPerPx(k) > INFRA_KMPX) return;
-  const u = 1 / k, grey = "rgba(95,95,95,";
-  ctx.save(); ctx.strokeStyle = grey + "0.45)"; ctx.lineWidth = 0.6 * u;
-  for (const p of INF.rails) ctx.stroke(p);
-  ctx.strokeStyle = grey + "0.35)"; ctx.lineWidth = 0.5 * u; ctx.setLineDash([2 * u, 2 * u]);
-  for (const p of INF.zones) ctx.stroke(p);
-  ctx.setLineDash([]); ctx.fillStyle = grey + "0.7)"; ctx.strokeStyle = grey + "0.75)"; ctx.lineWidth = 0.8 * u;
+  const u = 1 / k, ink = C.dark ? "rgba(225,225,215," : "rgba(35,35,35,";
+  ctx.save();
+  // voies ferrées : trait gris foncé et traverses (hachures)
+  ctx.strokeStyle = ink + "0.75)"; ctx.lineWidth = 1.1 * u; for (const p of INF.rails) ctx.stroke(p);
+  ctx.lineWidth = 2.6 * u; ctx.setLineDash([0.8 * u, 3.2 * u]); for (const p of INF.rails) ctx.stroke(p); ctx.setLineDash([]);
+  ctx.strokeStyle = ink + "0.45)"; ctx.lineWidth = 0.7 * u; ctx.setLineDash([2.5 * u, 2 * u]); for (const p of INF.zones) ctx.stroke(p); ctx.setLineDash([]);
+  ctx.fillStyle = ink + "0.95)"; ctx.strokeStyle = ink + "0.95)"; ctx.lineWidth = 1.3 * u;
   for (const p of INF.pts) { if (p.k === "zone") continue;
-    const q = [gAff[0] + p.x[0] * gAff[2], gAff[1] + p.x[1] * gAff[2]], r = 1.5 * u;
-    if (p.k === "centrale") { ctx.beginPath(); ctx.moveTo(q[0], q[1] - r * 1.3); ctx.lineTo(q[0] + r, q[1] + r); ctx.lineTo(q[0] - r, q[1] + r); ctx.closePath(); ctx.fill(); }
-    else if (p.k === "air") { ctx.beginPath(); ctx.arc(q[0], q[1], r * 1.2, 0, 2 * Math.PI); ctx.stroke(); }
-    else ctx.fillRect(q[0] - r * 0.7, q[1] - r * 0.7, r * 1.4, r * 1.4);
-    if (kmPerPx(k) <= INFRA_LABEL_KMPX && p.label) { ctx.font = `${9 * u}px "JetBrains Mono",monospace`; ctx.fillText(p.label.split(" (")[0].slice(0, 28), q[0] + 3 * u, q[1] - 2 * u); }
+    const q = [gAff[0] + p.x[0] * gAff[2], gAff[1] + p.x[1] * gAff[2]], r = 3.2 * u;
+    ctx.fillStyle = C.bg; ctx.beginPath(); ctx.arc(q[0], q[1], r * 1.5, 0, 7); ctx.fill(); ctx.fillStyle = ink + "0.95)";   // pastille claire
+    if (p.k === "centrale") { ctx.beginPath(); ctx.moveTo(q[0] + r * 0.2, q[1] - r); ctx.lineTo(q[0] - r * 0.6, q[1] + r * 0.15); ctx.lineTo(q[0], q[1] + r * 0.15); ctx.lineTo(q[0] - r * 0.2, q[1] + r); ctx.lineTo(q[0] + r * 0.6, q[1] - r * 0.15); ctx.lineTo(q[0], q[1] - r * 0.15); ctx.closePath(); ctx.fill(); }   // éclair
+    else if (p.k === "air") { ctx.beginPath(); ctx.moveTo(q[0], q[1] - r); ctx.lineTo(q[0], q[1] + r); ctx.moveTo(q[0] - r, q[1]); ctx.lineTo(q[0] + r, q[1]); ctx.moveTo(q[0] - r * 0.5, q[1] + r * 0.8); ctx.lineTo(q[0] + r * 0.5, q[1] + r * 0.8); ctx.stroke(); }   // avion
+    else if (p.k === "gare") { ctx.fillRect(q[0] - r * 0.8, q[1] - r * 0.5, r * 1.6, r); ctx.beginPath(); ctx.arc(q[0] - r * 0.45, q[1] + r * 0.7, r * 0.25, 0, 7); ctx.arc(q[0] + r * 0.45, q[1] + r * 0.7, r * 0.25, 0, 7); ctx.fill(); }   // wagon
+    else { ctx.fillRect(q[0] - r * 0.8, q[1] - r * 0.2, r * 1.6, r); ctx.fillRect(q[0] - r * 0.8, q[1] - r, r * 0.45, r * 0.8); ctx.fillRect(q[0] + r * 0.1, q[1] - r * 0.7, r * 0.45, r * 0.5); }   // usine
+    if (kmPerPx(k) <= INFRA_LABEL_KMPX && p.label) { ctx.font = `600 ${10.5 * u}px "JetBrains Mono",monospace`; ctx.lineWidth = 2.6 * u; ctx.strokeStyle = C.bg; const t = p.label.split(" (")[0].slice(0, 28);
+      ctx.strokeText(t, q[0] + 5 * u, q[1] - 3 * u); ctx.fillText(t, q[0] + 5 * u, q[1] - 3 * u); ctx.strokeStyle = ink + "0.95)"; ctx.lineWidth = 1.3 * u; }
   }
   ctx.restore();
 }
@@ -1147,6 +1151,18 @@ function buildPm(fi, k){
 // présence ukrainiennes signalées par les sources russes (losange bleu, à gauche) et russes signalées par les sources
 // ukrainiennes (losange rouge, à droite) ; taille et opacité selon le nombre ; données figées (telegram_troncons.js)
 let showTg = false, TG = null, tgHits = [];
+// signaux gardés seulement près du front (ligne à ≤ 30 km du tronçon) ; « traversant » si le tronçon contient du terrain
+// tenu par le camp ADVERSE de celui dont on signale l'activité (activité ukrainienne là où la Russie tient, et inversement),
+// sinon « même côté » (confirmation de contrôle) ; renvoie null (loin du front), "cross" ou "same"
+function tgNearCross(fi, ij, key){
+  const g = fullField(fieldName(), fi); if (!g) return null;
+  let cross = false, ruSeen = false, uaSeen = false; const R = 15;   // 15 mailles = 30 km autour du tronçon
+  for (let j = ij[1] - R; j < ij[1] + TG.tileCells + R; j++) for (let i = ij[0] - R; i < ij[0] + TG.tileCells + R; i++) {
+    if (i < 0 || j < 0 || i >= GX || j >= GY) continue; const c = j * GX + i; if (cellPlace[c] === -1) continue;
+    const ru = g[c] > 0.5; if (ru) ruSeen = true; else uaSeen = true;
+    if (i >= ij[0] && i < ij[0] + TG.tileCells && j >= ij[1] && j < ij[1] + TG.tileCells && (key === "ru" ? ru : !ru)) cross = true; }
+  return ruSeen && uaSeen ? (cross ? "cross" : "same") : null;
+}
 function loadTg(then){ if (window.TG_TRONCONS) { TG = window.TG_TRONCONS; return then && then(); }
   const sc = document.createElement("script"); sc.src = "telegram_troncons.js?v=" + (FRONT_V.tg || ""); sc.onload = () => { TG = window.TG_TRONCONS; if (then) then(); }; document.head.appendChild(sc); }
 function drawTg(k){
@@ -1157,12 +1173,15 @@ function drawTg(k){
     for (const [mm, t, a, p] of TG[key]) { if (mm !== m) continue;
       const ij = TG.tiles[t]; if (!ij) continue;
       const gx = ij[0] + TG.tileCells / 2, gy = ij[1] + TG.tileCells / 2, n = a + p;
+      const kind = tgNearCross(fi, ij, key); if (!kind) continue;
       const x = (gAff[0] + gx * gAff[2]) * k + tr.x + side * 5, y = (gAff[1] + gy * gAff[2]) * k + tr.y;
       if (x < -10 || x > W + 10 || y < -10 || y > H + 10) continue;
       const r = Math.min(9, 3 + 1.6 * Math.sqrt(n));
       ctx.globalAlpha = Math.min(0.9, 0.35 + 0.12 * Math.sqrt(n)); ctx.fillStyle = col; ctx.strokeStyle = C.bg; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); ctx.fill(); ctx.stroke();
-      tgHits.push({x, y, r, key, a, p});
+      ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath();
+      if (kind === "cross") { ctx.globalAlpha = Math.min(1, 0.6 + 0.1 * Math.sqrt(n)); ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.4; ctx.stroke(); }   // traverse la ligne : plein, cerné
+      else { ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke(); }   // même côté : creux, discret
+      tgHits.push({x, y, r, key, a, p, kind});
     } }
   ctx.restore(); ctx.globalAlpha = 1;
 }
@@ -1171,20 +1190,29 @@ function drawTg(k){
 let showImp = false, IMP = null, impHits = [];
 function loadImp(then){ if (window.IMPACTS) { IMP = window.IMPACTS; return then && then(); }
   const sc = document.createElement("script"); sc.src = "impacts_troncons.js?v=0"; sc.onload = () => { IMP = window.IMPACTS; if (then) then(); }; document.head.appendChild(sc); }
+let impFor = "", impImg = null;
 function drawImp(k){
   impHits = []; if (!IMP) return;
   const fi = frontIdx(); if (fi < 0) return; const m = FR.months[fi].date.slice(0, 7);
-  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  for (const [mm, gx, gy, zr, zu, as] of IMP.rows) { if (mm !== m) continue;
-    const x = (gAff[0] + gx * gAff[2]) * k + tr.x, y = (gAff[1] + gy * gAff[2]) * k + tr.y;
-    if (x < -10 || x > W + 10 || y < -20 || y > H + 10) continue;
-    let any = false;
-    for (const [z, col, dx] of [[zr, "#8c510a", -4], [zu, "#01665e", 1]]) { if (z == null || z < 1) continue; any = true;
-      const h = Math.min(22, 3 + 2.2 * z); ctx.globalAlpha = z >= 2 ? 0.95 : 0.55; ctx.fillStyle = col; ctx.strokeStyle = C.bg; ctx.lineWidth = 0.8;
-      ctx.fillRect(x + dx, y - h, 3.5, h); ctx.strokeRect(x + dx, y - h, 3.5, h); }
-    if (any) impHits.push({x, y, zr, zu});
+  const PMF = viewFields("pmove"), g = fullField(fieldName(), fi); if (!PMF || !PMF[fi] || !g) { ensureView("pmove", () => draw()); return; }
+  const r = k < 1.6 ? 4 : k < 3 ? 2 : 1, key = fi + ":" + r + ":" + fieldName();
+  if (impFor !== key) {
+    impFor = key; impImg = document.createElement("canvas"); impImg.width = GX; impImg.height = GY;
+    const cx = impImg.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data, q = PMF[fi], z = new Map();
+    for (const [mm, gx, gy, zr, zu] of IMP.rows) if (mm === m) z.set(Math.floor(gy / IMP.secCells) * 1000 + Math.floor(gx / IMP.secCells), [zr, zu]);
+    for (let u = 0; u < UCELLS.length; u++) { if (!q[u]) continue;
+      const c0 = UCELLS[u], i0 = c0 % GX, j0 = Math.floor(c0 / GX), zz = z.get(Math.floor(j0 / IMP.secCells) * 1000 + Math.floor(i0 / IMP.secCells)); if (!zz) continue;
+      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        const ii = i0 + di, jj = j0 + dj; if (ii < 0 || jj < 0 || ii >= GX || jj >= GY || di * di + dj * dj > r * r) continue;
+        const c = jj * GX + ii, ru = g[c] > 0.5, v = ru ? zz[0] : zz[1]; if (v == null || v < 1 || cellPlace[c] === -1) continue;
+        const a = Math.round(255 * Math.min(0.85, 0.2 + 0.1 * v)), o = c * 4;
+        if (d[o + 3] < a) { const [R, G, B] = ru ? [140, 81, 10] : [1, 102, 94]; d[o] = R; d[o + 1] = G; d[o + 2] = B; d[o + 3] = a; } } }
+    cx.putImageData(img, 0, 0);
   }
-  ctx.restore(); ctx.globalAlpha = 1;
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(tr.x, tr.y); ctx.scale(k, k);
+  ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]); ctx.clip(domainPath); ctx.imageSmoothingEnabled = true; ctx.drawImage(impImg, 0, 0, GX, GY); ctx.restore();
+  for (const [mm, gx, gy, zr, zu] of IMP.rows) if (mm === m && ((zr || 0) >= 1 || (zu || 0) >= 1))
+    impHits.push({x: (gAff[0] + gx * gAff[2]) * k + tr.x, y: (gAff[1] + gy * gAff[2]) * k + tr.y, zr, zu});
 }
 // liseré P(mouvement) dessiné AU-DESSUS des feux et des hachures, avec un fin contour sombre pour le détacher
 function drawPm(k){
@@ -1482,6 +1510,7 @@ function drawRelief(k){
   if (typeof domainPath !== "undefined" && domainPath) ctx.clip(domainPath);   // Ukraine et bande russe du modèle
   const hyp = RLF === window.HYPSO;
   ctx.globalCompositeOperation = hyp ? "source-over" : "multiply";
+  if (hyp) ctx.filter = "blur(0.6px)";   // dégradé adouci : pas de liseré clair aux bords des vallées
   ctx.globalAlpha = hyp ? 1 : RELIEF_MODE === "over" ? 0.5 : 0.85;
   ctx.imageSmoothingEnabled = true;
   const z0 = rlfImg(L[0].file), z1 = kmpx < 0.9 ? rlfImg(L[1].file) : null;
@@ -1528,7 +1557,9 @@ function draw(){
   ctx.fillStyle = C.water; ctx.fill(paths.lakes);
   if (RELIEF_MODE === "under") drawRelief(k);
   bg = showBase ? baseProject() : null;
-  if (bg) { ctx.strokeStyle = C.road; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.1 / k; ctx.stroke(bg.r1); if (k >= 2) { ctx.lineWidth = 0.6 / k; ctx.globalAlpha = 0.4; ctx.stroke(bg.r2); } ctx.globalAlpha = 1; }
+  // routes : plus épaisses et plus sombres sur le relief, pour ressortir nettement
+  if (bg) { const rl = showRelief && RLF === window.HYPSO; ctx.strokeStyle = rl ? "#5a4a35" : C.road; ctx.globalAlpha = rl ? 0.85 : 0.55; ctx.lineWidth = (rl ? 1.7 : 1.1) / k; ctx.stroke(bg.r1);
+    if (k >= 2) { ctx.lineWidth = (rl ? 0.9 : 0.6) / k; ctx.globalAlpha = rl ? 0.65 : 0.4; ctx.stroke(bg.r2); } ctx.globalAlpha = 1; }
   drawFront(k);
   if (RELIEF_MODE === "over") drawRelief(k);
   ctx.lineWidth = 0.8/k; ctx.strokeStyle = C.water; ctx.stroke(paths.rivers);
@@ -1771,7 +1802,7 @@ let tipKey = null, tipFull = false;   // position du dernier affichage, détails
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
   if (showImp && impHits.length) {
-    let best = null; for (const h of impHits) if (Math.abs(h.x - mx) < 8 && my < h.y + 3 && my > h.y - 24) { best = h; break; }
+    let best = null, bd = 40; for (const h of impHits) { const dd = Math.hypot(h.x - mx, h.y - my); if (dd < bd) { bd = dd; best = h; } }
     if (best) {
       const zs = v => v == null ? "–" : (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1).replace(".", ",");
       tip.innerHTML = `<div>${_t("impacts détectés (30 j), anomalie locale z : côté russe {r} · côté ukrainien {u}", {r: zs(best.zr), u: zs(best.zu)})}</div><div style="color:var(--faint)">${_t("environ une détection sur deux est un cratère ; indice, pas une preuve")}</div>`;
@@ -1783,6 +1814,7 @@ function hover(e){
     let best = null; for (const h of tgHits) if (Math.hypot(h.x - mx, h.y - my) <= h.r + 2) { best = h; break; }
     if (best) {
       tip.innerHTML = `<div>${_t(best.key === "ru" ? "sources russes, ce mois-ci : {a} mention(s) d'attaques ukrainiennes, {p} de présence ukrainienne" : "sources ukrainiennes, ce mois-ci : {a} mention(s) d'attaques russes, {p} de présence russe", {a: best.a, p: best.p})}</div>` +
+        `<div>${_t(best.kind === "cross" ? "signalée chez le camp adverse (traverse la ligne)" : "signalée de son propre côté (confirmation de contrôle)")}</div>` +
         `<div style="color:var(--faint)">${_t("indique qu'un secteur va bouger, pas qui avance")}</div>`;
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;

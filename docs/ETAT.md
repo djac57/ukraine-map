@@ -359,6 +359,12 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 19/10 (retours) : impacts S2 en LISERÉ de chaque côté de la ligne (brun côté russe, vert sombre côté ukrainien,
+  opacité selon z, rien sous z = 1) ; relief hypsométrique adouci (ombrage 0,08 au lieu de 0,35, léger flou), routes plus
+  épaisses et plus sombres quand le relief est coché ; Telegram : seulement les tronçons à ≤ 30 km de la ligne,
+  signaux traversant la ligne en losange plein cerné, signaux du même côté (confirmation de contrôle) en losange creux ;
+  infrastructures visibles dès 0,8 km/px (étiquettes dès 0,3) : pictogrammes sombres sur pastille (gare, centrale,
+  aéroport, usine), voies ferrées gris foncé à traverses, étiquettes détourées.
 - 19/10 : couche « impacts détectés (Sentinel-2) », FIGÉE, décochée : z local des impacts par tronçon de 20 km, côté
   russe (barre brune) et ukrainien (vert sombre), fenêtre 30 j (`build_impacts_layer.py` → `site/impacts_troncons.js`,
   depuis `sar/out/impacts_troncons.csv`) ; ⓘ : ~1 détection sur 2 est un cratère, Lyman z +6,9 fin mai 2026, signal faible
@@ -500,6 +506,9 @@ de dépendance aux cartes (3,87 % d'information hors cartes).
    `signals2/telegram/tg_activity.py` avec son `extract.block_of`) et le dictionnaire de lieux russes
    (`signals3/raw/ru_border.tsv`, 0,8 Mo) ; en CI, ne relire que les ~45 derniers jours et fusionner avec
    `site/telegram_troncons.js` (même logique que `build_strikes_ru.py`).
+2 ter. **Telegram dans le champ p** (demande de l'utilisateur, 19/10) : que ces signaux PÈSENT dans la prédiction ET dans
+   l'état des lieux : même côté = confirmation de contrôle (resserre la bande), traversant = présence adverse (élargit
+   ou fait pencher). À tester en walk-forward dans v4 avec le KPI de dépendance et la précision.
 2 bis. **Destruction relative dans les villes** (11 villes, AUC 0,85 intra-ville) : demander à l'agent radar d'écrire
    `<ville>_cells.csv` (maille 2 km, mois, part détruite persistante) ; il n'existe aujourd'hui que des statistiques
    T à 10 m (`work_destr_hr/*_T.npz`, 10 villes). Couche ensuite ~20 min : percentile intra-ville, décochée, ⓘ
