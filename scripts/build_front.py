@@ -1036,9 +1036,14 @@ class Model:
             state["key"][s] = key
         state["prev_day"] = d
         dist = {}
+        offs = (getattr(self, "offsets", None) or {}).get(m if len(m) == 7 else m[:7], {}) if OFFSET_ON else {}
         for s, arr in signs.items():
             dd = signed_distance(arr, self.U, self.inU, P["cap_km"])
-            dist[s] = [dd.get(k) for k in self.U]
+            b = offs.get(s)
+            if b is None:
+                dist[s] = [dd.get(k) for k in self.U]
+            else:  # décalage de la carte dans ce secteur (appris sur le passé) retiré avant la mise en commun
+                dist[s] = [None if (v := dd.get(k)) is None else v if abs(v) >= 1e3 else v - float(b[u]) for u, k in enumerate(self.U)]
         sigma = {s: sigma0[s] * P["sigma_scale"] + v_km * P["v_scale"] * state["age"][s] / 30.0 for s in dist}
         # âge réel par localité : une carte que contredit un changement plus récent d'une autre carte (VIINA ou
         # journal DeepState) vieillit à cette localité depuis ce changement ; son σ s'y élargit d'autant (v · âge)
@@ -1399,6 +1404,91 @@ class Model:
 
 
 # ---------- calibration ----------
+OFFSET_ON = True    # décalage signé par source et par secteur, retiré avant la mise en commun (voir compute_offsets)
+
+
+def compute_offsets(model, fm, P, H=2, HL=12.0, TS=12, shrink=60.0, cap=6.0, bar=None):
+    """Décalage signé de chaque carte (DeepState, ISW, Wikipédia), secteur par secteur (tuiles de 24 km), par rapport à la
+    ligne de vérité retardée (consensus des cartes à t + H). Au mois t, médiane pondérée des écarts PASSÉS seulement
+    (mois q ≤ t − H), oubli de demi-vie HL mois (12 : un oubli de 6 mois faisait trembler la ligne de mois en mois), emprunt aux 8 tuiles voisines (poids 0,3), rétréci vers 0 quand
+    l'échantillon est petit (n / (n + shrink)), borné à ±cap km. Renvoie {mois: {source: décalage (km) par maille}} :
+    la distance signée de la source est corrigée de d − b avant la mise en commun."""
+    import numpy as np
+    from scipy import ndimage as ndi
+    held = ("dsm", "isw", "wiki")
+    U = model.U
+    uj = np.array([k // NX for k in U])
+    ui = np.array([k % NX for k in U])
+    tile = (uj // TS) * 1000 + ui // TS
+    NTy, NTx = NY // TS + 1, NX // TS + 1
+    bandk = [k for k in U if model.cell[k] == -2]
+    D, T = {}, {}
+    for t, m in enumerate(fm):
+        base = model.base_codes(model.snap[m].strftime("%Y%m%d"))
+        signs = model.poly_signs(base, proxies=False)
+        for a in signs.values():
+            for k in bandk:
+                a[k] = None
+        D[t] = {}
+        for s in held:
+            if s in signs:
+                dd = signed_distance(signs[s], U, model.inU, P["cap_km"])
+                D[t][s] = np.array([dd[k] if k in dd and abs(dd[k]) < 1e3 else np.nan for k in U], np.float32)
+        cons = []
+        for b in base:
+            v = [x for x in b[:3] if x in (1, 2)]
+            cons.append(1 if v.count(2) > v.count(1) else 0 if v.count(1) > v.count(2) else -1)
+        T[t] = np.array([cons[model.cell[k]] if model.cell[k] >= 0 else -1 for k in U], np.int8)
+    ERR = {}
+    for t in range(len(fm) - H):
+        g = np.full((NY, NX), -1, np.int8)
+        g[uj, ui] = T[t + H]
+        ru, ua = g == 1, g == 0
+        aua, aru = np.zeros_like(ru), np.zeros_like(ru)
+        for sh in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            aua |= np.roll(ua, sh, axis=(0, 1))
+            aru |= np.roll(ru, sh, axis=(0, 1))
+        er, eu = np.flatnonzero((ru & aua)[uj, ui]), np.flatnonzero((ua & aru)[uj, ui])
+        for s, d in D[t].items():
+            e = np.r_[d[er] - CELL_KM / 2, d[eu] + CELL_KM / 2]
+            idx = np.r_[er, eu]
+            ok = np.isfinite(e) & (np.abs(e) <= 30)
+            ERR[(t, s)] = (tile[idx[ok]], e[ok])
+    out, stats = {}, defaultdict(list)
+    for t, m in enumerate(fm):
+        out[m] = {}
+        for s in held:
+            past = [q for q in range(t - H + 1) if (q, s) in ERR]
+            if len(past) < 6:
+                continue
+            pk = np.concatenate([ERR[(q, s)][0] for q in past])
+            pe = np.concatenate([ERR[(q, s)][1] for q in past])
+            pw = np.concatenate([np.full(len(ERR[(q, s)][1]), 0.5 ** ((t - q) / HL)) for q in past])
+            B = np.zeros((NTy, NTx), np.float32)
+            for k in np.unique(pk):
+                ty, tx = divmod(int(k), 1000)
+                nb = {kk: (1.0 if kk == k else 0.3) for kk in ((ty + dy) * 1000 + tx + dx for dy in (-1, 0, 1) for dx in (-1, 0, 1))}
+                sel = np.isin(pk, list(nb))
+                w = pw[sel] * np.array([nb[q] for q in pk[sel]])
+                n = float(w.sum())
+                o = np.argsort(pe[sel])
+                c = np.cumsum(w[o])
+                med = float(pe[sel][o][np.searchsorted(c, c[-1] / 2)])
+                B[ty, tx] = max(-cap, min(cap, med * n / (n + shrink)))
+                if t == len(fm) - 1:
+                    stats[s].append(B[ty, tx])
+            b = ndi.map_coordinates(B, [uj / TS - 0.5, ui / TS - 0.5], order=1, mode="nearest").astype(np.float32)
+            # Dnipro : la ligne suit la rive ; un décalage appris y fait seulement trembler la ligne d'un mois à l'autre
+            # (cas calme du Dnipro : 16 → 23 flèches de gradient parasites sans cette exclusion)
+            if bar is not None:
+                b[bar < 10] = 0.0
+            out[m][s] = b
+    for s, v in stats.items():
+        v = np.abs(np.array(v))
+        print(f"  décalage {s} ({fm[-1]}) : |b| médian {np.median(v):.2f} km, 90e centile {np.percentile(v, 90):.2f} km, tuiles |b| > 1 km : {np.mean(v > 1):.0%}", flush=True)
+    return out
+
+
 def calibrate(model, months_sample, P):
     """Validation croisée des tracés (σ0) : voir la page. Renvoie (σ0, écarts moyens, diagramme, pente)."""
     held = ["dsm", "isw", "wiki"]
@@ -1757,6 +1847,8 @@ def main():
     print(f"σ local : variables prêtes ({len(model.feat)} mois) ; Dnipro et réservoir de Kakhovka à moins de 5 km : "
           f"{int((sect.barrier < 5).sum())} mailles", flush=True)
 
+    if OFFSET_ON:
+        model.offsets = compute_offsets(model, fm, P, bar=np.asarray(sect.barrier))
     v_km, speeds = estimate_speed(model, fm)
     print(f"vitesse typique du front : {v_km:.2f} km/mois", flush=True)
     sample = fm[::4] if not FAST else fm[::12]
