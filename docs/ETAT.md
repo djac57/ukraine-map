@@ -343,6 +343,15 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
    direction. **En tête de v4**, comme variable d'un « P(mouvement) » ou du nowcast.
 4. Moteur v4 : ligne déduite des signaux, cartes réduites à un témoin avec décalage et poids appris, ligne « données
    seules », indicateur de dépendance aux cartes ; asymétrie comme moteur de la ligne si le walk-forward le justifie.
+   Premier essai (18/10/2026, `ukraine-recherche/analyses/nowcast/v4_dataonly.py`, `v4_dataonly2.py`) : témoin des cartes
+   retardé de 3 mois + modèle walk-forward de bascule (distance, côté, feux, UCDP, pertes, assauts, tendance). Brier
+   (≤ 30 km, 2023-2026) : persistance 0,0481 / données seules 0,0529 / cartes du mois 0,0461 ; sur les mailles qui ont
+   changé de camp : 0,362 / 0,334 / 0,277. Les signaux récupèrent environ un tiers de ce qu'apportent trois mois de
+   cartes sur les mailles qui bougent, mais créent trop de fausses bascules ailleurs : recalibré en walk-forward, le
+   poids appris tombe à 0 (pas mieux que la persistance). Avec la liste rejouée et le radar en plus (`v4_dataonly3.py`) :
+   0,0524 / 0,334, même conclusion. Il faut des signaux plus spécifiques du lieu de bascule
+   (radar d'abandon et de destruction récents, liste rejouée, asymétrie relative, P(mouvement) Telegram) et un vrai
+   modèle espace-état le long de la ligne.
 5. Cadence quotidienne (fenêtre de 14 jours, décalage de 7 jours ; code présent, `DAILY_DAYS = 0`), puis prévision
    russe (« prévision (nos données) », Russie seulement ; Ukraine « trop peu fiable pour être affichée », ≈ 1 sur 13).
 6. Historique InSAR (HyP3, 8 000 crédits par mois, `EARTHDATA_TOKEN`), jeton alerts.in.ua quand il arrive
