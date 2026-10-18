@@ -53,7 +53,6 @@
       <div data-lyr="lyrLoss" hidden><svg width="30" height="10"><rect x="11" y="1" width="8" height="8" fill="var(--loss-now)"/></svg><span data-t="lgLoss">pertes documentées (WarSpotting)</span></div>
       <div data-lyr="lyrUcdp" hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="var(--ucdp)" opacity=".8"/></svg><span data-t="lgUcdp">combats au sol (UCDP)</span></div>
       <div data-lyr="lyrArcs" hidden><svg width="30" height="10"><path d="M2 8Q15 -2 28 8" stroke="var(--arc)" stroke-width="1.6" fill="none"/></svg><span data-t="lgArcs">missiles et drones (lancement → oblast visé)</span></div>
-      <div data-lyr="lyrDestr" hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="rgba(40,40,40,.7)"/></svg><span data-t="lgDestr">destruction cumulée (radar)</span></div>
     </details>
     <details class="lggrp" open data-grp="lgGrpCtx"><summary data-t="lgGrpCtx">contexte</summary>
       <div data-lyr="lyrBase" hidden><svg width="30" height="10"><line x1="0" y1="7" x2="30" y2="3" stroke="var(--road)" stroke-width="1.4"/><circle cx="15" cy="5" r="2" fill="var(--label)"/></svg><span data-t="lgBase">routes et localités</span></div>
@@ -114,7 +113,6 @@
     <label class="chk"><input type="checkbox" id="lyrBase" checked> <span data-t="cbBase">routes / localités</span></label>
     <label class="chk"><input type="checkbox" id="lyrInfra"> <span data-t="cbInfra">infrastructures (si zoom sur localité)</span></label>
     <label class="chk"><input type="checkbox" id="lyrRelief"> <span data-t="cbRelief">relief</span></label>
-    <label class="chk"><input type="checkbox" id="lyrDestr"> <span data-t="cbDestr">destruction cumulée (radar)</span></label>
     <div class="controls" id="fireOpts" hidden style="margin:4px 0 0">
       <span class="seg" role="group"><button class="btn" id="modePts" type="button" aria-pressed="true" data-t="pts">points</button><button class="btn" id="modeDen" type="button" aria-pressed="false" data-t="den">densité</button></span>
       <button class="btn" id="ref" type="button" aria-pressed="false">2021</button>

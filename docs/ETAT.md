@@ -359,6 +359,13 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir : couche « destruction cumulée » RETIRÉE du site (case et légende) : échec de la validation UNOSAT
+  (agent signaux 4 : AUC 0,49 sur 246 mailles de Marioupol, Kharkiv, Tchernihiv, 2022 ; rappel nul au seuil 0,2 ;
+  artefact saisonnier : médiane nationale 0,35 en juillet-septembre ; Bakhmout 0,03 en mai 2023, 0,52 en juillet 2024).
+  Version corrigée testée (`built_damage_excess`, persistance 3 mois consécutifs, mois à médiane > 0,1 écartés :
+  13 mois) : AUC poolée 0,28 (429 mailles, la plupart sans 3 mois de radar au moment des évaluations) : échec aussi.
+  Le build produit encore `front_destr.js` (non chargé) ; la destruction n'entre dans aucun modèle. À reprendre avec
+  une vérité 2023-2026 (pas d'UNOSAT public après 2022) et un indice désaisonnalisé.
 - 18/10 soir : liseré P(mouvement) dessiné AU-DESSUS des feux et des hachures, avec un fin contour sombre
   (drop-shadow) ; palette des feux passée en rouge brique (clair #b0301c / #9a4a3a, sombre #ff5a4a / #b8604f) : plus
   d'ocre ni d'orange clair qui noyaient l'ambre. Combinaisons vérifiées (feux + combats + zone grise + P(mouvement) +
