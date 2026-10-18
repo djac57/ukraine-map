@@ -20,6 +20,7 @@ window.METHODE_H = {
   "5. Calibration par validation croisée": ["5. Calibration by cross-validation", "5. Калібрування перехресною перевіркою", "5. Калибровка перекрёстной проверкой"],
   "6. Incertitude sur les km²": ["6. Uncertainty on km²", "6. Невизначеність км²", "6. Неопределённость км²"],
   "7. Choix arbitraires et sensibilité": ["7. Arbitrary choices and sensitivity", "7. Довільні вибори й чутливість", "7. Произвольные выборы и чувствительность"],
+  "Sources et licences": ["Sources and licences", "Джерела та ліцензії", "Источники и лицензии"],
   "Limites": ["Limits", "Обмеження", "Ограничения"],
   "Normale et excès, mois par mois": ["Normal and excess, month by month", "Норма й надлишок, щомісяця", "Норма и избыток, помесячно"],
   "Par région": ["By region", "За регіонами", "По регионам"],

@@ -299,6 +299,11 @@ def check_legend():
                 miss = [lg for lg in block if not re.search(r"[{,\s]" + t + r":", block[lg])]
                 if miss:
                     errs.append(f"{key} : clé {t} absente en {', '.join(miss)}")
+    # lien unique « Données, méthode et sources » vers la section #sources de la page méthode, en 4 langues
+    meth = open(os.path.join(SITE, "methode.html"), encoding="utf-8").read()
+    if 'href="methode.html#sources"' not in page or 'id="sources"' not in meth:
+        errs.append("lien « Données, méthode et sources » ou section #sources absents")
+    errs += [f"clé dataLink absente en {lg}" for lg in block if not re.search(r"[{,\s]dataLink:", block[lg])]
     print(f"LEGENDE|{'OK' if not errs else 'ECHEC'}|{n} cases, {len(rows)} entrées ; " + ("; ".join(errs) if errs else "chaque case a son entrée en 4 langues"))
     return not errs
 

@@ -345,6 +345,10 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   combats intenses = diagonales rouges, combats derrière la ligne = pointillé brun.
   Légende groupée (Ligne / Mouvements / Combats / Contexte), groupes repliables, groupe vide masqué.
 - 18/10 : liseré P(mouvement) élargi en vue d'ensemble (± 10 km affichés), rien sous P = 10 %, opacité selon P.
+- 18/10 : sous la carte, un seul lien « Données, méthode et sources » (4 langues) vers `methode.html#sources` ; section
+  « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
+  Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
+  calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
 - 18/10 : couche relief publiée, décochée par défaut, au-dessus de la densité (opacité 0,5). Covariables de terrain
   non retenues pour le modèle.
 - 18/10 : page méthode réduite à : but, algorithme pas à pas, validation (tableaux), décisions et limites, sources et
