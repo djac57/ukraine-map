@@ -477,6 +477,32 @@ officielle), `signals3/`, `sar/` (rapport_SAR_V2.md), `backtest/`, `front/` (jou
 
 ## 8. Feuille de route
 
+### Point de clôture du 19/10/2026 (nuit du 18 au 19)
+
+**Fait et publié le 18/10** (détails au § 6) : secteurs susceptibles de bouger (AUC 0,80) ; flèches homogènes, têtes
+plafonnées, jamais en Russie, tronquées aux barrières dures ; légende dynamique groupée ; méthode allégée, sources et
+licences en tête, pistes en cours / écartées / indicateur ; relief hypsométrique ; destruction cumulée retirée (échec
+UNOSAT) ; missiles et drones à deux sens ; annonces officielles en couche dédiée (30 jours, cliquables) ; tableau public
+de fiabilité des sources ; densité des feux lissée ; comparaison 2021 retirée ; signaux Telegram (figés) ; KPI interne
+de dépendance aux cartes (3,87 % d'information hors cartes).
+
+**Reste à faire, dans l'ordre proposé** :
+1. **« Qui avait raison »** : pour DeepState, ISW, Wikipédia et notre ligne, distance moyenne à la vérité retardée
+   (consensus à t+2), par mois et par secteur ; au survol d'un tronçon (« sur 12 mois, la source la plus proche de la
+   réalité constatée ensuite est X ») et en tableau sur la page méthode, notre ligne comprise (mesure de valeur ajoutée).
+2. **Telegram en CI** : collecte des 15 canaux (agrégats seulement, ~2 h de travail) pour mettre à jour la couche
+   « signaux Telegram » au-delà de septembre 2026.
+3. **Cadence quotidienne** : mesurée le 18/10 avec `DAILY_DAYS=90` (56 mois + 29 pas de 3 jours) : 37 min 45 en local
+   contre 30 à 34 min en mensuel ; tient dans le plafond CI de 90 min. Reste : activer, vérifier l'affichage des pas
+   récents (couches mensuelles reprises), puis la version « incrémentale » (cache des mois historiques entre deux CI).
+4. **Terrain dur dans le modèle** : seulement si le test de l'agent terrain le valide (aujourd'hui : contrainte
+   d'affichage seulement).
+5. **Destruction cumulée** : refonte (cohérence InSAR désaisonnalisée, vérité 2023-2026, villes connues).
+6. **Gouverneurs russes en CI** (fichier figé aujourd'hui) ; FIRMS sur sites industriels déjà calculé à chaque build.
+7. **Prévision russe**, URL partageables (date, zoom, calques, langue), puis le projet LLM (§ 8, point 10).
+8. Dette : séparer un `methode.js` (la page méthode charge encore app.js et masque la carte), `front_destr.js` encore
+   produit sans être chargé, thème sombre du relief hypsométrique.
+
 Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section « Feuille de route Ukraine ») :
 
 1. Version test : mobile, 3 styles de flèches, flèches réorientées le long de la limite, info-bulle au zoom, combats
