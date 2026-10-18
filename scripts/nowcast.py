@@ -28,7 +28,7 @@ from scipy import ndimage
 BGRID = [0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
 WIDTH_KM = 30.0
 R0 = 0.03
-NAMES = ["feux", "ucdp", "pertes"]
+NAMES = ["feux", "ucdp", "pertes", "assauts (état-major UA, faits)"]
 CASES = [
     ("Vivaldi (nord de Lyman, 2026)", ["2026-05", "2026-06", "2026-07"], [37.55, 38.15, 48.98, 49.30]),
     ("Kharkiv (contre-offensive, 2022)", ["2022-08", "2022-09"], [36.5, 38.5, 49.0, 50.4]),
@@ -43,6 +43,12 @@ CASES = [
 def lgt(p):
     p = np.clip(p, 0.5 / 63, 62.5 / 63)
     return np.log(p / (1 - p))
+
+
+def pad(indicators, n):
+    """Complète par des grilles nulles (ex. pas récents sans faits de l'état-major) jusqu'au nombre d'indicateurs."""
+    ind = list(indicators)
+    return ind + [np.zeros(n, np.float32) for _ in range(len(NAMES) - len(ind))]
 
 
 class Nowcast:
@@ -66,7 +72,7 @@ class Nowcast:
         self.P[t] = np.asarray(p, np.float32)
         self.T[t] = np.asarray(truth, np.int8)
         self.IND[t] = [ndimage.gaussian_filter(np.asarray(x, np.float32).reshape(self.NY, self.NX), 3.0)[self.jj, self.ii]
-                       for x in indicators]
+                       for x in pad(indicators, self.NY * self.NX)]
 
     def dist_line(self, t):
         if t not in self._dist:
@@ -117,7 +123,7 @@ class Nowcast:
         self.P[key] = np.asarray(p, np.float32)
         self.P[key - k] = np.asarray(p_back, np.float32)
         self.IND[key] = [ndimage.gaussian_filter(np.asarray(x, np.float32).reshape(self.NY, self.NX), 3.0)[self.jj, self.ii]
-                         for x in indicators]
+                         for x in pad(indicators, self.NY * self.NX)]
         try:
             self.last_ind = self.IND[key]
             return self.apply(key, beta), self.score(key), self.dist_line(key)
@@ -136,7 +142,7 @@ class Nowcast:
         selon la distance signée à la ligne 50 % (+ côté russe) ; fond = niveau à 40-60 km de chaque côté ; zone = mailles
         à moins de 60 km de la ligne où A dépasse factor × fond (de leur côté), reliées à la ligne. Renvoie (rapport
         A / seuil sur U, masque de zone, bilan : km², largeurs moyennes par côté, tuiles de 50 km, profil)."""
-        A = np.mean(np.stack([1 - np.exp(-np.asarray(ind_s[n], np.float32) / self.H[n]) for n in range(len(NAMES))]), axis=0)
+        A = np.mean(np.stack([1 - np.exp(-np.asarray(ind_s[n], np.float32) / self.H[n]) for n in range(min(len(NAMES), len(ind_s)))]), axis=0)
         g = np.full((self.NY, self.NX), np.nan, np.float32)
         g[self.jj, self.ii] = p
         ru, ua = g > 0.5, g < 0.5

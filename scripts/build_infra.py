@@ -3,10 +3,10 @@
     python3 scripts/build_infra.py <dossier_brut>
 
 Infrastructures statiques et publiques uniquement (voies ferrées, gares principales, centrales électriques, grands sites
-industriels, cokeries et mines, aéroports et aérodromes), sans aucune information de frappe ni de dommages.
+industriels, cokeries et mines, aéroports et grandes bases), sans aucune information de frappe ni de dommages.
 Filtres pour ne pas surcharger : gares des localités d'au moins 20 000 habitants (GeoNames, fond de carte) ; centrales
 d'au moins 50 MW (nucléaire et hydraulique toujours) ; zones industrielles de plus de 1 km² ; aéroports OurAirports
-(grands et moyens) et aérodromes OpenStreetMap nommés, dédoublonnés à 3 km.
+(grands et moyens). Toute l'Ukraine et la bande russe (22-41,5° E, 44-52,5° N).
 """
 import csv
 import io
@@ -18,7 +18,7 @@ import sys
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-S, W, N, E = 44.0, 30.0, 52.5, 41.5
+S, W, N, E = 44.0, 22.0, 52.5, 41.5
 
 
 def inside(lon, lat):
@@ -100,8 +100,8 @@ def main():
     out = {"sources": {
         "rail": "Natural Earth 10m railroads (domaine public) ; OpenStreetMap usage=main (ODbL)",
         "plants": "WRI Global Power Plant Database v1.3.0, 2021 (CC BY 4.0)",
-        "airports": "OurAirports (domaine public) ; OpenStreetMap (ODbL)",
-        "osm": "© contributeurs OpenStreetMap (ODbL) : gares, zones industrielles, cokeries, mines, aérodromes"}}
+        "airports": "OurAirports (domaine public), aéroports et grandes bases",
+        "osm": "© contributeurs OpenStreetMap (ODbL) : gares, voies principales, zones industrielles, cokeries, mines"}}
     # voies ferrées
     rail = []
     zp = os.path.join(raw, "ne_10m_railroads.zip")
@@ -165,7 +165,8 @@ def main():
             kind = tg.get("industrial") or tg.get("product") or tg.get("resource") or "industrie"
             heavy.append([round(lon, 3), round(lat, 3), nm, kind])
     out["heavy"] = heavy
-    # aéroports et aérodromes (statiques, publics), dédoublonnés à 3 km
+    # aéroports et grandes bases aériennes (OurAirports, types « large » et « medium » ; les petits aérodromes, trop
+    # nombreux, ne sont pas repris)
     air = []
     p = os.path.join(raw, "airports.csv")
     if os.path.exists(p):
@@ -174,20 +175,11 @@ def main():
                 lon, lat = float(r["longitude_deg"]), float(r["latitude_deg"])
                 if inside(lon, lat):
                     air.append([round(lon, 3), round(lat, 3), r["name"], "aéroport"])
-    for el in osm(os.path.join(raw, "osm_aero.json")):
-        lon, lat = centre(el)
-        tg = el.get("tags", {})
-        nm = name_of(tg)
-        if lon is None or not nm:
-            continue
-        if any(math.hypot((a[0] - lon) * 68, (a[1] - lat) * 111) < 3 for a in air):
-            continue
-        air.append([round(lon, 3), round(lat, 3), nm, "base aérienne" if tg.get("military") == "airfield" or tg.get("aerodrome:type") == "military" else "aérodrome"])
     out["airports"] = air
     js = "window.INFRA=" + json.dumps(out, ensure_ascii=False, separators=(",", ":")) + ";"
     open(os.path.join(ROOT, "site", "infra.js"), "w", encoding="utf-8").write(js)
     print(f"infra.js : {len(js) // 1024} Ko · voies ferrées {len(out['rail'])} tronçons (dont Natural Earth {ne_n}) · gares {len(out['stations'])} · "
-          f"centrales {len(plants)} · zones industrielles > 1 km² {len(ind)} · sites lourds {len(heavy)} · aéroports et aérodromes {len(air)}")
+          f"centrales {len(plants)} · zones industrielles > 1 km² {len(ind)} · sites lourds {len(heavy)} · aéroports et grandes bases {len(air)}")
 
 
 if __name__ == "__main__":

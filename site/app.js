@@ -1,13 +1,20 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"combat": "95de17d15a", "contact": "6de379e9e7", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "01d6b2d188", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "5c6bae7126", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"asym": "950790f4da", "combat": "6f6fcc18b2", "contact": "5fac05f923", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
 const MOIS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
 const MC = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
-const monthLabel = i => { const [y,m] = D.months[i].split("-"); return MOIS[+m-1] + " " + y; };
+// mois dans la langue de la page (Intl), français par défaut
+const LOC = () => ({en: "en-GB", uk: "uk-UA", ru: "ru-RU"})[document.documentElement.lang] || "fr-FR";
+const monthName = (y, m) => document.documentElement.lang && document.documentElement.lang !== "fr"
+  ? new Intl.DateTimeFormat(LOC(), {month: "long", year: "numeric"}).format(new Date(+y, +m - 1, 15)).replace(/\s*г\.$|\s*р\.$/, "")
+  : MOIS[+m - 1] + " " + y;
+const dayName = (y, m, d) => document.documentElement.lang && document.documentElement.lang !== "fr"
+  ? new Intl.DateTimeFormat(LOC(), {day: "numeric", month: "long", year: "numeric"}).format(new Date(+y, +m - 1, +d)) : `${+d} ${MOIS[+m - 1]} ${y}`;
+const monthLabel = i => { const [y,m] = D.months[i].split("-"); return monthName(y, m); };
 const dateFr = s => { const [y,m,d] = s.split("-"); return (+d) + " " + MOIS[+m-1] + " " + y; };
 
 // ---------- thème ----------
@@ -139,8 +146,8 @@ function frameAt(fi, days){
   return best;
 }
 // libellé d'un instantané : mois, ou date du pas récent
-const frameLabel = fi => { if (fi < NMF) return monthLabel(fi); const [y, mo, d] = FR.months[fi].date.split("-"); return `${+d} ${MOIS[+mo - 1]} ${y}`; };
-const stepLabel = s => { const a = AX[s]; if (!a || !a.d) return monthLabel(a ? a.m : cur); const [y, mo, d] = a.d.split("-"); return `${+d} ${MOIS[+mo - 1]} ${y}`; };
+const frameLabel = fi => { if (fi < NMF) return monthLabel(fi); const [y, mo, d] = FR.months[fi].date.split("-"); return dayName(y, mo, d); };
+const stepLabel = s => { const a = AX[s]; if (!a || !a.d) return monthLabel(a ? a.m : cur); const [y, mo, d] = a.d.split("-"); return dayName(y, mo, d); };
 // champs de probabilité : un fichier par vue (la vue équilibrée est chargée d'office), différences mois à mois
 // bande russe : distance à l'Ukraine (en mailles), pour estomper la couleur vers l'intérieur de la Russie
 const bandFade = new Float32Array(GX * GY).fill(1);
@@ -356,7 +363,24 @@ function computeArrows(fi, Lkm, view){
       // garde-fou de sens : avancée russe vers −∇p, ukrainienne vers +∇p, à la base de la flèche ; la direction est
       // sgn·n et le sens attendu sgn·∇p, leur produit scalaire vaut n·∇p (positif par construction, vérifié ici)
       if (nx * gx + ny * gy <= 0) continue;
-      out.push({gx: ax, gy: ay, dx: nx * sgn, dy: ny * sgn, v: Math.abs(v), ru: v < 0, L: Lkm, segKm: Math.round(a1 - a0), vm: vm.map(x => +x.toFixed(2))});
+      // garde-fou « combats derrière la ligne » : quand l'activité se concentre du côté du camp que la flèche fait
+      // avancer (asymétrie ≥ 0,2 à moins de 12 km de la base) et que le dernier mois ne va pas dans son sens, la flèche
+      // devient « incertaine » (creuse). Bilan 2023-2026 : ces flèches russes ne sont suivies d'un gain russe que dans
+      // 24 % des cas, contre 45 % pour les autres (cas de Lyman en juin 2026 : moyenne d'avril-mai, juin immobile)
+      let uncertain = false;
+      const AS = viewFields("asym") ? fullField("asym", fi) : null;
+      if (AS && !(Math.sign(vm[0]) === Math.sign(v) && Math.abs(vm[0]) >= 0.05)) {
+        const R = 12 / km, adv = v < 0;   // adv : avancée russe
+        for (let jj = Math.max(0, Math.floor(ay - R)); jj <= Math.min(GY - 1, Math.ceil(ay + R)) && !uncertain; jj++)
+          for (let ii = Math.max(0, Math.floor(ax - R)); ii <= Math.min(GX - 1, Math.ceil(ax + R)); ii++) {
+            const c = jj * GX + ii;
+            if (cellPlace[c] === -1 || AS[c] < 0.2 || Math.hypot(ii + 0.5 - ax, jj + 0.5 - ay) > R) continue;
+            if ((g1[c] > 0.5) === adv) { uncertain = true; break; }
+          }
+      }
+      const gd = guardDir(G4[1], g1, ax, ay, nx * sgn, ny * sgn, v < 0);
+      out.push({gx: ax, gy: ay, dx: gd.ux, dy: gd.uy, v: Math.abs(v), ru: v < 0, L: Lkm, segKm: Math.round(a1 - a0), vm: vm.map(x => +x.toFixed(2)),
+                uncertain: uncertain || gd.st === "incertaine", reoriented: gd.st === "réorientée", guarded: gd.st !== "ok", why: gd.why});
     }
   }
   return arrowCache[key] = out;
@@ -467,9 +491,11 @@ function eventArrows(fi){
       // existent (à plus de 1 km de la base) ; sinon le sens n'est pas établi : repère creux, sans direction
       const against = [fl, fc].some(t => t && Math.hypot(t[0] - arr.ax, t[1] - arr.ay) * km >= 1 && (t[0] - arr.ax) * arr.ux + (t[1] - arr.ay) * arr.uy <= 0);
       if (against) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, undirected: true, items: c.items}); continue; }
+      const gd = guardDir(POLD, pc, arr.ax, arr.ay, arr.ux, arr.uy, camp === 1, c.items.map(q => [q.gx, q.gy, q.w]));
+      if (gd.st === "incertaine") { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, undirected: true, items: c.items, why: gd.why}); continue; }
       const L = Math.max(arr.len, 4 / km);
-      out.push({ax: arr.ax, ay: arr.ay, cx: arr.ax + arr.ux * L, cy: arr.ay + arr.uy * L, ru: camp === 1, n, w: sw, dkm: bd * km, late: false,
-                items: c.items, dir: [arr.ux, arr.uy], mode: arr.mode, bary: [cx, cy], refs: [fl, fc]});
+      out.push({ax: arr.ax, ay: arr.ay, cx: arr.ax + gd.ux * L, cy: arr.ay + gd.uy * L, ru: camp === 1, n, w: sw, dkm: bd * km, late: false,
+                items: c.items, dir: [gd.ux, gd.uy], mode: arr.mode, bary: [cx, cy], refs: [fl, fc], reoriented: gd.st === "réorientée", why: gd.why});
     }
   }
   return evCache[fi] = out;
@@ -492,6 +518,76 @@ function lineShift(oldRuns, newRuns, pc, pold, cx, cy, camp){
 }
 // barycentre des mailles qui ont basculé vers le camp annonceur (adverses à p_old, au camp à p_now) à moins de 15 km ;
 // null s'il y en a moins de 3
+// diagnostic (headless) : flèches d'un mois dans une boîte, avec leur tête et le garde-fou de direction
+window.__uafDirBox = (fi, b) => { const out = [], p0 = POLDOF(fi), km = FR.grid.size / 1000, ll = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(v => +v.toFixed(3));
+  const inb = q => q[0] >= b[0] && q[0] <= b[1] && q[1] >= b[2] && q[1] <= b[3];
+  for (const L of ["overview", 20, 10]) for (const a of (L === "overview" ? overviewArrows(fi, "equilibre") : computeArrows(fi, L, "equilibre"))) {
+    const base = ll(a.gx, a.gy); if (!inb(base)) continue;
+    out.push({type: "gradient " + L, ru: a.ru, base, head: ll(a.gx + a.dx * 5 / km, a.gy + a.dy * 5 / km), viol: p0 && !a.uncertain ? dirViolation(p0, a.gx, a.gy, a.dx, a.dy, a.ru) : null, reoriented: !!a.reoriented, uncertain: !!a.uncertain, why: a.why || null}); }
+  for (const a of eventArrows(fi)) { const base = ll(a.ax, a.ay); if (!inb(base) || a.late) continue;
+    out.push({type: "localités", ru: a.ru, base, head: ll(a.cx, a.cy), viol: p0 ? dirViolation(p0, a.ax, a.ay, a.dir[0], a.dir[1], a.ru) : null, reoriented: !!a.reoriented, uncertain: false, why: a.why || null}); }
+  return out; };
+// diagnostic (headless) : mailles basculées vers un camp entre le mois précédent et le mois fi, à R km d'un point
+window.__uafFlipped = (fi, lon, lat, R, ru) => { const p0 = POLDOF(fi), pc = fullField("equilibre", fi), q = proj([lon, lat]), cx = (q[0] - gAff[0]) / gAff[2], cy = (q[1] - gAff[1]) / gAff[2], km = FR.grid.size / 1000, out = [];
+  if (!p0 || !pc) return out;
+  for (let c = 0; c < GX * GY; c++) { const i = c % GX, j = Math.floor(c / GX); if (Math.hypot(i + 0.5 - cx, j + 0.5 - cy) * km > R || cellPlace[c] === -1) continue;
+    if (ru ? (p0[c] < 0.45 && pc[c] > 0.55) : (p0[c] > 0.55 && pc[c] < 0.45)) out.push(proj.invert([gAff[0] + (i + 0.5) * gAff[2], gAff[1] + (j + 0.5) * gAff[2]]).map(v => +v.toFixed(3))); }
+  return out; };
+const POLDOF = fi => { const f = frameAt(fi, 30); return f >= 0 ? fullField("equilibre", f) : null; };
+// ---------- garde-fou de direction (toutes les flèches) ----------
+// Une flèche ne pointe jamais vers une zone déjà tenue par le camp qui avance au mois précédent (p ≥ 0,95 pour une
+// avancée russe, ≤ 0,05 pour une avancée ukrainienne), ni à travers la frontière d'État vers son propre territoire, et sa
+// tête tombe là où ce camp était moins probable qu'à la base. En cas de conflit, la flèche est RÉORIENTÉE le long de la
+// limite (ligne 50 % ou frontière) : on retire la composante vers la zone tenue, on garde la tangente, dans le sens où la
+// ligne a réellement reculé (mailles basculées de chaque côté) ; à défaut de sens établi, elle devient incertaine.
+const RUSSIA = c => cellPlace[c] === -2 || (cellPlace[c] === -1 && ruMask && ruMask[c]);
+function dirViolation(p0, ax, ay, ux, uy, ru){
+  const km = FR.grid.size / 1000, L = 5 / km, hx = ax + ux * L, hy = ay + uy * L;
+  const ci = (x, y) => Math.max(0, Math.min(GY - 1, Math.floor(y))) * GX + Math.max(0, Math.min(GX - 1, Math.floor(x)));
+  const cb = ci(ax, ay), ch = ci(hx, hy), pb = p0[cb], ph = p0[ch];
+  if (ru ? ph >= 0.95 : ph <= 0.05) return "zone déjà tenue";
+  // frontière d'État : sondée jusqu'à 10 km (une avancée russe ne progresse pas vers la Russie, ni une avancée
+  // ukrainienne en Russie vers l'Ukraine)
+  for (const f of [0.4, 0.6, 0.8, 1.0, 1.4, 2.0]) { const c2 = ci(ax + ux * L * f, ay + uy * L * f);
+    if (ru && !RUSSIA(cb) && RUSSIA(c2)) return "frontière vers la Russie";
+    if (!ru && RUSSIA(cb) && cellPlace[c2] >= 0) return "frontière vers l'Ukraine"; }
+  if (ru ? ph >= pb + 0.02 : ph <= pb - 0.02) return "tête plus favorable que la base";
+  return null;
+}
+function guardDir(p0, pc, ax, ay, ux, uy, ru, pts){
+  if (!p0) return {ux, uy, st: "ok"};
+  const why = dirViolation(p0, ax, ay, ux, uy, ru);
+  if (!why) return {ux, uy, st: "ok"};
+  // normale à la limite : gradient de p au mois précédent (vers le côté russe), ou de la frontière d'État
+  let [gx, gy] = gradAt(p0, ax, ay), gn = Math.hypot(gx, gy);
+  if (why.startsWith("frontière") || gn < 1e-4) {
+    const R = 3; gx = 0; gy = 0;
+    for (let dj = -R; dj <= R; dj++) for (let di = -R; di <= R; di++) {
+      const c = (Math.floor(ay) + dj) * GX + Math.floor(ax) + di; if (c < 0 || c >= GX * GY) continue;
+      if (RUSSIA(c)) { gx += di; gy += dj; } }
+    gn = Math.hypot(gx, gy);
+  }
+  if (gn < 1e-6) return {ux, uy, st: "incertaine", why};
+  const nx = gx / gn, ny = gy / gn, tx = -ny, ty = nx, back = ru ? -1 : 1;   // back : vers le camp qui recule
+  // sens le long de la limite : mailles basculées vers le camp qui avance, de chaque côté de la base (15 km)
+  let plus = 0, minus = 0;
+  if (pc) { const R = 15 / (FR.grid.size / 1000);
+    for (let j = Math.max(0, Math.floor(ay - R)); j <= Math.min(GY - 1, Math.ceil(ay + R)); j++)
+      for (let i = Math.max(0, Math.floor(ax - R)); i <= Math.min(GX - 1, Math.ceil(ax + R)); i++) {
+        const c = j * GX + i; if (cellPlace[c] === -1 || Math.hypot(i + 0.5 - ax, j + 0.5 - ay) > R) continue;
+        const was = p0[c], now = pc[c];
+        if (ru ? (was < 0.45 && now > 0.55) : (was > 0.55 && now < 0.45)) { const d = (i + 0.5 - ax) * tx + (j + 0.5 - ay) * ty; if (d > 0) plus++; else if (d < 0) minus++; }
+      } }
+  // à défaut de mailles basculées, les localités qui ont basculé selon les sources (flèches d'annonces), pondérées
+  if (Math.max(plus, minus) < 3 && pts && pts.length >= 2) { plus = 0; minus = 0;
+    for (const [x, y, w] of pts) { const d = (x - ax) * tx + (y - ay) * ty; if (d > 0.5) plus += 3 * w; else if (d < -0.5) minus += 3 * w; } }
+  if (Math.max(plus, minus) < 2 || Math.max(plus, minus) < 1.5 * Math.min(plus, minus)) return {ux: tx, uy: ty, st: "incertaine", why};
+  const sg = plus > minus ? 1 : -1;
+  let vx = sg * tx + 0.25 * back * nx, vy = sg * ty + 0.25 * back * ny; const vn = Math.hypot(vx, vy); vx /= vn; vy /= vn;
+  if (dirViolation(p0, ax, ay, vx, vy, ru)) { vx = sg * tx; vy = sg * ty; }
+  if (dirViolation(p0, ax, ay, vx, vy, ru)) return {ux: sg * tx, uy: sg * ty, st: "incertaine", why};
+  return {ux: vx, uy: vy, st: "réorientée", why};
+}
 function flippedCentroid(pc, pold, cx, cy, camp){
   const km = FR.grid.size / 1000, R = 15 / km; let x = 0, y = 0, n = 0;
   for (let j = Math.max(0, Math.floor(cy - R)); j <= Math.min(GY - 1, Math.ceil(cy + R)); j++)
@@ -524,12 +620,12 @@ function drawEventArrows(k){
     if (L < Lmin) { ex = sx + dx * Lmin; ey = sy + dy * Lmin; L = Lmin; }
     const path = () => { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs, ey - dy * hs); };
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
-    // contour sombre : distingue les flèches d'annonces des flèches de gradient
-    ctx.globalAlpha = 0.95; ctx.strokeStyle = C.ink; ctx.lineCap = "round"; ctx.lineJoin = "round";
-
-    const cw = ov ? 1.8 : 2.6;
-    ctx.lineWidth = w + cw; path(); ctx.stroke(); ctx.lineWidth = cw; head(); ctx.stroke();
+    // « localités qui ont basculé » : flèche pleine, sans contour, avec un petit cercle creux à la base (distincte des
+    // flèches de gradient, qui n'en ont pas)
+    ctx.globalAlpha = 0.95; ctx.lineCap = "round"; ctx.lineJoin = "round";
     ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = w; path(); ctx.stroke(); head(); ctx.fill();
+    const rb = ov ? 3 : 4.5;
+    ctx.fillStyle = C.bg; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(sx, sy, rb, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
     arrowList.push({x: (sx + ex) / 2, y: (sy + ey) / 2, a: {ru: a.ru, v: 0, ev: a.n}});
   }
   ctx.globalAlpha = 1;
@@ -546,7 +642,7 @@ window.__uafState = () => ({k: tr.k, x: tr.x, y: tr.y, tip: tip.style.display, s
 // diagnostic (headless) : recadrage et mois
 window.__uafGoto = (month, lon, lat, k) => { const i = D.months.indexOf(month); if (i >= 0) setMonth(i); zoomTo(lon, lat, k); };
 // diagnostic (headless) : flèches d'un mois en coordonnées géographiques
-window.__uafArrows = (fi, L) => (L === "overview" ? overviewArrows(fi, "equilibre") : computeArrows(fi, L, "equilibre")).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)], vm: a.vm}; });
+window.__uafArrows = (fi, L) => (L === "overview" ? overviewArrows(fi, "equilibre") : computeArrows(fi, L, "equilibre")).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)], vm: a.vm, uncertain: !!a.uncertain}; });
 // diagnostic (headless) : p(contrôle russe) en un point, km² russes et sommets de la ligne 50 % dans une boîte
 const cellOf = (lon, lat) => { const q = proj([lon, lat]); return Math.floor((q[1] - gAff[1]) / gAff[2]) * GX + Math.floor((q[0] - gAff[0]) / gAff[2]); };
 const inBox = (gx, gy, b) => { const ll = proj.invert([gAff[0] + gx * gAff[2], gAff[1] + gy * gAff[2]]); return ll[0] >= b[0] && ll[0] <= b[1] && ll[1] >= b[2] && ll[1] <= b[3]; };
@@ -564,12 +660,18 @@ window.__uafArea = (fi, b, band) => { const g = fullField("equilibre", fi), a = 
 window.__uafLine = (fi, b) => lines50("equilibre", fi).flat().filter(p => inBox(p[0], p[1], b)).length;
 // contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
 window.__uafArrowCheck = function(){
-  const fails = [], km = FR.grid.size / 1000; let total = 0, reoriented = 0, evN = 0, late = 0, flipChecked = 0;
+  const fails = [], km = FR.grid.size / 1000; let total = 0, reoriented = 0, evN = 0, late = 0, flipChecked = 0, redir = 0, border = 0;
+  const redirList = [], llg = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(v => +v.toFixed(2));
   for (let fi = 3; fi < FR.months.length; fi++) {
     if (!FR.months[fi]) continue;
-    const runs = lines50("equilibre", fi), pts = runs.flat();
+    const runs = lines50("equilibre", fi), pts = runs.flat(), fpv = frameAt(fi, 30), p0 = fpv >= 0 ? fullField("equilibre", fpv) : null;
     for (const L of [100, 50, 20, 10]) for (const a of computeArrows(fi, L, "equilibre")) {
       total++;
+      // garde-fou de direction (bloquant) : jamais vers une zone déjà tenue par le camp qui avance ni à travers la
+      // frontière d'État vers son propre territoire ; les flèches réorientées le long de la limite sont listées
+      if (RUSSIA(Math.floor(a.gy) * GX + Math.floor(a.gx))) border++;
+      if (p0 && !a.uncertain) { const w = dirViolation(p0, a.gx, a.gy, a.dx, a.dy, a.ru); if (w) fails.push({mois: FR.months[fi].date, L, direction: w, ru: a.ru, base: llg(a.gx, a.gy)}); }
+      if (a.guarded) { redir++; if (redirList.length < 40) redirList.push(`${FR.months[fi].date.slice(0, 7)} L${L} ${a.ru ? "RU" : "UA"} ${llg(a.gx, a.gy).join(",")} ${a.reoriented ? "réorientée" : "incertaine"} (${a.why})`); continue; }
       // la base doit être sur la ligne ; l'angle est mesuré à la normale la plus favorable parmi les tronçons qui
       // passent à moins de 2 km (deux bras de ligne peuvent se toucher au même sommet)
       let bd = 1e9, ang = 90;
@@ -586,6 +688,8 @@ window.__uafArrowCheck = function(){
     const ge = fullField(fieldName(), fi);
     for (const a of eventArrows(fi)) {
       total++; evN++; if (a.undirected) reoriented++; if (a.late) { late++; continue; }
+      if (POLDOF(fi)) { const w = dirViolation(POLDOF(fi), a.ax, a.ay, a.dir[0], a.dir[1], a.ru); if (w) fails.push({mois: FR.months[fi].date, annonces: true, direction: w, ru: a.ru, base: llg(a.ax, a.ay)}); }
+      if (a.reoriented) { redir++; if (redirList.length < 40) redirList.push(`${FR.months[fi].date.slice(0, 7)} annonces ${a.ru ? "RU" : "UA"} ${llg(a.ax, a.ay).join(",")} (${a.why})`); continue; }
       const s = a.ru ? -1 : 1, tx = a.cx - a.ax, ty = a.cy - a.ay;
       // direction comparée au déplacement réel (localités annoncées basculées, mailles basculées), recalculé ici à partir
       // des champs ; le gradient ponctuel, trompeur sur les flancs d'un saillant, ne sert que s'il n'y a aucun repère
@@ -610,7 +714,7 @@ window.__uafArrowCheck = function(){
       if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru});
     }
   }
-  return {total, fails, reoriented, evN, late, flipChecked};
+  return {total, fails, reoriented, evN, late, flipChecked, redir, redirList, border};
 };
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
@@ -628,11 +732,16 @@ function drawArrows(k){
     // liseré clair : la flèche reste lisible sur la densité rouge ou bleue
     const hx = -a.dy, hy = a.dx, hs = 3 + w * 1.6;
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - a.dx * hs * 1.6 + hx * hs, ey - a.dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - a.dx * hs * 1.6 - hx * hs, ey - a.dy * hs * 1.6 - hy * hs); ctx.closePath(); };
-    ctx.strokeStyle = C.bg; ctx.globalAlpha = 0.8; ctx.lineWidth = w + 2.4; ctx.lineCap = "round"; ctx.lineJoin = "round";
-    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * hs, ey - a.dy * hs); ctx.stroke(); ctx.lineWidth = 2.4; head(); ctx.stroke();
+    ctx.lineCap = "round"; ctx.lineJoin = "round";   // flèches de gradient : pleines, sans contour
     ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = overview ? 0.8 : 0.95; ctx.lineWidth = w;
+    if (a.uncertain) {   // sens incertain : contour seul, pointillé
+      ctx.setLineDash([3, 3]); ctx.lineWidth = Math.max(1.2, w * 0.6);
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * w * 1.6, ey - a.dy * w * 1.6); ctx.stroke();
+      ctx.setLineDash([]); head(); ctx.stroke();
+    } else {
     ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * w * 1.6, ey - a.dy * w * 1.6); ctx.stroke();
     head(); ctx.fill();
+    }
     arrowList.push({x: (sx + ex) / 2, y: (sy + ey) / 2, a});
   }
   ctx.globalAlpha = 1;
@@ -775,19 +884,25 @@ function loadInfra(then){
   if (window.INFRA) return go();
   const sc = document.createElement("script"); sc.src = "infra.js"; sc.onload = go; document.head.appendChild(sc);
 }
+// infrastructures : dessinées seulement à partir d'un zoom sur une localité (INFRA_K) ; en vue d'ensemble, rien,
+// même case cochée ; trait léger, étiquettes au zoom fort seulement (INFRA_LABEL_K)
+// seuils exprimés en km par pixel (même rendu sur ordinateur et sur mobile, quel que soit le cadrage initial)
+const INFRA_KMPX = 0.4, INFRA_LABEL_KMPX = 0.15;
+const kmPerPx = k => (FR.grid.size / 1000) / (gAff[2] * k);
 function drawInfra(k){
-  if (!showInfra || !INF) return;
-  const u = 1 / k;
-  ctx.save(); ctx.globalAlpha = 0.7; ctx.strokeStyle = C.ink; ctx.lineWidth = 0.9 * u; ctx.setLineDash([3 * u, 2 * u]);
+  if (!showInfra || !INF || kmPerPx(k) > INFRA_KMPX) return;
+  const u = 1 / k, grey = "rgba(95,95,95,";
+  ctx.save(); ctx.strokeStyle = grey + "0.45)"; ctx.lineWidth = 0.6 * u;
   for (const p of INF.rails) ctx.stroke(p);
-  ctx.setLineDash([]); ctx.lineWidth = 0.7 * u; ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = grey + "0.35)"; ctx.lineWidth = 0.5 * u; ctx.setLineDash([2 * u, 2 * u]);
   for (const p of INF.zones) ctx.stroke(p);
-  ctx.globalAlpha = 0.85; ctx.fillStyle = C.ink;
+  ctx.setLineDash([]); ctx.fillStyle = grey + "0.7)"; ctx.strokeStyle = grey + "0.75)"; ctx.lineWidth = 0.8 * u;
   for (const p of INF.pts) { if (p.k === "zone") continue;
-    const q = [gAff[0] + p.x[0] * gAff[2], gAff[1] + p.x[1] * gAff[2]], r = 2.4 * u;
+    const q = [gAff[0] + p.x[0] * gAff[2], gAff[1] + p.x[1] * gAff[2]], r = 1.5 * u;
     if (p.k === "centrale") { ctx.beginPath(); ctx.moveTo(q[0], q[1] - r * 1.3); ctx.lineTo(q[0] + r, q[1] + r); ctx.lineTo(q[0] - r, q[1] + r); ctx.closePath(); ctx.fill(); }
-    else if (p.k === "air") { ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, 2 * Math.PI); ctx.stroke(); }
-    else ctx.fillRect(q[0] - r * 0.8, q[1] - r * 0.8, r * 1.6, r * 1.6);
+    else if (p.k === "air") { ctx.beginPath(); ctx.arc(q[0], q[1], r * 1.2, 0, 2 * Math.PI); ctx.stroke(); }
+    else ctx.fillRect(q[0] - r * 0.7, q[1] - r * 0.7, r * 1.4, r * 1.4);
+    if (kmPerPx(k) <= INFRA_LABEL_KMPX && p.label) { ctx.font = `${9 * u}px "JetBrains Mono",monospace`; ctx.fillText(p.label.split(" (")[0].slice(0, 28), q[0] + 3 * u, q[1] - 2 * u); }
   }
   ctx.restore();
 }
@@ -817,6 +932,23 @@ function buildCombat(fi){
     }
   }
   cx.putImageData(img, 0, 0); combatPat = cv;
+}
+// « combats derrière la ligne » : secteurs où l'activité de combat se concentre d'un côté de la ligne 50 % (asymétrie
+// ≥ 0,2), hachures horizontales du côté concerné ; indicateur sans direction
+let asymFor = -2, asymPat = null, showAsym = false;
+function buildAsym(fi){
+  if (asymFor === fi) return;
+  asymFor = fi; asymPat = null;
+  const F = viewFields("asym"); if (!F || !F[fi]) return;
+  const S = 4, cv = document.createElement("canvas"); cv.width = GX * S; cv.height = GY * S;
+  const cx = cv.getContext("2d"), img = cx.createImageData(GX * S, GY * S), d = img.data, q = F[fi];
+  for (let u = 0; u < UCELLS.length; u++) {
+    if (q[u] < 13) continue;
+    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.4 + q[u] / 63);
+    for (let dy = 0; dy < S; dy++) { if ((y0 + dy) % 3) continue;
+      for (let dx = 0; dx < S; dx++) { const o = ((y0 + dy) * GX * S + x0 + dx) * 4; d[o] = 30; d[o+1] = 30; d[o+2] = 30; d[o+3] = Math.round(220 * a); } }
+  }
+  cx.putImageData(img, 0, 0); asymPat = cv;
 }
 // destruction cumulée (radar Sentinel-1) : part du bâti modifié depuis 2021, mailles de 2 km, couche d'information
 let destrFor = -1, destrImg = null, showDestr = false;
@@ -857,6 +989,7 @@ function drawFront(k){
   }
   const fi = frontIdx();
   if (fvar && fi >= 0) { buildDiff(fi); if (diffPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.8; ctx.drawImage(diffPat, 0, 0, GX, GY); ctx.restore(); } }
+  if (showAsym && fi >= 0) { buildAsym(fi); if (asymPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.8; ctx.drawImage(asymPat, 0, 0, GX, GY); ctx.restore(); } }
   if (showDestr && fi >= 0) { buildDestr(fi); if (destrImg) { ctx.save(); ctx.clip(domainPath); ctx.imageSmoothingEnabled = false; ctx.drawImage(destrImg, 0, 0, GX, GY); ctx.restore(); } }
   if (showCombat && fi >= 0) { buildCombat(fi); if (combatPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.85; ctx.drawImage(combatPat, 0, 0, GX, GY); ctx.restore(); } }
   if (fi >= 0) for (const src of ["dsm", "isw", "wiki"]) {
@@ -911,7 +1044,8 @@ function drawArcs(k){
   }
   ctx.globalAlpha = 1;
 }
-const zoneM = {type:"MultiPoint", coordinates:[[23,44.4],[40.2,44.4],[40.2,52.4],[23,52.4]]};
+// mobile : cadrage d'ouverture sur le front (est et sud, de Kharkiv à Kherson)
+const zoneM = {type:"MultiPoint", coordinates:[[32.2,46.1],[39.6,46.1],[39.6,50.5],[32.2,50.5]]};
 const zone = {type:"MultiPoint", coordinates:[[22,44],[41.5,44],[41.5,53.6],[22,53.6],[31.75,53.6],[31.75,44]]};
 
 function layout(){
@@ -1160,19 +1294,40 @@ $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
 $("lyrArcs").onchange = e => { showArcs = e.target.checked; legend(); draw(); };
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
+if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };
+// le garde-fou des flèches a besoin du champ d'asymétrie : chargé d'emblée
+ensureView("asym", () => { arrowCache = {}; draw(); });
 if ($("lyrDestr")) $("lyrDestr").onchange = e => { showDestr = e.target.checked; ensureView("destr", () => { destrFor = -2; legend(); draw(); }); legend(); draw(); };
 if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.checked; if ($("lgCombatRow")) $("lgCombatRow").hidden = !showCombat; ensureView("combat", () => { combatFor = -2; legend(); draw(); }); };
 $("lyrArrows").onchange = e => { showArrows = e.target.checked; if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); legend(); draw(); };
 $("lyrBase").onchange = e => { showBase = e.target.checked; if (showBase) loadBasemap(); draw(); };
 if ($("lyrInfra")) $("lyrInfra").onchange = e => { showInfra = e.target.checked; if (showInfra) loadInfra(() => { legend(); draw(); }); legend(); draw(); };
 const tip = $("tip");
+// info-bulle courte au survol (3 lignes au plus) ; les détails (sources, votes, z, composition) au clic sur la maille.
+// Sur écran tactile, un premier toucher montre la version courte, un second sur la même maille les détails.
+let tipKey = null, tipFull = false;   // position du dernier affichage, détails ouverts ou non
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  // vue d'ensemble : aucune info-bulle (même seuil que les infrastructures)
+  if (kmPerPx(tr.k) > INFRA_KMPX) { tip.style.display = "none"; return; }
+  // les détails ouverts par un clic restent affichés tant que la souris ne s'éloigne pas de plus de 12 px
+  if (e.type === "mousemove" && tipFull && tipKey && Math.hypot(tipKey[0] - mx, tipKey[1] - my) < 12) return;
+  const near = tipKey && Math.hypot(tipKey[0] - mx, tipKey[1] - my) < 12;
+  const full = e.type === "click" && (!("ontouchstart" in window) || (near && !tipFull));
+  tipKey = [mx, my]; tipFull = full;
+  const more = full ? "" : `<div style="color:var(--faint)">clic : détails</div>`;
   if (showArrows && arrowList.length) {
     let best = null, bd = 14;
     for (const h of arrowList) { const d = Math.hypot(h.x - mx, h.y - my); if (d < bd) { bd = d; best = h; } }
     if (best) {
       const fi = frontIdx(), camp = best.a.ru ? "russe" : "ukrainienne";
+      if (!full) {
+        tip.innerHTML = (best.a.ev ? (best.a.undirected ? `changements annoncés (${camp}), sens non établi` : best.a.late ? `confirmé par annonce (${camp}), pas un mouvement nouveau`
+          : `avancée ${camp} annoncée · ${best.a.ev} localité(s)`) : best.a.uncertain ? `sens incertain : on se bat derrière la ligne` : `avancée ${camp} · ${String(Math.round(best.a.v * 10) / 10).replace(".", ",")} km par 30 jours`) + more;
+        tip.style.display = "block";
+        const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
+        return;
+      }
       tip.innerHTML = best.a.ev ? (best.a.undirected
         ? `<div class="r"><span>changements annoncés (${camp})</span><b>${best.a.ev} localité(s)</b></div><div style="margin-top:4px;color:var(--faint)">30 derniers jours ; sens non établi : les localités basculées et le déplacement de la ligne ne vont pas dans la même direction</div>`
         : best.a.late
@@ -1191,8 +1346,8 @@ function hover(e){
   const fi = frontIdx(), k = i >= 0 && j >= 0 && i < GX && j < GY ? cellPlace[j * GX + i] : -1;
   if (k === -2 && fi >= 0) {
     const F = viewFields(fieldName()), u = d3.bisectLeft(UCELLS, j * GX + i), p = F && F[fi] ? F[fi][u] / 63 : NaN;
-    tip.innerHTML = `<div class="r"><span>p(contrôle russe)</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div><div class="r"><span>état</span><b>${p > 0.95 ? "contrôle russe" : p < 0.05 ? "contrôle ukrainien" : "zone grise"}</b></div>` +
-      `<div style="margin-top:4px">Russie, bande frontalière : a priori russe ; seules les annonces (état-major ukrainien, MoD RF) et les indices de combats peuvent faire déborder la ligne.</div>`;
+    tip.innerHTML = `<div class="r"><span>${p > 0.95 ? "contrôle russe" : p < 0.05 ? "contrôle ukrainien" : "zone grise"} (Russie)</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div>` +
+      (full ? `<div style="margin-top:4px">Russie, bande frontalière : a priori russe ; seules les annonces (état-major ukrainien, MoD RF) et les indices de combats peuvent faire déborder la ligne.</div>` : more);
     tip.style.display = "block";
     const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
     return;
@@ -1221,7 +1376,7 @@ function hover(e){
       const wr = tb[2], wu = tb[3], tot = wr + wu, asym = tot > 2 && Math.abs(wr - wu) / tot > 0.3 ? (wr > wu ? " ; plus étendue côté russe" : " ; plus étendue côté ukrainien") : "";
       const cp = tb[5] || [0, 0, 0, 0];
       ctxt += `<div class="r"><span>tronçon : largeur de contact</span><b>${String(wr).replace(".", ",")} km côté russe · ${String(wu).replace(".", ",")} km côté ukr.</b></div>` +
-        `<div style="color:var(--faint)">composition près de la ligne : feux ${Math.round(cp[0] * 100)} %, combats au sol (UCDP) ${Math.round(cp[1] * 100)} %, pertes de matériel ${Math.round(cp[2] * 100)} %, menaces d’artillerie ${Math.round((cp[3] || 0) * 100)} %${asym}</div>`;
+        `<div style="color:var(--faint)">composition près de la ligne : feux ${Math.round(cp[0] * 100)} %, combats au sol (UCDP) ${Math.round(cp[1] * 100)} %, pertes de matériel ${Math.round(cp[2] * 100)} %, menaces d’artillerie ${Math.round((cp[3] || 0) * 100)} %, assauts rapportés par l’état-major UA (faits) ${Math.round((cp[4] || 0) * 100)} %, localités des bilans du MoD RF (faits) ${Math.round((cp[5] || 0) * 100)} %${asym}</div>`;
     }
   }
   const zt = ["zf", "zu", "zw", "zm"].map(v => { const Fz = viewFields(v); return Fz && Fz[fi] ? Fz[fi][uu] / 5 - 2 : null; });
@@ -1244,6 +1399,22 @@ function hover(e){
   const cw = {}; for (const [s] of act) cw[FR.camps[s]] = (cw[FR.camps[s]] || 0) + FR.weights[s];
   const nc = Object.keys(cw).length;
   const NAMES = {dsm:"DeepStateMap", isw:"ISW", wiki:"Wikipédia", boost:"Wikipédia + VIINA", uamin:"enveloppe ukr.", rumax:"enveloppe russe", uaclaims:"annonce médias ukr.", ruclaims:"annonce médias russes", modru:"annonce MoD RF", gsua:"annonce état-major ukr."};
+  if (!full) {
+    const st3 = isNaN(p) ? "…" : p > 0.95 ? "contrôle russe" : p < 0.05 ? "contrôle ukrainien" : "zone grise";
+    let band = "";
+    if (LB && LB.tiles && LB.tiles.length) {
+      const ll = proj.invert([gAff[0] + (i + 0.5) * gAff[2], gAff[1] + (j + 0.5) * gAff[2]]), c = Math.cos(ll[1] * Math.PI / 180);
+      let tb = null, td = 1e9;
+      for (const t of LB.tiles) { const d = Math.hypot((t[0] - ll[0]) * c, t[1] - ll[1]) * 111; if (d < td) { td = d; tb = t; } }
+      if (tb && td < 30 && tb[2] != null) band = `<div class="r"><span>bande 95 %</span><b>${String(Math.round((tb[2] + tb[3]) * 10) / 10).replace(".", ",")} km</b></div>`;
+    }
+    tip.innerHTML = `<div class="r"><span>${st3}</span><b>p ${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div>` +
+      (pcv !== null && pcv > 0.05 ? `<div class="r"><span>P(contact au sol)</span><b>${Math.round(pcv * 100)} %</b></div>` : "") + band + more;
+    tip.style.display = "block";
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
+    return;
+  }
   tip.innerHTML = `<div class="r"><span>p(occupé)${fvar ? " · " + fvar.replace("_", " ") : ""}</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div><div class="r"><span>état</span><b>${st}</b></div>` + ctxt +
     `<div style="margin-top:4px;color:var(--faint)">source · vote · poids dans le calcul</div>` +
     act.map(([s, c]) => `<div class="r"><span>${NAMES[s]} <span style="color:var(--faint)">(${({ua: "ukr.", ru: "russe", tiers: "tiers"})[FR.camps[s]]})</span></span><b>${STN[c]} · ${Math.round(FR.weights[s] / cw[FR.camps[s]] / nc * 100)}\u00a0%</b></div>`).join("") +
@@ -1282,9 +1453,10 @@ function legend(){
     `<span>flèche pleine : déplacement de la ligne 50 % (km par 30 jours, sur 3 périodes de 30 jours)</span>` +
     `<span><i style="background:${C.front};height:5px;border-radius:0;vertical-align:2px;outline:1.5px solid ${C.ink}"></i>flèche cerclée : changements de contrôle annoncés et datés des 30 derniers jours (journal DeepStateMap, état-major UA, MoD RF, bascules des cartes), pondérés par la fiabilité mesurée de chaque source</span>` +
     `<span><i style="border:1.3px solid ${C.front};width:8px;height:8px;border-radius:50%;vertical-align:0;background:transparent"></i>cercle creux : confirmé par annonce (changement que les cartes montraient déjà, pas un mouvement nouveau)</span>`;
+  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(0deg,rgba(30,30,30,.85) 0 1px,transparent 1px 3px);border-radius:0"></i>combats derrière la ligne : secteurs de 24 km où l'activité (feux, UCDP, pertes, menaces d'artillerie, assauts rapportés par l'état-major UA) se concentre d'un côté de la ligne (asymétrie ≥ 0,2), hachures de ce côté ; ne dit pas qui avance</span>`;
   if (showDestr) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:rgba(40,40,40,.7);border-radius:0"></i>destruction cumulée (radar Sentinel-1) : part du bâti dont la rétrodiffusion s'écarte durablement de 2021, jusqu'au mois précédent, mailles de 2 km ; contient des données Copernicus Sentinel modifiées</span>`;
   if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 2 par rapport à ses 12 mois précédents ; ne dit pas qui avance</span>`;
-  if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1.2px dashed ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>voies ferrées</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>gares principales, sites lourds</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>centrales électriques</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>aéroports et aérodromes</span><span>contours : zones industrielles de plus de 1 km² ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)</span>`;
+  if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>voies ferrées</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>gares principales, sites lourds</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>centrales électriques</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>aéroports et grandes bases</span><span>contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité${kmPerPx(tr.k) > INFRA_KMPX ? " (zoomez pour les voir)" : ""} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)</span>`;
   if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>missiles et drones lancés du lieu annoncé vers l'oblast visé, agrégés sur le mois (${O.launch.specificShare}\u00a0% des lancements ont une cible précisée ; source : armée de l'air ukrainienne)</span>`;
@@ -1446,6 +1618,11 @@ function methodTables(){
     $("pNow").textContent = `β = ${String(N.beta_final).replace(".", ",")} ; échelles (90e centile dans la bande) : ${Object.entries(N.scales).map(([k, v]) => k + " " + String(v).replace(".", ",")).join(", ")} ; validation ${N.period ? N.period.join(" → ") : ""}`;
     $("nowTab").innerHTML = `<tr><th>période ou cas</th><th>Brier, bande de 30 km (cartes seules → nowcast)</th><th>Brier, mailles qui changent de camp</th><th>mailles qui changent</th></tr>` +
       row("<b>ensemble (walk-forward)</b>", N.overall) + Object.entries(N.years).map(([y, x]) => row(y, x)).join("") + Object.entries(N.cases).map(([c, x]) => row(c, x)).join("");
+  }
+  if (FR.asym && FR.asym.bilan && $("asymTab")) {
+    const pc = x => Math.round(x * 100) + " %";
+    $("asymTab").innerHTML = `<tr><th>asymétrie (côté russe − côté ukrainien)</th><th>secteurs-mois</th><th>gain russe ensuite (t → t+2)</th><th>reprise ukrainienne</th><th>rien</th></tr>` +
+      Object.entries(FR.asym.bilan).map(([k, v]) => `<tr><td>${k}</td><td>${fmt(v[0])}</td><td>${pc(v[1])}</td><td>${pc(v[2])}</td><td>${pc(v[3])}</td></tr>`).join("");
   }
   if (FR.localBand && FR.localBand.nowcast && $("lbTab")) {
     const B = FR.localBand.nowcast, f = x => x == null ? "–" : String(x).replace(".", ","), pc = x => x == null ? "–" : String(Math.round(x * 1000) / 10).replace(".", ",") + " %";
@@ -1720,7 +1897,9 @@ document.querySelectorAll("[data-lang-btn]").forEach(b => b.onclick = () => setL
 try { const l = localStorage.getItem("uaf-lang"); if (l && document.querySelector(`.intro .i18n[data-lang="${l}"]`)) setLang(l); } catch(e) {}
 legend(); full();
 window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); });
-document.addEventListener("uaf-lang", () => updateArea());
+document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); });
 let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (canvas.parentElement.clientWidth !== W) full(); }, 150); });
 document.fonts && document.fonts.ready.then(() => draw());
+// légende de la carte repliée d'office sur mobile (elle prenait la place de la carte) ; un toucher l'ouvre
+if ($("mapLegend") && window.matchMedia && window.matchMedia("(max-width:560px)").matches) $("mapLegend").open = false;
 })();

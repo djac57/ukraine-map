@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=c506a66085">
+<link rel="stylesheet" href="style.css?v=798d2a75be">
 </head>
 <body class="lean">
 <div class="wrap">
@@ -23,16 +23,17 @@
   <div class="tip" id="tip"></div>
   <div class="month-big"><b id="mLabel"></b><span id="mSub"></span></div>
   <div class="zoom"><button class="btn" id="zin" type="button" aria-label="Zoomer">+</button><button class="btn" id="zout" type="button" aria-label="Dézoomer">−</button><button class="btn" id="zreset" type="button" aria-label="Recadrer">⌂</button></div>
-  <div class="maplegend" aria-hidden="true">
+  <details class="maplegend" id="mapLegend" open><summary data-t="lgTitle">légende</summary>
     <div><svg width="30" height="10"><defs><linearGradient id="lgm"><stop offset="0" stop-color="var(--front)" stop-opacity=".06"/><stop offset="1" stop-color="var(--front)" stop-opacity=".7"/></linearGradient></defs><rect width="30" height="10" fill="url(#lgm)"/></svg><span data-t="lgP">contrôle russe probable</span></div>
     <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/></svg><span data-t="lg50">ligne la plus probable (50 %)</span></div>
-    <div><svg width="30" height="10"><defs><pattern id="hct" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="1" height="3" fill="var(--ink)" opacity=".55"/></pattern></defs><rect width="30" height="10" fill="url(#hct)"/></svg><span data-t="lgGrey">zone grise : contact mesuré par nos signaux (alertes d’artillerie : données arrêtées le 7 sept. 2026)</span></div>
+    <div><svg width="30" height="10"><defs><pattern id="hct" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="1" height="3" fill="var(--ink)" opacity=".55"/></pattern></defs><rect width="30" height="10" fill="url(#hct)"/></svg><span data-t="lgGrey" title="Probabilité de contact au sol estimée par nos signaux (feux, combats au sol, pertes, menaces d’artillerie, radar, bilans officiels). Alertes d’artillerie : données arrêtées le 7 sept. 2026. Détails sur la page méthode.">zone grise : contact mesuré ⓘ</span></div>
     <div><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--ink)" stroke-width="1" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgPre">occupé avant 2022</span></div>
     <div><svg width="30" height="10"><rect width="30" height="10" fill="var(--uactl)" opacity=".55"/></svg><span data-t="lgUa">contrôle ukrainien en Russie</span></div>
     <div><svg width="30" height="10"><path d="M2 5h17" stroke="var(--front)" stroke-width="1.8"/><path d="M19 1l7 4-7 4z" fill="var(--front)"/></svg><span data-t="lgArr">qui avance (rouge : Russie, bleu : Ukraine)</span></div>
-    <div><svg width="30" height="10"><path d="M2 5h16" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/><path d="M17 0.5l9 4.5-9 4.5z" fill="var(--ink)"/><path d="M2 5h16" stroke="var(--uactl)" stroke-width="2.6" stroke-linecap="round"/><path d="M18 2l6 3-6 3z" fill="var(--uactl)"/></svg><span data-t="lgEv">cerclée : changements annoncés (30 jours)</span></div>
+    <div><svg width="30" height="10"><path d="M6 5h13" stroke="var(--uactl)" stroke-width="1.8"/><path d="M19 1l7 4-7 4z" fill="var(--uactl)"/><circle cx="5" cy="5" r="3" fill="var(--bg)" stroke="var(--uactl)" stroke-width="1.4"/></svg><span data-t="lgEv">localités qui ont basculé (sources, 30 jours)</span></div>
+    <div><svg width="30" height="10"><path d="M2 5h16" stroke="var(--front)" stroke-width="1.4" stroke-dasharray="3 3"/><path d="M19 1l7 4-7 4z" fill="none" stroke="var(--front)" stroke-width="1.2"/></svg><span data-t="lgUncArr">sens incertain (on se bat derrière la ligne)</span></div>
     <div id="lgCombatRow" hidden><svg width="30" height="10"><defs><pattern id="hcb" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.6" height="4" fill="var(--front)"/></pattern></defs><rect width="30" height="10" fill="url(#hcb)"/></svg><span data-t="lgCombat">combats intenses (sans direction)</span></div>
-  </div>
+  </details>
 </div>
 <div class="controls">
   <button class="btn" id="play" type="button" style="min-width:86px">▶</button>
@@ -51,6 +52,7 @@
     <label class="chk"><input type="checkbox" id="lyrArrows" checked> flèches : qui pousse où</label>
     <label class="chk"><input type="checkbox" id="lyrNowcast" checked> avec signaux de combat (nowcast)</label>
     <label class="chk"><input type="checkbox" id="lyrCombat"> combats intenses (anomalie)</label>
+    <label class="chk"><input type="checkbox" id="lyrAsym"> combats derrière la ligne</label>
     <div class="seg" role="group" aria-label="Vue"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true">équilibrée</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">UA</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">RU</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false">tiers</button></div>
   </fieldset>
   <fieldset><legend data-t="gSrc">Sources du calcul</legend>
@@ -82,7 +84,7 @@
     <label class="chk"><input type="checkbox" id="lyrUcdp"> combats (UCDP)</label>
     <label class="chk"><input type="checkbox" id="lyrArcs"> missiles et drones</label>
     <label class="chk"><input type="checkbox" id="lyrBase" checked> routes / localités</label>
-    <label class="chk"><input type="checkbox" id="lyrInfra"> infrastructures (contexte)</label>
+    <label class="chk"><input type="checkbox" id="lyrInfra"> <span data-t="cbInfra">infrastructures (si zoom sur localité)</span></label>
     <label class="chk"><input type="checkbox" id="lyrDestr"> destruction cumulée (radar)</label>
     <div class="controls" id="fireOpts" hidden style="margin:4px 0 0">
       <span class="seg" role="group"><button class="btn" id="modePts" type="button" aria-pressed="true">points</button><button class="btn" id="modeDen" type="button" aria-pressed="false">densité</button></span>
@@ -104,25 +106,25 @@
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
 <script src="front_equilibre.js?v=98b088d2af"></script>
-<script src="front_nowcast.js?v=01d6b2d188"></script>
-<script src="front_contact.js?v=6de379e9e7"></script>
-<script src="front.js?v=4bb1119fd2"></script>
+<script src="front_nowcast.js?v=2c17b54478"></script>
+<script src="front_contact.js?v=5fac05f923"></script>
+<script src="front.js?v=06cb5e9ee3"></script>
 <script src="osint.js?v=46ed380b81"></script>
 <script>
 // quelques libellés en quatre langues (la carte elle-même reste en français)
 (function(){
   const T = {
     fr: {title: "Où passe le front ?", purpose: "Une probabilité de contrôle agrégée de toutes les sources ouvertes, ukrainiennes, russes et tierces à poids égal, et, par son évolution dans le temps, qui pousse où.",
-         lgP: "contrôle russe probable", lg50: "ligne la plus probable (50 %)", lgGrey: "zone grise : contact mesuré par nos signaux (alertes d’artillerie : données arrêtées le 7 sept. 2026)", lgPre: "occupé avant 2022", lgUa: "contrôle ukrainien en Russie", lgArr: "qui avance (rouge : Russie, bleu : Ukraine)", lgEv: "cerclée : changements annoncés (30 jours)", lgCombat: "combats intenses (sans direction)", layers: "calques", gView: "Vue", gSrc: "Sources du calcul", gRaw: "Tracés bruts", gCtx: "Contexte",
+         lgP: "contrôle russe probable", lg50: "ligne la plus probable (50 %)", lgTitle: "légende", lgGrey: "zone grise : contact mesuré ⓘ", cbInfra: "infrastructures (si zoom sur localité)", lgPre: "occupé avant 2022", lgUa: "contrôle ukrainien en Russie", lgArr: "qui avance (rouge : Russie, bleu : Ukraine)", lgEv: "localités qui ont basculé (sources, 30 jours)", lgUncArr: "sens incertain (on se bat derrière la ligne)", lgCombat: "combats intenses (sans direction)", layers: "calques", gView: "Vue", gSrc: "Sources du calcul", gRaw: "Tracés bruts", gCtx: "Contexte",
          data: "Données", lag: "quotidien, décalé de 7 jours (fenêtre de 14 jours)", method: "méthode et sources", km: "occupés", ru: "en Russie, sous contrôle ukrainien"},
     en: {title: "Where is the front line?", purpose: "A probability of control aggregated from all open sources, Ukrainian, Russian and third-party with equal weight, and, from how it shifts over time, who is pushing where.",
-         lgP: "likely Russian control", lg50: "most likely line (50%)", lgGrey: "grey zone: contact measured by our signals (artillery alerts: data stopped on 7 Sept 2026)", lgPre: "occupied before 2022", lgUa: "Ukrainian control in Russia", lgArr: "who is advancing (red: Russia, blue: Ukraine)", lgEv: "outlined: announced changes (30 days)", lgCombat: "intense fighting (no direction)", layers: "layers", gView: "View", gSrc: "Sources in the model", gRaw: "Raw lines", gCtx: "Context",
+         lgP: "likely Russian control", lg50: "most likely line (50%)", lgTitle: "legend", lgGrey: "grey zone: measured contact ⓘ", cbInfra: "infrastructure (when zoomed on a town)", lgPre: "occupied before 2022", lgUa: "Ukrainian control in Russia", lgArr: "who is advancing (red: Russia, blue: Ukraine)", lgEv: "localities that changed hands (sources, 30 days)", lgUncArr: "uncertain direction (fighting behind the line)", lgCombat: "intense fighting (no direction)", layers: "layers", gView: "View", gSrc: "Sources in the model", gRaw: "Raw lines", gCtx: "Context",
          data: "Data", lag: "daily, lagged 7 days (14-day window)", method: "method and sources", km: "occupied", ru: "in Russia, under Ukrainian control"},
     uk: {title: "Де проходить лінія фронту?", purpose: "Імовірність контролю, зведена з усіх відкритих джерел — українських, російських і сторонніх, з однаковою вагою, — а за її зміною в часі видно, хто де наступає.",
-         lgP: "імовірний російський контроль", lg50: "найімовірніша лінія (50 %)", lgGrey: "сіра зона: контакт за нашими сигналами (загрози артобстрілу: дані до 7.09.2026)", lgPre: "окуповано до 2022 року", lgUa: "український контроль у Росії", lgArr: "хто наступає (червоне — Росія, синє — Україна)", lgEv: "з обводкою: оголошені зміни (30 днів)", lgCombat: "інтенсивні бої (без напрямку)", layers: "шари", gView: "Погляд", gSrc: "Джерела моделі", gRaw: "Вихідні лінії", gCtx: "Контекст",
+         lgP: "імовірний російський контроль", lg50: "найімовірніша лінія (50 %)", lgTitle: "легенда", lgGrey: "сіра зона: виміряний контакт ⓘ", cbInfra: "інфраструктура (при наближенні до населеного пункту)", lgPre: "окуповано до 2022 року", lgUa: "український контроль у Росії", lgArr: "хто наступає (червоне — Росія, синє — Україна)", lgEv: "населені пункти, що змінили сторону (джерела, 30 днів)", lgUncArr: "напрямок непевний (бої за лінією)", lgCombat: "інтенсивні бої (без напрямку)", layers: "шари", gView: "Погляд", gSrc: "Джерела моделі", gRaw: "Вихідні лінії", gCtx: "Контекст",
          data: "Дані", lag: "щодня, затримка 7 днів (вікно 14 днів)", method: "методика й джерела", km: "окуповано", ru: "у Росії, під контролем України"},
     ru: {title: "Где проходит линия фронта?", purpose: "Вероятность контроля, сведённая из всех открытых источников — украинских, российских и сторонних, с равным весом, — а по её изменению во времени видно, кто где наступает.",
-         lgP: "вероятный российский контроль", lg50: "наиболее вероятная линия (50 %)", lgGrey: "серая зона: контакт по нашим сигналам (угрозы артобстрела: данные до 7.09.2026)", lgPre: "занято до 2022 года", lgUa: "украинский контроль в России", lgArr: "кто наступает (красное — Россия, синее — Украина)", lgEv: "с обводкой: объявленные изменения (30 дней)", lgCombat: "интенсивные бои (без направления)", layers: "слои", gView: "Вид", gSrc: "Источники модели", gRaw: "Исходные линии", gCtx: "Контекст",
+         lgP: "вероятный российский контроль", lg50: "наиболее вероятная линия (50 %)", lgTitle: "легенда", lgGrey: "серая зона: измеренный контакт ⓘ", cbInfra: "инфраструктура (при приближении к населённому пункту)", lgPre: "занято до 2022 года", lgUa: "украинский контроль в России", lgArr: "кто наступает (красное — Россия, синее — Украина)", lgEv: "населённые пункты, сменившие сторону (источники, 30 дней)", lgUncArr: "направление неясно (бои за линией)", lgCombat: "интенсивные бои (без направления)", layers: "слои", gView: "Вид", gSrc: "Источники модели", gRaw: "Исходные линии", gCtx: "Контекст",
          data: "Данные", lag: "ежедневно, задержка 7 дней (окно 14 дней)", method: "методика и источники", km: "занято", ru: "в России, под контролем Украины"},
   };
   function set(l){
@@ -137,6 +139,6 @@
   set(l);
 })();
 </script>
-<script src="app.js?v=65278d7da2"></script>
+<script src="app.js?v=2f8b2bce89"></script>
 </body>
 </html>

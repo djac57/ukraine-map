@@ -2,8 +2,10 @@
 
     python3 scripts/fetch_claims.py <dossier_brut>
 
-- Ministère russe de la Défense (t.me/s/mod_russia) : messages contenant « освобожд… » ou « контроль над ».
-- État-major ukrainien (t.me/s/GeneralStaffZSU) : messages contenant « звільн… » ou « контроль над ».
+- Ministère russe de la Défense (t.me/s/mod_russia) : messages contenant « освобожд… » ou « контроль над », et les
+  bilans des groupements (« группировк… », « в районах населенных пунктов »).
+- État-major ukrainien (t.me/s/GeneralStaffZSU) : messages contenant « звільн… » ou « контроль над », et les bilans
+  quotidiens par direction (« напрямку », « бойових зіткнень »).
 On ne conserve que l'identifiant, la date et le texte, en local (dossier brut, jamais publié) : seuls les
 FAITS extraits (date, localité, coordonnées, source) sont publiés par build_claims.py. En droit russe,
 l'article 1259 §6 du Code civil exclut du droit d'auteur les documents officiels des organes de l'État et
@@ -25,8 +27,12 @@ import urllib.request
 UA = "Mozilla/5.0 (compatible; ukraine-feux/1.0; non-commercial research)"
 # mots-clés (radicaux) : on ne garde en local que les messages qui en contiennent un
 CHANNELS = {
-    "mod_russia": ["освобож", "освободил", "контроль над", "взят под контроль", "взяли под контроль"],
-    "GeneralStaffZSU": ["звільн", "контроль над", "відбили", "повернули під контроль"],
+    "mod_russia": ["освобож", "освободил", "контроль над", "взят под контроль", "взяли под контроль",
+                   # bilans des groupements (contrepartie russe des assauts de l'état-major, build_official_signals.py)
+                   "группировк", "в районах населенных пунктов", "в районе населенного пункта"],
+    "GeneralStaffZSU": ["звільн", "контроль над", "відбили", "повернули під контроль",
+                        # bilans quotidiens par direction (assauts, frappes aériennes)
+                        "напрямку", "бойових зіткнень"],
 }
 START = "2022-02-24"
 PAUSE = 2.0

@@ -41,6 +41,12 @@ jobs:
         run: python scripts/fetch_claims.py raw
         timeout-minutes: 60
         continue-on-error: true
+      - name: "alerts.in.ua : menaces d'artillerie (sauté sans le secret ALERTS_IN_UA_TOKEN)"
+        run: python scripts/fetch_alerts_in_ua.py raw
+        env:
+          ALERTS_IN_UA_TOKEN: ${{ secrets.ALERTS_IN_UA_TOKEN }}
+        timeout-minutes: 10
+        continue-on-error: true
       - name: Journal public de DeepStateMap (déclarations datées, faits seulement)
         run: python scripts/fetch_dsmlog.py raw/viina
         timeout-minutes: 5
@@ -61,6 +67,10 @@ jobs:
       - name: Extraire et géocoder les annonces (faits seulement)
         run: python scripts/build_claims.py raw raw/viina
         timeout-minutes: 15
+        continue-on-error: true
+      - name: "Faits des bilans quotidiens (état-major UA, MoD RF) : agrégats par maille et par mois"
+        run: python scripts/build_official_signals.py raw raw/viina
+        timeout-minutes: 10
         continue-on-error: true
       - name: Construire la carte du front
         run: python scripts/build_front.py raw/viina

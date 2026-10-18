@@ -24,6 +24,7 @@ from scipy import ndimage
 
 NAMES = ["feux", "ucdp", "pertes"]
 REF = 12
+TILE_ASYM = 12   # secteurs de 24 km (asymétrie des combats)
 TILE = 25          # mailles de 2 km : tuile de 50 km
 PKMIN = 3.0
 WMAX = 25.0        # largeur maximale de chaque côté de la ligne (km)
@@ -95,6 +96,46 @@ class Sectors:
     def activity(self, t, sig=1.0):
         """Activité fine (lissage 2 km) : moyenne des trois indicateurs normalisés."""
         return np.mean(np.stack([1 - np.exp(-self.smooth(self.R[n, t], sig) / self.H[n]) for n in range(3)]), axis=0)
+
+    def asym(self, t, sd, art=None, thr=0.2):
+        """« Combats derrière la ligne » : par secteur de 24 km, asymétrie a = (A_russe − A_ukrainien) / (A_russe + A_ukrainien)
+        de l'activité à ≤ 10 km de la ligne 50 % (feux, UCDP, pertes, menaces d'artillerie, assauts de l'état-major, chacun
+        normalisé). Renvoie (champ par maille : |a| sur le côté dominant, à ≤ 10 km, là où |a| ≥ thr ; 0 ailleurs, signe
+        porté par le côté de la maille), {tuile: a}."""
+        X = [self.SM[n][t] for n in range(3)]
+        Hs = list(self.H)
+        extra = []
+        if art is not None:
+            extra.append(self.smooth(art[t], 2.5))
+        of = getattr(self, "OF", None)
+        if of and "etatmajor_assauts" in of:
+            extra.append(self.smooth(of["etatmajor_assauts"][t], 2.5))
+        if not hasattr(self, "_Hx"):
+            self._Hx = []
+        for n, v in enumerate(extra):
+            if len(self._Hx) <= n:
+                src = art if n == 0 and art is not None else of["etatmajor_assauts"]
+                pos = src[src > 0]
+                self._Hx.append(float(np.percentile(pos, 90)) if len(pos) else 1.0)
+            X.append(v); Hs.append(self._Hx[n])
+        A = np.mean(np.stack([1 - np.exp(-x / max(h, 1e-6)) for x, h in zip(X, Hs)]), axis=0)
+        near = np.abs(sd) <= 10
+        tile = (self.jj // TILE_ASYM) * 1000 + self.ii // TILE_ASYM
+        out = np.zeros(len(sd), np.float32)
+        tiles = {}
+        for k in np.unique(tile[near]):
+            mm = near & (tile == k)
+            ru, ua = mm & (sd > 0), mm & (sd <= 0)
+            if ru.sum() < 10 or ua.sum() < 10:
+                continue
+            a_ru, a_ua = float(A[ru].mean()), float(A[ua].mean())
+            if a_ru + a_ua < 0.05:
+                continue
+            a = (a_ru - a_ua) / (a_ru + a_ua)
+            tiles[int(k)] = round(a, 3)
+            if abs(a) >= thr:
+                out[ru if a > 0 else ua] = abs(a)
+        return out, tiles
 
     def signed_dist(self, key, p):
         if key not in self._sd:
@@ -183,7 +224,24 @@ class Sectors:
         return g[self.jj, self.ii].astype(np.float32)
 
     PC_NAMES = ["|distance|", "côté", "UCDP au sol", "part au sol", "pertes", "feux", "z feux", "urbain", "continuité", "urbain × distance",
-                "radar : abandon agricole (côté russe)", "radar : abandon agricole (côté ukrainien)", "radar : pas de cultures en 2021"]
+                "radar : abandon agricole (côté russe)", "radar : abandon agricole (côté ukrainien)", "radar : pas de cultures en 2021",
+                "état-major UA (faits) : assauts", "état-major UA (faits) : frappes aériennes", "MoD RF (faits) : localités des bilans"]
+    OFFICIAL = ("etatmajor_assauts", "etatmajor_frappes", "modru_localites")
+
+    def official(self):
+        """Faits officiels des bilans quotidiens (data/officiels_cells_month.csv, build_official_signals.py) :
+        {source: tableau (mois, mailles)} par jour couvert."""
+        O = {k: np.zeros((len(self.months), len(self.U)), np.float32) for k in self.OFFICIAL}
+        path = os.path.join(self.root, "data", "officiels_cells_month.csv")
+        if os.path.exists(path):
+            midx = {m: i for i, m in enumerate(self.months)}
+            with open(path, encoding="utf-8") as f:
+                for r in csv.DictReader(f):
+                    t, u = midx.get(r["mois"]), self.pos.get(int(r["maille"]))
+                    if t is not None and u is not None and r["source"] in O:
+                        O[r["source"]][t, u] += float(r["par_jour"])
+        self.OF = O
+        return O
     SAR_ZONE_KM = 15.0   # fenêtre de la mise à jour mensuelle (scripts/sar_update.py --radius 15)
 
     def sar(self):
@@ -257,10 +315,12 @@ class Sectors:
         a = np.clip(np.abs(sd), 0, 60) / 10
         X = np.stack([a, np.clip(sd, -60, 60) / 30, np.log1p(g), g / (ua + 0.05), np.log1p(w), np.log1p(f),
                          np.clip(zf, -3, 10) / 3, urb, cont, urb * a], axis=1).astype(np.float32)
-        return np.c_[X, self.sar_features(t, sd)].astype(np.float32)
+        of = getattr(self, "OF", None) or {}
+        offc = [np.log1p(self.smooth(of[k][t], 2.5)) if k in of else np.zeros(len(sd), np.float32) for k in self.OFFICIAL]
+        return np.c_[X, self.sar_features(t, sd), np.stack(offc, axis=1)].astype(np.float32)
 
     PC_GROUPS = {"UCDP au sol": [2, 3], "pertes WarSpotting": [4], "feux VIIRS": [5, 6], "urbain et continuité": [7, 8, 9],
-                 "radar (abandon agricole)": [10, 11, 12]}
+                 "radar (abandon agricole)": [10, 11, 12], "état-major UA (faits)": [13, 14], "MoD RF (faits)": [15]}
 
     def pcontact(self, ts, SD, ground, urb, Zf, truth, dis, art, start_wf="2023-06", drop=(), use_art=True):
         """P(contact au sol) par maille et par mois, régression logistique réentraînée chaque mois sur les seuls mois

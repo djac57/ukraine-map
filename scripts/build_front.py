@@ -781,6 +781,13 @@ def indicator_grids(months):
             last = max(pts[n])
             for t in range(last + 1, len(months)):
                 pts[n][t] = list(pts[n][last])
+    # 4e indicateur : assauts rapportés par l'état-major ukrainien (faits, par jour couvert ; build_official_signals.py)
+    gs = defaultdict(dict)
+    path = os.path.join(ROOT, "data", "officiels_cells_month.csv")
+    if os.path.exists(path):
+        for r in csv.DictReader(open(path, encoding="utf-8")):
+            if r["source"] == "etatmajor_assauts" and r["mois"] in midx:
+                gs[midx[r["mois"]]][int(r["maille"])] = float(r["par_jour"])
     out = {}
     for t in range(len(months)):
         grids = []
@@ -791,6 +798,11 @@ def indicator_grids(months):
                 if k >= 0:
                     g[k] += w
             grids.append(g)
+        g = np.zeros(N, np.float32)
+        for k, v in gs.get(t, {}).items():
+            if 0 <= k < N:
+                g[k] += v
+        grids.append(g)
         out[t] = grids
     return out
 
@@ -1867,7 +1879,7 @@ def main():
     U = model.U
     months_out = {m: None for m in months}
     days_out = {}
-    allf = list(fields) + ["nowcast", "combat", "contact", "zf", "zu", "zw", "zm", "destr"]
+    allf = list(fields) + ["nowcast", "combat", "contact", "zf", "zu", "zw", "zm", "destr", "asym"]
     contact_prof = []
     P_now, dis_cell, Zf_store, line_km = {}, {}, {}, {}
     qstore = {f: {} for f in allf}   # champs quantifiés par instantané, encodés à la fin dans l'ordre publié
@@ -2040,9 +2052,35 @@ def main():
     truth = {t: ncast.T[t] for t in tsm if t in ncast.T}
     ART = sect.artillery()
     sect.AG = sect.sar()
+    sect.official()
+    print("faits officiels : " + ", ".join(f"{k} {int((v > 0).sum()):,} mailles-mois" for k, v in sect.OF.items()), flush=True)
     print(f"radar : abandon agricole renseigné sur {int(np.isfinite(sect.AG).sum()):,} mailles-mois", flush=True)
     PC, PCwf = sect.pcontact(tsm, SDm, sect.G, urb, Zf_store, truth, dis_cell, ART)
     print(f"P(contact au sol) : AUC walk-forward {sect.pc_auc:.3f}, à distance égale {sect.pc_auc_eq:.3f} ; coefficients {sect.pc_coef}" if sect.pc_auc else "P(contact au sol) : pas de validation", flush=True)
+    # « combats derrière la ligne » : asymétrie de l'activité de part et d'autre de la ligne 50 %, par secteur de 24 km
+    # (indicateur sans direction ; garde-fou des flèches de gradient dans app.js) ; bilan : mouvement réel t → t+2
+    asym_tiles, asym_rows = {}, []
+    tl12 = (sect.jj // 12) * 1000 + sect.ii // 12
+    for t in tsm:
+        m = months[t]
+        fld, tiles = sect.asym(t, SDm[t], ART)
+        qstore["asym"][m] = bytes(np.clip(np.round(fld * 63), 0, 63).astype(np.uint8).tolist())
+        asym_tiles[m] = tiles
+        months_out[m]["asymKm2"] = round(float((fld > 0).sum()) * CELL_KM ** 2)
+        if t in truth and t + 2 in truth:
+            a0, a2 = truth[t], truth[t + 2]
+            gain = np.where((a0 == 0) & (a2 == 1), 1, np.where((a0 == 1) & (a2 == 0), -1, 0))
+            for k, a in tiles.items():
+                g = int(gain[tl12 == k].sum())
+                asym_rows.append((m, a, g))
+    asym_bilan = {}
+    if asym_rows:
+        A_ = np.array([r[1] for r in asym_rows]); G_ = np.array([r[2] for r in asym_rows])
+        for lab, lo, hi in (("< −0,3", -9, -0.3), ("−0,3 à −0,1", -0.3, -0.1), ("−0,1 à +0,1", -0.1, 0.1), ("+0,1 à +0,3", 0.1, 0.3), ("> +0,3", 0.3, 9)):
+            sel = (A_ >= lo) & (A_ < hi)
+            if sel.sum():
+                asym_bilan[lab] = [int(sel.sum()), round(float(np.mean(G_[sel] > 0)), 3), round(float(np.mean(G_[sel] < 0)), 3), round(float(np.mean(G_[sel] == 0)), 3)]
+        print("combats derrière la ligne : bilan (asymétrie → gain russe / reprise ukrainienne / rien, t → t+2) : " + " ; ".join(f"{k} n={v[0]} {v[1]:.0%}/{v[2]:.0%}/{v[3]:.0%}" for k, v in asym_bilan.items()), flush=True)
     # couche d'information « destruction cumulée » (radar, décochée) : part du bâti (≥ 5 % de bâti en 2021) dont la
     # rétrodiffusion s'écarte durablement de 2021, maximum courant jusqu'au mois PRÉCÉDENT (un mois de recul en plus du
     # J-7 de la donnée) ; mailles de 2 km seulement, aucun composite plus fin ; 63 = 50 % du bâti modifié ou plus
@@ -2072,7 +2110,7 @@ def main():
             mm = tile == tk
             Lt = max(float(((np.abs(sd) <= 1) & mm).sum()) * CELL_KM * math.pi / 4, 2.0)
             near = mm & (np.abs(sd) <= 10)
-            comp = [float(np.log1p(sect.smooth(x, 1.5))[near].mean()) if near.any() else 0.0 for x in (sect.R[0, t], sect.G[t], sect.R[2, t], ART[t])]
+            comp = [float(np.log1p(sect.smooth(x, 1.5))[near].mean()) if near.any() else 0.0 for x in (sect.R[0, t], sect.G[t], sect.R[2, t], ART[t], sect.OF["etatmajor_assauts"][t], sect.OF["modru_localites"][t])]
             tot = sum(comp) or 1.0
             tiles.append((int((tk // 1000) * 25 + 12), int((tk % 1000) * 25 + 12),
                           round(float((pc * mm * (sd > 0)).sum() * a2 / Lt), 1), round(float((pc * mm * (sd <= 0)).sum() * a2 / Lt), 1),
@@ -2234,6 +2272,7 @@ def main():
                     "profile": [round(float(x), 4) for x in np.mean(np.array(contact_prof), axis=0)] if contact_prof else []},
         "localSigma": getattr(model, "local", None) or getattr(model, "local_report", None),
         "localBand": local_band,
+        "asym": {"bilan": asym_bilan, "thr": 0.2, "tile_km": 24},
         "zscores": {"refMonths": 12, "names": ["feux", "UCDP", "pertes", "mouvement"], "encoding": "q = (z + 2) × 5"},
         "nowcast": dict(rep, names=["feux", "UCDP", "pertes"], widthKm=30, r0=0.03, grid=[0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]),
         "nMonths": len(months), "steps": dk, "stepDays": STEP_DAYS, "windowDays": WINDOW_DAYS,

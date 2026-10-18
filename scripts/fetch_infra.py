@@ -20,7 +20,7 @@ import urllib.parse
 import urllib.request
 
 UA = "ukraine-feux/1.0 (non-commercial research)"   # Overpass refuse (406) les identifiants qui imitent un navigateur
-BBOX = (44.0, 30.0, 52.5, 41.5)   # sud, ouest, nord, est : la moitié est de l'Ukraine et la bande russe
+BBOX = (44.0, 22.0, 52.5, 41.5)   # sud, ouest, nord, est : toute l'Ukraine et la bande russe
 FILES = {
     "ne_10m_railroads.zip": "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_railroads.zip",
     "gppd.zip": "https://wri-dataportal-prod.s3.amazonaws.com/manual/global_power_plant_database_v_1_3.zip",
@@ -32,7 +32,6 @@ QUERIES = {
     "osm_rail_main.json": 'way["railway"="rail"]["usage"="main"]({b});',
     "osm_industrial.json": 'way["landuse"="industrial"]({b});relation["landuse"="industrial"]({b});',
     "osm_heavy.json": 'nwr["industrial"~"coke|mine|steel|chemical"]({b});nwr["man_made"="works"]["product"~"coke|steel|coal"]({b});nwr["landuse"="quarry"]["resource"~"coal"]({b});',
-    "osm_aero.json": 'nwr["aeroway"="aerodrome"]({b});nwr["military"="airfield"]({b});',
 }
 
 
