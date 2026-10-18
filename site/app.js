@@ -1143,6 +1143,29 @@ function buildPm(fi, k){
   }
   cx.putImageData(img, 0, 0); pmImg = cv;
 }
+// signaux Telegram (indicateur affiché, pas dans le calcul) : par tronçon de 24 km et par mois, mentions d'attaques et de
+// présence ukrainiennes signalées par les sources russes (losange bleu, à gauche) et russes signalées par les sources
+// ukrainiennes (losange rouge, à droite) ; taille et opacité selon le nombre ; données figées (telegram_troncons.js)
+let showTg = false, TG = null, tgHits = [];
+function loadTg(then){ if (window.TG_TRONCONS) { TG = window.TG_TRONCONS; return then && then(); }
+  const sc = document.createElement("script"); sc.src = "telegram_troncons.js?v=" + (FRONT_V.tg || ""); sc.onload = () => { TG = window.TG_TRONCONS; if (then) then(); }; document.head.appendChild(sc); }
+function drawTg(k){
+  tgHits = []; if (!TG) return;
+  const fi = frontIdx(); if (fi < 0) return; const m = FR.months[fi].date.slice(0, 7);
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const [key, col, side] of [["ru", C.uactl, -1], ["ua", C.front, 1]]) {
+    for (const [mm, t, a, p] of TG[key]) { if (mm !== m) continue;
+      const ij = TG.tiles[t]; if (!ij) continue;
+      const gx = ij[0] + TG.tileCells / 2, gy = ij[1] + TG.tileCells / 2, n = a + p;
+      const x = (gAff[0] + gx * gAff[2]) * k + tr.x + side * 5, y = (gAff[1] + gy * gAff[2]) * k + tr.y;
+      if (x < -10 || x > W + 10 || y < -10 || y > H + 10) continue;
+      const r = Math.min(9, 3 + 1.6 * Math.sqrt(n));
+      ctx.globalAlpha = Math.min(0.9, 0.35 + 0.12 * Math.sqrt(n)); ctx.fillStyle = col; ctx.strokeStyle = C.bg; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      tgHits.push({x, y, r, key, a, p});
+    } }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 // liseré P(mouvement) dessiné AU-DESSUS des feux et des hachures, avec un fin contour sombre pour le détacher
 function drawPm(k){
   const fp = frontIdx(); if (fp < 0) return;
@@ -1498,6 +1521,7 @@ function draw(){
   if (showUcdp) drawUcdp(k);
   if (showLoss) drawLosses(k);
   if (showArcs) drawArcs(k);
+  if (showTg) drawTg(k);
   if (showPm) drawPm(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
   if (showArrows) { drawArrows(k); drawEventArrows(k); }
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
@@ -1683,6 +1707,7 @@ $("varSel").onchange = () => {
   frontFor = -2; draw(); updateArea(); legend(); varNote();
 };
 document.querySelectorAll("[data-raw]").forEach(cb => cb.onchange = () => { rawOn[cb.dataset.raw] = cb.checked; legend(); draw(); });
+if ($("lyrTg")) $("lyrTg").onchange = e => { showTg = e.target.checked; if (showTg) loadTg(() => draw()); legend(); draw(); };
 if ($("lyrClaims")) $("lyrClaims").onchange = e => { showClaims = e.target.checked; legend(); draw(); };
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
@@ -1723,6 +1748,15 @@ const tip = $("tip");
 let tipKey = null, tipFull = false;   // position du dernier affichage, détails ouverts ou non
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (showTg && tgHits.length) {
+    let best = null; for (const h of tgHits) if (Math.hypot(h.x - mx, h.y - my) <= h.r + 2) { best = h; break; }
+    if (best) {
+      tip.innerHTML = `<div>${_t(best.key === "ru" ? "sources russes, ce mois-ci : {a} mention(s) d'attaques ukrainiennes, {p} de présence ukrainienne" : "sources ukrainiennes, ce mois-ci : {a} mention(s) d'attaques russes, {p} de présence russe", {a: best.a, p: best.p})}</div>` +
+        `<div style="color:var(--faint)">${_t("indique qu'un secteur va bouger, pas qui avance")}</div>`;
+      tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
+    }
+  }
   if (showClaims && claimHits.length) {
     let best = null, bd = 9;
     for (const h of claimHits) { const d = Math.hypot(h.x - mx, h.y - my); if (d < bd) { bd = d; best = h; } }

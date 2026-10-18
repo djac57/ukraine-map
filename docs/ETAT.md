@@ -359,6 +359,12 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 nuit : couche « signaux Telegram (30 j) », FIGÉE (collecte CI à venir), décochée : par tronçon de 24 km et
+  par mois, losange bleu = attaques/présence ukrainiennes signalées par 9 canaux russes, losange rouge = russes
+  signalées par 5 canaux ukrainiens ; agrégats seulement (`scripts/build_telegram_layer.py` →
+  `site/telegram_troncons.js`, depuis `signals3/sens_troncons_month.csv` ; aucun texte ni nom de canal) ; ⓘ : signale
+  le mouvement (66 % contre 36 %), pas le sens ; données arrêtées en septembre 2026. Méthode : Telegram passe de « en
+  cours » à « affiché comme indicateur ».
 - 18/10 nuit : flèches TRONQUÉES juste avant une barrière dure (agent terrain : fleuve ≥ 40 m³/s ou plan d'eau,
   escarpement, canal nommé ; `site/barrieres_dures.js`, `site/troncature_fleches.js`) : ni supprimées ni réorientées,
   info-bulle « arrêtée par une barrière naturelle » ; test bloquant (aucune flèche dessinée ne franchit une barrière dure) :

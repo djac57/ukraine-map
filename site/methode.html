@@ -196,8 +196,9 @@
 <li><strong>Un LLM qui lit la carte</strong> : à retravailler dans un projet dédié ; résultats préliminaires : AUC 0,62 contre 0,86 pour la persistance, et la variante hybride ne bat pas la régression.</li>
 <li><strong>Destruction cumulée (radar)</strong> : en cours de refonte (cohérence InSAR désaisonnalisée, validation sur les évaluations UNOSAT et sur des villes connues) ; l'ancienne couche a été retirée (AUC 0,49 face à UNOSAT, artefact saisonnier).</li>
 <li><strong>Terrain dur : grands fleuves (Dnipro, Siverskyi Donets, Oskil aux sections larges) et reliefs abrupts</strong> : en test, limité à ces barrières ; utilisé au minimum comme contrainte d'affichage (aucune flèche ne traverse le Dnipro), dans le calcul seulement si le test le valide.</li>
-<li><strong>Telegram (15 canaux russes et ukrainiens)</strong> : retenu comme indicateur affiché, pas dans le calcul de la ligne (gain non mesurable : +0,002 pour P(mouvement), −0,0014 pour P(contact)) ; il signale qu'un secteur va bouger (66 % des tronçons cités bougent, contre 36 %), pas qui avance. Couche à venir.</li>
 </ul>
+<h3>Affiché comme indicateur</h3>
+<p class="sub"><strong>Telegram (15 canaux russes et ukrainiens)</strong> : couche « signaux Telegram (30 j) », décochée, agrégats par tronçon de 24 km seulement. Pas dans le calcul de la ligne (gain non mesurable : +0,002 pour P(mouvement), −0,0014 pour P(contact)) ; il signale qu'un secteur va bouger (66 % des tronçons cités bougent dans les deux mois, contre 36 %), pas qui avance. Données arrêtées en septembre 2026, mise à jour automatique à venir.</p>
 <h3>Pistes écartées</h3>
 <p class="sub">Chaque piste a été mesurée en walk-forward, sur le seul passé, avant d'être écartée. Montrer ce qui ne marche pas fait partie de la méthode.</p>
 <ul class="sub">
@@ -269,8 +270,9 @@
 <li><strong>An LLM reading the map</strong>: to be reworked in a dedicated project; preliminary results: AUC 0.62 vs 0.86 for persistence, and the hybrid does not beat the regression.</li>
 <li><strong>Cumulative destruction (radar)</strong>: being redesigned (deseasonalised InSAR coherence, validation against UNOSAT assessments and known cities); the old layer was withdrawn (AUC 0.49 against UNOSAT, seasonal artefact).</li>
 <li><strong>Hard terrain: major rivers (Dnipro, Siverskyi Donets, wide sections of the Oskil) and steep relief</strong>: under test, limited to these barriers; used at least as a display constraint (no arrow crosses the Dnipro), and in the computation only if the test validates it.</li>
-<li><strong>Telegram (15 Russian and Ukrainian channels)</strong>: kept as a displayed indicator, not in the computation of the line (gain not measurable: +0.002 for P(movement), −0.0014 for P(contact)); it signals that a sector is about to move (66% of cited sectors move, vs 36%), not who advances. Layer to come.</li>
 </ul>
+<h3>Shown as an indicator</h3>
+<p class="sub"><strong>Telegram (15 Russian and Ukrainian channels)</strong>: “Telegram signals (30 d)” layer, unchecked, aggregates per 24 km sector only. Not used to compute the line (gain not measurable: +0.002 for P(movement), −0.0014 for P(contact)); it signals that a sector is about to move (66% of cited sectors move within two months, vs 36%), not who advances. Data stop in September 2026; automatic updates to come.</p>
 <h3>Leads dropped</h3>
 <p class="sub">Each lead was measured walk-forward, on the past only, before being dropped. Showing what does not work is part of the method.</p>
 <ul class="sub">
@@ -525,7 +527,7 @@
 <script src="front_equilibre.js?v=98b088d2af"></script>
 <script src="front.js?v=3307031094"></script>
 <script src="osint.js?v=46ed380b81"></script>
-<script src="methode_i18n.js?v=2f1c632971"></script>
-<script src="app.js?v=45fa9c9827"></script>
+<script src="methode_i18n.js?v=b53c4443a7"></script>
+<script src="app.js?v=11514d4446"></script>
 </body>
 </html>

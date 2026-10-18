@@ -26,6 +26,8 @@ window.METHODE_H = {
   "Pistes écartées": ["Leads dropped", "Відхилені напрями", "Отклонённые направления"],
   "Leads in progress": ["Leads in progress", "Напрями в роботі", "Направления в работе"],
   "Leads dropped": ["Leads dropped", "Відхилені напрями", "Отклонённые направления"],
+  "Affiché comme indicateur": ["Shown as an indicator", "Показано як індикатор", "Показано как индикатор"],
+  "Shown as an indicator": ["Shown as an indicator", "Показано як індикатор", "Показано как индикатор"],
   "Limites": ["Limits", "Обмеження", "Ограничения"],
   "Normale et excès, mois par mois": ["Normal and excess, month by month", "Норма й надлишок, щомісяця", "Норма и избыток, помесячно"],
   "Par région": ["By region", "За регіонами", "По регионам"],
