@@ -210,7 +210,27 @@ probabilité de contrôle russe** partout (bande russe comprise) ; les distances
   côté russe quand |a| ≥ 0,4 du côté russe deux mois de suite, ou quand une flèche « avancée russe » est contredite
   par l'asymétrie (≥ 0,2) avec un dernier mois sans gain russe.
 
-### 3.12 Validation
+### 3.12 Secteurs susceptibles de bouger (`sectors.py` : `pmove`)
+
+- Tronçon k = tuile de 24 km (12 × 12 mailles) traversée par la ligne. Distances à la ligne du champ des CARTES (équilibré), pas du nowcast. Position Y_{t,k} = (mailles russes du consensus
+  des cartes × 4 km²) / 24 km, en km de profondeur. À défaut de consensus au mois t (dernier mois) : champ p > 0,5.
+- Cible : |Y_{t+2,k} − Y_{t,k}| ≥ 0,5 km, sans sens.
+- Variables à t, moyennes à ≤ 20 km de la ligne :
+  - log(1 + assauts de l'état-major lissés σ = 2,5) ;
+  - asymétrie a_w côté russe et son z relatif (borné à ±5) ;
+  - feux en excès, UCDP, pertes (`indicator_grids`, comptes ponctuels lissés σ = 6 km puis 4 km) : 1 − exp(−lissé / P90) ;
+    sans le premier lissage, l'AUC tombe à 0,78 (l'étude v4 lisait des indicateurs déjà lissés) ;
+  - mouvement récent |Y_t − Y_{t−1}| et |Y_t − Y_{t−3}|.
+- Régression logistique ridge (λ = 3), variables standardisées, réentraînée chaque mois sur les tronçons-mois
+  q ∈ [t − 20, t − 2]. Même règle pour le dernier mois (vérité à q + 2 connue à t).
+- Publication : champ `pmove` (q = 1 + 62·P sur les mailles à ≤ 3 km de la ligne, 0 ailleurs), P par tronçon dans
+  `months[].pm` ([colonne, ligne, P %]) pour le survol, validation dans `FRONT.pmove`. Les pas de 3 jours reprennent le
+  dernier mois calculé.
+- Absents de la CI, donc retirés du modèle publié : Telegram (+0,003 d'AUC hors ligne) et liste rejouée (0).
+- Validation du build (walk-forward, 2023-01 → 2026-08, n = 5 245 tronçons-mois, taux de base 13 %) : **AUC 0,805**.
+  Hors ligne, l'étude donnait 0,83 avec Telegram et la liste ; le même code sur les données de l'étude : 0,80 à 0,82.
+
+### 3.13 Validation
 - Walk-forward : chaque paramètre appris au mois t n'utilise que des mois dont la vérité était connue à t.
 - Brier (nowcast) sur la bande de 30 km et sur les mailles qui changent de camp ; AUC globale et « à distance égale »
   (moyenne pondérée des AUC dans les tranches 0-3, 3-6, 6-10, 10-20 km) ; couverture de la bande par secteur et par
@@ -257,6 +277,24 @@ Chiffres du build d'octobre 2026 (journal du build et méta de `site/front.js`).
 
 ---
 
+### Dépendance aux cartes (indicateur INTERNE, non publié)
+
+Demandé par l'utilisateur le 18/10/2026 : on veut voir ce chiffre MONTER, c'est-à-dire la dépendance aux cartes baisser,
+au fil des versions. `scripts/map_dependence.py` (imprimé à la fin de chaque `build_front.py`). Champ final = nowcast
+publié (« avec signaux de combat ») ; cartes seules = champ équilibré. Bande de ±30 km autour de la ligne 50 % finale,
+mailles ukrainiennes, moyenne des 12 derniers mois (et dernier mois).
+- (a) part de l'information hors cartes : moyenne |logit p_final − logit p_cartes| / moyenne |logit p_final| ;
+- (b) part des mailles dont l'état (russe p > 0,95 / gris / ukrainien p < 0,05) diffère ;
+- (c) écart moyen de position entre les deux lignes 50 % (km, moyenne symétrique) ;
+- (d) indice de l'étude v4 : |p_cartes − p_données seules| moyen 0,015 à 0,023 (hors build, `analyses/nowcast/`).
+
+| Version | Période | (a) hors cartes | (b) état changé | (c) écart de ligne | Dernier mois (a / b / c) |
+|---|---|---|---|---|---|
+| 9a2616f (en ligne le 18/10) | 2025-10 → 2026-09 | 3,87 % | 3,64 % | 0,58 km | 2,89 % / 2,89 % / 0,40 km |
+| lot P(mouvement) (18/10) | idem | 3,87 % | 3,64 % | 0,58 km | identique : la couche ne modifie pas le champ |
+
+Ce qui fera bouger ces chiffres : des signaux intégrés au champ final (nowcast), pas des couches d'information.
+
 ## 5. Contrôles (`scripts/check_arrows.py`)
 
 Bloquants : YAML des workflows ; schéma de `front.js` (types, `grid.R` ≈ rayon terrestre) ; placement des flèches
@@ -293,6 +331,20 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   symétrique n'est pas validée sur le passé, question posée à l'utilisateur.
 - 18/10 : MAX abandonné ; bilans MoD RF de 2026 comblés par les reprises ouvertes (faits seulement).
 - 18/10 : Telegram à tester comme indice de sens (fait : non retenu).
+- 18/10 : couche « secteurs susceptibles de bouger » (P(mouvement), AUC 0,83) validée, COCHÉE par défaut : liseré
+  violet sans sens, ⓘ avec AUC et taux de base, P en % au survol (§ 3.12).
+- 18/10 : flèches : une seule règle de longueur pour tous les types (pleines, pointillées, « poussée possible »,
+  annonces) : proportionnelle au mouvement, plafond 26 px en vue d'ensemble et 70 px au zoom ; le minimum des
+  pointillées ne sert qu'à la lisibilité de la hampe et ne dépasse pas ce plafond (`arrowPx`). Tête jamais en Russie
+  hors bande de Koursk tenue par l'Ukraine, pour tous les types (`headGuard` : projection sur la tangente de la
+  frontière, sinon pas de flèche) ; test bloquant à la longueur dessinée (vue d'ensemble, zoom 3 et 6). Cas d'origine :
+  Vovtchansk, septembre 2026.
+- 18/10 : légende dynamique : une entrée par case cochable, avec échantillon, visible seulement si la case est cochée
+  (test bloquant LEGENDE : chaque case a son entrée en 4 langues). Styles distincts : zone grise = hachures grises,
+  combats intenses = diagonales rouges, combats derrière la ligne = pointillé brun.
+- 18/10 : page méthode réduite à : but, algorithme pas à pas, validation (tableaux), décisions et limites, sources et
+  licences. Carte et panneaux annexes (surfaces, désaccord, feux, ciel, Oryx, repères) masqués (`div.annexe hidden`) :
+  app.js, partagé avec la carte, attend encore ces éléments (dette : séparer un `methode.js`).
 
 ---
 
@@ -312,9 +364,12 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 | Bilans état-major UA (assauts) | +0,010 (P(contact)), nowcast 0,3488 → 0,3434 | retenu |
 | Bilans MoD RF (localités) | ≈ 0 ; 2024-01 → 2026-02 presque chaque jour, 2026-03 → 10 : 9 à 15 jours par mois (citations Interfax, RIA, Telegram) | retenu pour le pluralisme |
 | Liste officielle des hostilités (rejouée, 59 actes) | +0,027 à distance égale | retenu |
-| Telegram « qui attaque / présence » (15 canaux) | P(contact) −0,0014 ; sens : mouvement, pas direction | non retenu ; piste v4 « P(mouvement) » |
+| Telegram « qui attaque / présence » (15 canaux) | P(contact) −0,0014 ; sens : non (signale un MOUVEMENT : 66 % des tronçons cités bougent contre 36 %) ; P(mouvement) +0,003 d'AUC | signal de MOUVEMENT, jamais de sens ; dans P(mouvement) dès qu'il est collecté en CI (absent aujourd'hui) |
 | VIINA events | redondants | optionnels (v4) |
-| IODA, éditions OSM, Sentinel-2 | rien | rejetés |
+| IODA, éditions OSM | rien | rejetés |
+| Sentinel-2 refait (front ±15 km, NDVI/NBR/texture/sol nu, `sar/rapport_S2.md`) | seul +0,024 d'AUC à distance égale (0,541 → 0,565) ; avec le radar 0,583 → 0,582 ; P(mouvement) 0,745 → 0,732 | redondant avec le radar ; couche de contexte et remplaçant du radar |
+| Impacts KAB/obus (`sar/rapport_IMPACTS.md`) | S2 10 m : ≈ 1 détection sur 2, gradient vers la ligne, plus fort côté défenseur ; nord de Lyman : asymétrie vers le côté russe en août 2026 (1,8×), un mois avant les cartes ; S1 inexploitable | non intégré (comptes trop faibles) ; diagnostic d'asymétrie possible en saison claire |
+| InSAR (cohérence 12 j, 2024-01 → 2026-06) | P(mouvement) 0,710 → 0,707 ; sens 0,68 → 0,64 | non retenu |
 | Asymétrie des combats | voir §4 | couche + garde-fou ; moteur v4 à tester |
 
 Rapports détaillés : `ukraine-recherche/signals/`, `signals2/` (faisceau, VERDICT.txt, `replay/` pour la liste
@@ -368,7 +423,17 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
    0,037 ; mouvement récent 0,015 ; état-major 0,007 ; Telegram 0,003 ; liste 0 ; radar bâti −0,001 ; asymétrie −0,006.
    Le mouvement récent seul : 0,731. Utilisé pour déclencher la dérive : 0,272 / 1,995 km, pas mieux que le seuil
    simple. Le « où » se prévoit bien, le « de combien et dans quel sens » beaucoup moins. Une couche « secteurs
-   susceptibles de bouger » (AUC 0,83) serait publiable après validation de l'affichage ; non publiée. Il faut des signaux plus spécifiques du lieu de bascule
+   susceptibles de bouger » : validée par l'utilisateur le 18/10/2026, publiée (voir § 3.12) ; AUC du build 0,805
+   (0,83 hors ligne avec Telegram et la liste, absents de la CI).
+   **Sentinel-2 et InSAR** (agent radar, `ukraine-recherche/sar/`, script `analyses/nowcast/v4_pm_sar.py`), comparés sur
+   le MÊME sous-ensemble de tronçons-mois où la source existe (variables moyennées par côté à ≤ 15 km de la ligne) :
+   - P(mouvement) : Sentinel-2 (anomalies NDVI, NBR, texture / 2021, sol nu, brûlures ; n = 1 033) 0,745 → 0,732 ;
+     InSAR (cohérence 12 j, 2024-01 → 2026-06 ; n = 431) 0,710 → 0,707. Aucun gain.
+   - SENS (« la Russie avance » parmi les tronçons qui bougent) : mouvement récent signé seul 0,55 (S2) / 0,50 (InSAR) ;
+     + signaux de lieu 0,65 / 0,68 ; + S2 0,64 ; + InSAR 0,64. Les signaux de lieu aident un peu à prévoir le sens,
+     l'imagerie non. L'agent radar trouve aussi que S2 n'ajoute rien à P(contact) une fois le radar V2 présent
+     (0,583 → 0,582 à distance égale) et que les impacts détectés (S2 à 10 m) restent trop clairsemés pour le modèle.
+   - Décision : ni S2 ni InSAR dans le modèle ; S2 reste une couche de contexte possible (non publiée). Il faut des signaux plus spécifiques du lieu de bascule
    (radar d'abandon et de destruction récents, liste rejouée, asymétrie relative, P(mouvement) Telegram) et un vrai
    modèle espace-état le long de la ligne.
 5. Cadence quotidienne (fenêtre de 14 jours, décalage de 7 jours ; code présent, `DAILY_DAYS = 0`), puis prévision
@@ -378,8 +443,15 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
 7. Bilans MoD RF depuis mars 2026 (MAX abandonné : compte russe exigé) : comblés le 18/10/2026 par les citations
    d'Interfax et de RIA Novosti (Internet Archive) et les messages Telegram restants ; mil.ru (géobloqué) et VK : rien ;
    9 à 15 jours couverts par mois. À automatiser en CI (scripts dans `ukraine-recherche/modfill/`). Faits seulement.
-8. À refaire : Sentinel-2 (rejet trop rapide), impacts KAB ; frappes en Russie ≤ 300 km ; cartes Commons de Koursk
-   (CC0) ; défenses connues (OSM, zone russe).
+8. ~~À refaire : Sentinel-2 (rejet trop rapide)~~ **FAIT le 18/10/2026** (`sar/rapport_S2.md` : utile seul, +0,024,
+   redondant avec le radar) ; impacts KAB/obus **FAIT** (`sar/rapport_IMPACTS.md`). Reste : remarque de Molin sur le
+   NOMBRE d'impacts d'obus avant Vivaldi (série par décade, z local ; confiée à l'agent radar, résultat dans `sar/`) ;
+   frappes en Russie ≤ 300 km ; cartes Commons de Koursk (CC0) ; défenses connues (OSM, zone russe).
+8 bis. **Chantier TERRAIN** (agent lancé le 18/10/2026, état dans `ukraine-recherche/terrain/ETAT_TERRAIN.md`) :
+   covariables de relief, rivières, crêtes, lignes d'arbres, villages-forteresses ; couche relief (ombrage) sur la carte ;
+   question ouverte de la vue 3D inclinée, qui demanderait de passer à MapLibre GL (à évaluer : coût, poids, licences).
+8 ter. **Telegram dans P(mouvement)** : signal de MOUVEMENT seulement, jamais de sens. À brancher dans le modèle publié
+   dès que la collecte Telegram par tronçon tourne en CI (aujourd'hui dans le dossier de recherche).
 9. Messages à Clément Molin (X @clement_molin, t.me/clement_molin) et à Tytelman, une fois v4 en ligne.
 10. **PROJET LLM — non abandonné, à démarrer après tout le reste.** L'utilisateur y tient.
     - Un LLM qui lit la carte et les signaux : tenailles, saillants, poussées cachées, explications par secteur.
@@ -389,6 +461,28 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
     - Résultats d'octobre 2026 : LLM seul AUC 0,62 contre persistance 0,86 ; l'hybride ne bat pas la régression ; un
       point fort : la poche encerclée repérée.
     - Verdict de l'utilisateur : « en l'état pas assez bon » (et non « abandonné »).
+
+### 8.1 bis Résultats de recherche du 18/10/2026 (recopiés tels quels de REPRISE.md ; détails dans ukraine-recherche/)
+
+- **v4 « données seules »** (sans les cartes) : **négatif**. Brier 0,0524 contre 0,0481 pour la persistance. Les signaux voient le mouvement là où ça bouge, mais créent de fausses bascules ailleurs.
+- **v4 hybride** (cartes + signaux) : −11 % de Brier près de la ligne, pas sur les bascules.
+- **Espace-état (Kalman)** par tronçon : −9 % d'erreur là où ça bouge, avec dérive ailleurs. Seule la variante « persistance + signaux déclenchés au-delà d'un seuil » bat la persistance partout.
+- **P(mouvement)** par tronçon (bougera d'au moins 0,5 km à t+2) : **AUC 0,83**. C'est devenu la couche « secteurs susceptibles de bouger », cochée par défaut. Le « où ça va bouger » se prévoit bien, le « combien et dans quel sens » beaucoup moins.
+- **Sentinel-2 refait (`sar/rapport_S2.md`)** : le rejet initial était bien trop rapide. Seul, il ajoute +0,024 d'AUC à distance égale, mais rien une fois le radar présent : les deux mesurent l'abandon agricole. On le garde comme couche de contexte et comme remplaçant du radar.
+- **Impacts KAB/obus (`sar/rapport_IMPACTS.md`)** :
+  - Sentinel-2 à 10 m détecte des cratères probables, environ une détection sur deux, avec un gradient vers la ligne, plus fort du côté qui se défend ;
+  - Sentinel-1 n'est pas exploitable ;
+  - au nord de Lyman, l'asymétrie bascule en août 2026, un mois avant les cartes, mais les comptes sont trop faibles avant.
+- **Remarque de Molin** (relayée par l'utilisateur) : le NOMBRE d'impacts d'obus a augmenté avant Vivaldi. C'est à tester précisément : série par décade et z local. Tâche confiée à l'agent radar ; résultat dans `sar/`.
+- **Telegram « qui attaque »** : ne prédit pas le SENS. En revanche, il signale un secteur qui va BOUGER (66 % de mouvement contre 36 % en moyenne). À utiliser dans P(mouvement), pas comme direction.
+- **Combats derrière la ligne, en version relative (z ≥ 2)** : les flèches bleues « poussée possible » ont été suivies d'une reprise ukrainienne dans 36 % des cas, contre 12 % en moyenne. Seulement 14 cas : c'est un indice.
+- **Terrain** (relief, rivières, crêtes, lignes d'arbres, forteresses) et **couche relief / « 3D »** : agent lancé le 18/10, résultats dans `ukraine-recherche/terrain/ETAT_TERRAIN.md`. Une vraie vue 3D inclinée demanderait de changer de moteur de carte (MapLibre GL) : à évaluer.
+
+### 8.1 ter Décisions du 18/10/2026, après-midi (recopiées telles quelles de REPRISE.md)
+
+- **Petits ajouts réguliers** pour un retour fréquent : publier dès que chaque petit lot est prêt.
+- **Terrain** : l'utilisateur tient à l'idée que les barrières physiques (rivières, forêts denses) fixent le front. Le test « prévision du mouvement » est négatif. Le test « emplacement de la ligne » (a priori barrière dans la bande d'incertitude) est en cours. La couche relief est prête : ombrage Copernicus GLO-90, case décochée par défaut, au-dessus de la densité.
+- **Fortifications, À COMPTER DU 18/10/2026** : un instantané actuel, mis à jour régulièrement, sans historique. Côté russe seulement, couche décochée, densité par maille. Sources : OSM, détection automatique de structures linéaires sur Sentinel-2, Brady Africk seulement avec autorisation.
 
 ### 8.2 Pistes d'amélioration pour plus tard (reprises telles quelles de REPRISE.md) (brainstorm du 18/10/2026, avec tout le contexte en tête)
 

@@ -1879,7 +1879,7 @@ def main():
     U = model.U
     months_out = {m: None for m in months}
     days_out = {}
-    allf = list(fields) + ["nowcast", "combat", "contact", "zf", "zu", "zw", "zm", "destr", "asym"]
+    allf = list(fields) + ["nowcast", "combat", "contact", "zf", "zu", "zw", "zm", "destr", "asym", "pmove"]
     contact_prof = []
     P_now, dis_cell, Zf_store, line_km = {}, {}, {}, {}
     qstore = {f: {} for f in allf}   # champs quantifiés par instantané, encodés à la fin dans l'ordre publié
@@ -2083,6 +2083,25 @@ def main():
             if sel.sum():
                 asym_bilan[lab] = [int(sel.sum()), round(float(np.mean(G_[sel] > 0)), 3), round(float(np.mean(G_[sel] < 0)), 3), round(float(np.mean(G_[sel] == 0)), 3)]
         print("combats derrière la ligne : bilan (asymétrie → gain russe / reprise ukrainienne / rien, t → t+2) : " + " ; ".join(f"{k} n={v[0]} {v[1]:.0%}/{v[2]:.0%}/{v[3]:.0%}" for k, v in asym_bilan.items()), flush=True)
+    # « secteurs susceptibles de bouger » : P(la ligne bouge d'au moins 0,5 km d'ici t+2) par tronçon de 24 km, sans sens,
+    # walk-forward (sectors.pmove) ; publiée en liseré sur les mailles à ≤ 3 km de la ligne, q = 1 + P × 62 (0 = rien) ;
+    # les instantanés intermédiaires reprennent le dernier mois calculé
+    # distances à la ligne des CARTES (champ équilibré, pas le nowcast) : la cible est le mouvement du consensus des cartes
+    SDe = {t: sect.signed_dist(("e", t), np.frombuffer(qstore["equilibre"][months[t]], np.uint8).astype(np.float32) / 63)[0] for t in tsm if months[t] in qstore["equilibre"]}
+    PMV, pm_auc, pm_base, pm_n = sect.pmove([t for t in tsm if t in SDe], SDe, truth, P_now, ind)
+    print(f"secteurs susceptibles de bouger : AUC walk-forward {pm_auc:.3f} (2023+, n={pm_n}, taux de base {pm_base:.0%})" if pm_auc else "secteurs susceptibles de bouger : pas de validation", flush=True)
+    pm_q, pm_t = {}, {}
+    for t, ptile in PMV.items():
+        pt = np.array([ptile.get(int(k), -1.0) for k in sect.pm_tile], np.float32)
+        q = np.where((pt >= 0) & (np.abs(SDm[t]) <= 3), 1 + np.round(np.clip(pt, 0, 1) * 62), 0)
+        pm_q[months[t]] = bytes(q.astype(np.uint8).tolist())
+        # par tronçon : centre (colonne, ligne de la grille) et P en %, pour le survol
+        pm_t[months[t]] = [[int((k % 1000) * 12 + 6), int((k // 1000) * 12 + 6), round(p * 100)] for k, p in sorted(ptile.items())]
+    for fk in frames:
+        cand_m = [m for m in pm_q if m <= fk[:7]]
+        if cand_m:
+            qstore["pmove"][fk] = pm_q[max(cand_m)]
+            (months_out[fk] if len(fk) == 7 else days_out[fk])["pm"] = pm_t[max(cand_m)]
     # couche d'information « destruction cumulée » (radar, décochée) : part du bâti (≥ 5 % de bâti en 2021) dont la
     # rétrodiffusion s'écarte durablement de 2021, maximum courant jusqu'au mois PRÉCÉDENT (un mois de recul en plus du
     # J-7 de la donnée) ; mailles de 2 km seulement, aucun composite plus fin ; 63 = 50 % du bâti modifié ou plus
@@ -2275,6 +2294,10 @@ def main():
         "localSigma": getattr(model, "local", None) or getattr(model, "local_report", None),
         "localBand": local_band,
         "asym": {"bilan": asym_bilan, "thr": 0.2, "tile_km": 24},
+        "pmove": {"auc": round(pm_auc, 3) if pm_auc else None, "base": round(pm_base, 3) if pm_base else None, "n": pm_n, "tile_km": 24, "thr_km": 0.5,
+                  "horizon_months": 2, "encoding": "q = 1 + P × 62 sur les mailles à ≤ 3 km de la ligne, 0 ailleurs",
+                  "features": ["assauts état-major", "asymétrie côté russe", "z relatif de l'asymétrie", "feux", "UCDP", "pertes", "mouvement récent 1 mois", "mouvement récent 3 mois"],
+                  "missingInCI": ["Telegram (mentions de combat, dossier de recherche)", "liste officielle rejouée (fichier figé)"]},
         "zscores": {"refMonths": 12, "names": ["feux", "UCDP", "pertes", "mouvement"], "encoding": "q = (z + 2) × 5"},
         "nowcast": dict(rep, names=["feux", "UCDP", "pertes"], widthKm=30, r0=0.03, grid=[0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]),
         "nMonths": len(months), "steps": dk, "stepDays": STEP_DAYS, "windowDays": WINDOW_DAYS,
@@ -2324,6 +2347,12 @@ def main():
     a = lastm["a"]["equilibre"]["tout"]
     print(f"front.js : {len(js) // 1024} Ko · {lastm['date']} : {a[0]:,} km² (95 % {lastm['mc']['tout'][0]:,}–{lastm['mc']['tout'][1]:,}) · "
           f"zone grise {lastm['grey']['km2']:,} km² ({lastm['grey']['width_km']} km) · σ0 {meta['sigma0']} · noyaux {meta['claimStrength']}")
+    # indicateur INTERNE de dépendance aux cartes (non publié ; suivi version par version dans docs/ETAT.md)
+    try:
+        import map_dependence
+        print("dépendance aux cartes (interne) : " + json.dumps(map_dependence.summary(map_dependence.measures(os.path.join(ROOT, "site"))), ensure_ascii=False))
+    except Exception as e:  # noqa: BLE001 (diagnostic seulement, ne bloque pas le build)
+        print(f"dépendance aux cartes : non calculée ({e})")
 
 
 if __name__ == "__main__":

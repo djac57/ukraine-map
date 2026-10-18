@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "76fed3e6c2", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "76fed3e6c2", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "pmove": "39e8819790", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -573,6 +573,10 @@ window.__uafDirBox = (fi, b) => { const out = [], p0 = POLDOF(fi), km = FR.grid.
   for (const a of eventArrows(fi)) { const base = ll(a.ax, a.ay); if (!inb(base) || a.late) continue;
     out.push({type: "localités", ru: a.ru, base, head: ll(a.cx, a.cy), viol: p0 ? dirViolation(p0, a.ax, a.ay, a.dir[0], a.dir[1], a.ru) : null, reoriented: !!a.reoriented, uncertain: false, why: a.why || null}); }
   return out; };
+// diagnostic (headless) : flèches dessinées au zoom k dans une boîte [lon0, lon1, lat0, lat1], avec les mailles sondées
+window.__uafHeads = (fi, k, b) => { const F = headFields(fi, "equilibre"), ll = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(x => +x.toFixed(3));
+  return drawnArrows(fi, k, "equilibre").filter(d => { const q = ll(d.ax, d.ay); return q[0] >= b[0] && q[0] <= b[1] && q[1] >= b[2] && q[1] <= b[3]; }).map(d => ({type: d.type, ru: d.ru, base: ll(d.ax, d.ay), g: d.g, Lg: +d.Lg.toFixed(2),
+    pts: d.g ? [0.25, 0.5, 0.75, 1].map(f => { const x = d.ax + d.g.ux * d.Lg * f, y = d.ay + d.g.uy * d.Lg * f, c = Math.floor(y) * GX + Math.floor(x); return [ll(x, y), cellPlace[c], RUSSIA(c), F.p0 ? +F.p0[c].toFixed(2) : null, +F.pc[c].toFixed(2)]; }) : null})); };
 // diagnostic (headless) : mailles basculées vers un camp entre le mois précédent et le mois fi, à R km d'un point
 window.__uafFlipped = (fi, lon, lat, R, ru) => { const p0 = POLDOF(fi), pc = fullField("equilibre", fi), q = proj([lon, lat]), cx = (q[0] - gAff[0]) / gAff[2], cy = (q[1] - gAff[1]) / gAff[2], km = FR.grid.size / 1000, out = [];
   if (!p0 || !pc) return out;
@@ -650,9 +654,68 @@ function flippedCentroid(pc, pold, cx, cy, camp){
     }
   return n >= 3 ? [x / n, y / n] : null;
 }
+// ---------- longueur dessinée et garde-fou de tête (toutes les flèches) ----------
+// Longueur à l'écran : proportionnelle au mouvement v (km par 30 jours), même règle et même plafond pour toutes les
+// flèches (pleines, pointillées, « poussée possible », annonces). Le minimum des flèches pointillées ne sert qu'à
+// garder une hampe lisible et ne dépasse jamais le plafond d'une flèche pleine.
+function arrowPx(v, k, uncertain){
+  const overview = k < 1.6, cap = overview ? 26 : 70, w = overview ? 1.6 : Math.min(7, 1.2 + v * 0.5), hs = 3 + w * 1.6;
+  let len = overview ? Math.min(cap, 14 + v * 2.5) : Math.min(cap, 10 + v * 7);
+  if (uncertain) len = Math.max(len, Math.min(cap, hs * 1.6 + 12));
+  return {len, w, hs, overview, cap};
+}
+// tête interdite : maille de Russie qui n'est pas nettement tenue par l'Ukraine (bande de Koursk : p < 0,2 au mois
+// précédent ou au mois affiché ; une bande frontalière seulement incertaine, comme au nord de Vovtchansk, ne compte pas) ;
+// sondée le long de la hampe
+const headFields = (fi, view) => ({p0: POLDOF(fi), pc: fullField(view || fieldName(), fi)});
+function forbiddenAt(F, x, y){
+  const c = Math.max(0, Math.min(GY - 1, Math.floor(y))) * GX + Math.max(0, Math.min(GX - 1, Math.floor(x)));
+  return RUSSIA(c) && !((F.p0 && F.p0[c] < 0.2) || (F.pc && F.pc[c] < 0.2)) ? c : -1;
+}
+function segForbidden(F, ax, ay, ux, uy, Lg){
+  for (const f of [0.25, 0.5, 0.75, 1]) { const c = forbiddenAt(F, ax + ux * Lg * f, ay + uy * Lg * f); if (c >= 0) return c; }
+  // la pointe garde une marge d'une maille (2 km) avec la Russie : une tête posée sur la frontière se lit « en Russie »
+  const hx = ax + ux * Lg, hy = ay + uy * Lg;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const c = forbiddenAt(F, hx + di, hy + dj); if (c >= 0) return c; }
+  return -1;
+}
+// garde-fou de tête : si la flèche entre en Russie, elle est projetée sur la tangente de la frontière (côté ukrainien,
+// dans le sens le plus proche de la direction d'origine), puis légèrement inclinée vers l'intérieur ; sinon pas de flèche
+function headGuard(F, ax, ay, ux, uy, Lg){
+  const c0 = segForbidden(F, ax, ay, ux, uy, Lg); if (c0 < 0) return {ux, uy, moved: false};
+  const px = c0 % GX + 0.5, py = Math.floor(c0 / GX) + 0.5, R = 4; let gx = 0, gy = 0;
+  for (let dj = -R; dj <= R; dj++) for (let di = -R; di <= R; di++) {
+    const c = (Math.floor(py) + dj) * GX + Math.floor(px) + di; if (c < 0 || c >= GX * GY) continue;
+    if (RUSSIA(c)) { gx += di; gy += dj; } }
+  const gn = Math.hypot(gx, gy); if (gn < 1e-6) return null;
+  const nx = gx / gn, ny = gy / gn; let tx = -ny, ty = nx; if (tx * ux + ty * uy < 0) { tx = -tx; ty = -ty; }
+  for (const tilt of [0, 0.3, 0.6]) { let vx = tx - tilt * nx, vy = ty - tilt * ny; const vn = Math.hypot(vx, vy); vx /= vn; vy /= vn;
+    if (segForbidden(F, ax, ay, vx, vy, Lg) < 0) return {ux: vx, uy: vy, moved: true}; }
+  return null;
+}
+// flèches de gradient dessinées au zoom k (même sélection que drawArrows)
+function arrowsAt(fi, k, view){
+  const km_ = FR.grid.size / 1000, a20 = k < 3 ? null : computeArrows(fi, 20, view);
+  let arr = k < 3 ? overviewArrows(fi, view) : k >= 6 ? computeArrows(fi, 10, view)
+    : a20.concat(computeArrows(fi, 10, view).filter(b => !a20.some(a => Math.hypot(a.gx - b.gx, a.gy - b.gy) * km_ < 15)));
+  if (k >= 3) arr = arr.concat(possibleArrows(fi, view).filter(b => !arr.some(a => a.possible && Math.hypot(a.gx - b.gx, a.gy - b.gy) * km_ < 20)));
+  return arr;
+}
+// toutes les flèches dessinées au zoom k : base, direction après garde-fou, longueur en mailles (null = pas de flèche)
+function drawnArrows(fi, k, view){
+  const F = headFields(fi, view), km = FR.grid.size / 1000, out = [];
+  for (const a of arrowsAt(fi, k, view)) { const P = arrowPx(a.v, k, a.uncertain), Lg = P.len / (gAff[2] * k), g = headGuard(F, a.gx, a.gy, a.dx, a.dy, Lg);
+    out.push({type: a.possible ? "poussée possible" : a.uncertain ? "incertaine" : "gradient", a, ax: a.gx, ay: a.gy, ru: a.ru, g, Lg, P}); }
+  for (const a of eventArrows(fi)) { if (a.late) continue;
+    const L0 = Math.hypot(a.cx - a.ax, a.cy - a.ay); if (L0 < 1e-6) continue;
+    const P = arrowPx(L0 * km, k, a.uncertain), Lg = P.len / (gAff[2] * k), g = headGuard(F, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, Lg);
+    out.push({type: "annonces", a, ax: a.ax, ay: a.ay, ru: a.ru, g, Lg, P, event: true}); }
+  return out;
+}
 function drawEventArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const HF = headFields(fi);
   for (const a of eventArrows(fi)) {
     const sx = (gAff[0] + a.ax * gAff[2]) * k + tr.x, sy = (gAff[1] + a.ay * gAff[2]) * k + tr.y;
     if (a.late) {
@@ -663,20 +726,21 @@ function drawEventArrows(k){
       arrowList.push({x: sx, y: sy, a: {ru: a.ru, v: 0, ev: a.n, late: true, undirected: !!a.undirected}});
       continue;
     }
-    let ex = (gAff[0] + a.cx * gAff[2]) * k + tr.x, ey = (gAff[1] + a.cy * gAff[2]) * k + tr.y;
-    let dx = ex - sx, dy = ey - sy, L = Math.hypot(dx, dy);
-    if (L < 1e-3) continue;
-    dx /= L; dy /= L;
-    const ov = k < 1.6, w = ov ? Math.min(3, 1.4 + a.w * 0.3) : Math.min(6, 1.6 + a.w * 0.9), col = a.ru ? C.front : C.uactl, hs = (ov ? 2 : 3) + w * 1.5, hx = -dy, hy = dx;
-    const Lmin = hs * 1.6 + (a.uncertain ? 40 : 12);  // toujours un fût visible au-delà de la pointe (40 px si incertaine)
-    if (L < Lmin) { ex = sx + dx * Lmin; ey = sy + dy * Lmin; L = Lmin; }
+    const L0 = Math.hypot(a.cx - a.ax, a.cy - a.ay); if (L0 < 1e-6) continue;
+    const ov = k < 1.6, w = ov ? Math.min(3, 1.4 + a.w * 0.3) : Math.min(6, 1.6 + a.w * 0.9), col = a.ru ? C.front : C.uactl, hs = (ov ? 2 : 3) + w * 1.5;
+    // longueur : règle commune (arrowPx, v = déplacement en km sur 30 jours) ; tête jamais en Russie (headGuard)
+    const PX = arrowPx(L0 * FR.grid.size / 1000, k, a.uncertain), L = Math.max(PX.len, Math.min(PX.cap, hs * 1.6 + 8));
+    const hg = headGuard(HF, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, L / (gAff[2] * k));
+    if (!hg) { const r = ov ? 3.5 : 5; ctx.globalAlpha = 0.7; ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI); ctx.stroke();
+      arrowList.push({x: sx, y: sy, a: {ru: a.ru, v: 0, ev: a.n, late: true, undirected: true}}); continue; }
+    const dx = hg.ux, dy = hg.uy, ex = sx + dx * L, ey = sy + dy * L, hx = -dy, hy = dx;
     const path = () => { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs, ey - dy * hs); };
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
     // « localités qui ont basculé » : flèche pleine, sans contour, avec un petit cercle creux à la base (distincte des
     // flèches de gradient, qui n'en ont pas)
     ctx.globalAlpha = 0.95; ctx.lineCap = "round"; ctx.lineJoin = "round";
     ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = w;
-    if (a.uncertain) { ctx.setLineDash([Math.max(5, w * 2), Math.max(4, w * 1.4)]); ctx.lineWidth = Math.max(2, w); ctx.lineCap = "butt"; path(); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke(); }
+    if (a.uncertain) { ctx.setLineDash([4, 3]); ctx.lineWidth = Math.max(2, w); ctx.lineCap = "butt"; path(); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke(); }
     else { path(); ctx.stroke(); head(); ctx.fill(); }
     const rb = ov ? 3 : 4.5;
     ctx.fillStyle = C.bg; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(sx, sy, rb, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
@@ -768,42 +832,50 @@ window.__uafArrowCheck = function(){
       if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru});
     }
   }
+  // têtes (bloquant) : aucune flèche dessinée, de quelque type que ce soit, dont la hampe ou la tête entre en Russie
+  // hors bande de Koursk tenue par l'Ukraine ; contrôlé à la longueur réellement dessinée (vue d'ensemble, zoom 3 et 6) ;
+  // longueur : jamais au-delà du plafond des flèches pleines
+  let heads = 0, headMoved = 0, headDropped = 0;
+  for (let fi = 3; fi < FR.months.length; fi++) { if (!FR.months[fi]) continue;
+    const F = headFields(fi, "equilibre");
+    for (const k of [1, 3, 6]) for (const d of drawnArrows(fi, k, "equilibre")) {
+      heads++; if (!d.g) { headDropped++; continue; } if (d.g.moved) headMoved++;
+      const c = segForbidden(F, d.ax, d.ay, d.g.ux, d.g.uy, d.Lg);
+      if (c >= 0) fails.push({mois: FR.months[fi].date, tete: "en Russie", type: d.type, zoom: k, ru: d.ru, base: llg(d.ax, d.ay), pointe: llg(d.ax + d.g.ux * d.Lg, d.ay + d.g.uy * d.Lg)});
+      if (d.P.len > d.P.cap + 1e-6) fails.push({mois: FR.months[fi].date, longueur: Math.round(d.P.len), plafond: d.P.cap, type: d.type, zoom: k});
+    } }
   const unc = {};
   for (let fi = 3; fi < FR.months.length; fi++) { if (!FR.months[fi]) continue;
     const o = overviewArrows(fi, "equilibre").filter(a => a.uncertain).length, z = computeArrows(fi, 20, "equilibre").filter(a => a.uncertain).length + computeArrows(fi, 10, "equilibre").filter(a => a.uncertain).length,
       e = eventArrows(fi).filter(a => a.uncertain).length;
     if (o + z + e) unc[FR.months[fi].date.slice(0, 7)] = [o, z, e]; }
-  return {total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc};
+  return {total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc, heads, headMoved, headDropped};
 };
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
   if (!window.FRONTP || !window.FRONTP.mcsd) { loadMcsd(() => { arrowCache = {}; draw(); }); }
-  // vue d'ensemble : voir overviewArrows ; au zoom, tronçons de 20 puis 10 km
-  const km_ = FR.grid.size / 1000, a20 = k < 3 ? null : computeArrows(fi, 20);
-  let arr = k < 3 ? overviewArrows(fi) : k >= 6 ? computeArrows(fi, 10)
-    : a20.concat(computeArrows(fi, 10).filter(b => !a20.some(a => Math.hypot(a.gx - b.gx, a.gy - b.gy) * km_ < 15)));
-  if (k >= 3) arr = arr.concat(possibleArrows(fi).filter(b => !arr.some(a => a.possible && Math.hypot(a.gx - b.gx, a.gy - b.gy) * km_ < 20)));
+  // vue d'ensemble : voir overviewArrows ; au zoom, tronçons de 20 puis 10 km (arrowsAt)
+  const arr = arrowsAt(fi, k), HF = headFields(fi);
   arrowList = [];
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   for (const a of arr) {
     const sx = (gAff[0] + a.gx * gAff[2]) * k + tr.x, sy = (gAff[1] + a.gy * gAff[2]) * k + tr.y;
     if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
-    // vue d'ensemble : un seul style discret ; au zoom, longueur et épaisseur proportionnelles à la vitesse
-    const overview = k < 1.6, len = overview ? Math.min(26, 14 + a.v * 2.5) : Math.min(70, 10 + a.v * 7), w = overview ? 1.6 : Math.min(7, 1.2 + a.v * 0.5);
-    let ex = sx + a.dx * len, ey = sy + a.dy * len; const col = a.ru ? C.front : C.uactl;
-    // liseré clair : la flèche reste lisible sur la densité rouge ou bleue
-    const hx = -a.dy, hy = a.dx, hs = 3 + w * 1.6;
-    const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - a.dx * hs * 1.6 + hx * hs, ey - a.dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - a.dx * hs * 1.6 - hx * hs, ey - a.dy * hs * 1.6 - hy * hs); ctx.closePath(); };
+    // vue d'ensemble : un seul style discret ; au zoom, longueur et épaisseur proportionnelles à la vitesse ; même règle
+    // pour les flèches pointillées (arrowPx) ; tête jamais en Russie hors bande tenue par l'Ukraine (headGuard)
+    const {len, w, hs, overview} = arrowPx(a.v, k, a.uncertain), hg = headGuard(HF, a.gx, a.gy, a.dx, a.dy, len / (gAff[2] * k));
+    if (!hg) continue;
+    const dx = hg.ux, dy = hg.uy, ex = sx + dx * len, ey = sy + dy * len, col = a.ru ? C.front : C.uactl;
+    const hx = -dy, hy = dx;
+    const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
     ctx.lineCap = "round"; ctx.lineJoin = "round";   // flèches de gradient : pleines, sans contour
     ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = overview ? 0.8 : 0.95; ctx.lineWidth = w;
-    // incertaines et « poussée possible » : hampe d'au moins 40 px après la tête, même épaisseur que les flèches pleines
-    if (a.uncertain && Math.hypot(ex - sx, ey - sy) < 40 + hs * 1.6) { const L0 = Math.hypot(ex - sx, ey - sy) || 1, Lw = 40 + hs * 1.6; ex = sx + (ex - sx) * Lw / L0; ey = sy + (ey - sy) * Lw / L0; }
-    if (a.uncertain) {   // sens incertain : trait en tirets, tête creuse
-      ctx.setLineDash([Math.max(6, w * 3), Math.max(4, w * 2)]); ctx.lineWidth = Math.max(2.4, w * 1.2); ctx.lineCap = "butt";
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * hs * 1.6, ey - a.dy * hs * 1.6); ctx.stroke();
+    if (a.uncertain) {   // sens incertain : trait en tirets courts (lisibles sur une hampe courte), tête creuse
+      ctx.setLineDash([4, 3]); ctx.lineWidth = Math.max(2.4, w * 1.2); ctx.lineCap = "butt";
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs * 1.6, ey - dy * hs * 1.6); ctx.stroke();
       ctx.setLineDash([]); ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke();
     } else {
-    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - a.dx * w * 1.6, ey - a.dy * w * 1.6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * w * 1.6, ey - dy * w * 1.6); ctx.stroke();
     head(); ctx.fill();
     }
     arrowList.push({x: (sx + ex) / 2, y: (sy + ey) / 2, a});
@@ -1008,11 +1080,33 @@ function buildAsym(fi){
   const cx = cv.getContext("2d"), img = cx.createImageData(GX * S, GY * S), d = img.data, q = F[fi];
   for (let u = 0; u < UCELLS.length; u++) {
     if (q[u] < 13) continue;
-    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.6 + q[u] / 63);
-    for (let dy = 0; dy < S; dy++) { if ((y0 + dy) % 2) continue;
-      for (let dx = 0; dx < S; dx++) { const o = ((y0 + dy) * GX * S + x0 + dx) * 4; d[o] = 25; d[o+1] = 25; d[o+2] = 25; d[o+3] = Math.round(240 * a); } }
+    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.6 + q[u] / 63), [r, g, b] = C.dark ? [235, 160, 70] : [166, 86, 18];
+    for (let dy = 0; dy < S; dy++) { if ((y0 + dy) % 4 > 1) continue;
+      for (let dx = 0; dx < S; dx++) { if ((x0 + dx) % 4 > 1) continue; const o = ((y0 + dy) * GX * S + x0 + dx) * 4; d[o] = r; d[o+1] = g; d[o+2] = b; d[o+3] = Math.round(240 * a); } }
   }
   cx.putImageData(img, 0, 0); asymPat = cv;
+}
+// « secteurs susceptibles de bouger » : P(la ligne bouge d'au moins 0,5 km d'ici t+2) par tronçon de 24 km, sans sens,
+// liseré violet sur les mailles à ≤ 3 km de la ligne (q = 1 + P × 62), opacité croissante avec P
+let pmFor = -2, pmImg = null, showPm = !!(document.getElementById("lyrPm") && document.getElementById("lyrPm").checked);
+function buildPm(fi, k){
+  // en vue d'ensemble, le liseré (± 3 km) est élargi à l'affichage pour rester visible
+  const r = k < 1.6 ? 3 : k < 3 ? 1 : 0, key = fi + ":" + r;
+  if (pmFor === key) return;
+  pmFor = key; pmImg = null;
+  const F = viewFields("pmove"); if (!F || !F[fi]) return;
+  const cv = document.createElement("canvas"); cv.width = GX; cv.height = GY;
+  const cx = cv.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data, q = F[fi];
+  for (let u = 0; u < UCELLS.length; u++) {
+    if (!q[u]) continue;
+    const p = (q[u] - 1) / 62, a = Math.max(0, Math.min(1, (p - 0.05) / 0.45));
+    if (a <= 0) continue;
+    const c0 = UCELLS[u], i0 = c0 % GX, j0 = Math.floor(c0 / GX), al = Math.round(255 * (0.15 + 0.7 * a));
+    for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+      if (di * di + dj * dj > r * r || i0 + di < 0 || i0 + di >= GX || j0 + dj < 0 || j0 + dj >= GY) continue;
+      const o = ((j0 + dj) * GX + i0 + di) * 4; if (d[o + 3] < al) { d[o] = 138; d[o+1] = 79; d[o+2] = 184; d[o+3] = al; } }
+  }
+  cx.putImageData(img, 0, 0); pmImg = cv;
 }
 // destruction cumulée (radar Sentinel-1) : part du bâti modifié depuis 2021, mailles de 2 km, couche d'information
 let destrFor = -1, destrImg = null, showDestr = false;
@@ -1043,6 +1137,7 @@ function drawFront(k){
   ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.55; ctx.lineWidth = 1 * u; ctx.setLineDash([2*u, 3*u]);
   ctx.stroke(prePath);
   { const fc = frontIdx(); if (showContact && fc >= 0) { buildContact(fc); if (contactPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.7; ctx.drawImage(contactPat, 0, 0, GX, GY); ctx.restore(); } } }
+  { const fp = frontIdx(); if (showPm && fp >= 0) { buildPm(fp, k); if (pmImg) { ctx.save(); ctx.clip(domainPath); ctx.imageSmoothingEnabled = true; ctx.drawImage(pmImg, 0, 0, GX, GY); ctx.restore(); } } }
   if ((showLines || showUnc) && isoPaths.length) {
     ctx.save(); ctx.clip(domainPath);
     ctx.strokeStyle = C.front; ctx.globalAlpha = 0.9; ctx.setLineDash([4*u, 3*u]); ctx.lineWidth = 0.9 * u;
@@ -1053,7 +1148,7 @@ function drawFront(k){
   }
   const fi = frontIdx();
   if (fvar && fi >= 0) { buildDiff(fi); if (diffPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.8; ctx.drawImage(diffPat, 0, 0, GX, GY); ctx.restore(); } }
-  if (showAsym && fi >= 0) { buildAsym(fi); if (asymPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.8; ctx.drawImage(asymPat, 0, 0, GX, GY); ctx.restore(); } }
+  if (showAsym && fi >= 0) { buildAsym(fi); if (asymPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.85; ctx.imageSmoothingEnabled = false; ctx.drawImage(asymPat, 0, 0, GX, GY); ctx.restore(); } }
   if (showDestr && fi >= 0) { buildDestr(fi); if (destrImg) { ctx.save(); ctx.clip(domainPath); ctx.imageSmoothingEnabled = false; ctx.drawImage(destrImg, 0, 0, GX, GY); ctx.restore(); } }
   if (showCombat && fi >= 0) { buildCombat(fi); if (combatPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.85; ctx.drawImage(combatPat, 0, 0, GX, GY); ctx.restore(); } }
   if (fi >= 0) for (const src of ["dsm", "isw", "wiki"]) {
@@ -1362,10 +1457,26 @@ $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
 $("lyrArcs").onchange = e => { showArcs = e.target.checked; legend(); draw(); };
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
 if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };
+if ($("lyrPm")) $("lyrPm").onchange = e => { showPm = e.target.checked; ensureView("pmove", () => { pmFor = -2; legend(); draw(); }); legend(); draw(); };
+if (showPm) ensureView("pmove", () => { pmFor = -2; draw(); });
+// légende de la carte : une entrée par case cochable (attribut data-lyr = id de la case ou raw:source), visible
+// seulement quand la case est cochée ; contrôlé par scripts/check_arrows.py (chaque case a son entrée, en 4 langues)
+function syncMapLegend(){
+  document.querySelectorAll("#mapLegend [data-lyr]").forEach(row => { const k = row.dataset.lyr;
+    if (k === "always") { row.hidden = false; return; }
+    const cb = k.startsWith("raw:") ? document.querySelector(`input[data-raw="${k.slice(4)}"]`) : document.getElementById(k);
+    row.hidden = !(cb && cb.checked); });
+}
+document.querySelectorAll('#panel input[type="checkbox"]').forEach(cb => cb.addEventListener("change", syncMapLegend));
+// ⓘ des secteurs susceptibles de bouger : AUC et taux de base lus dans la validation du build (front.js)
+function fillPmTip(){ const e = document.querySelector('[data-tt="lgPmTip"]'); if (!e || !FR.pmove || FR.pmove.auc == null) return;
+  e.title = e.title.replace("{auc}", dec(FR.pmove.auc.toFixed(2))).replace("{base}", Math.round(FR.pmove.base * 100)); }
+fillPmTip(); setTimeout(fillPmTip, 0); document.addEventListener("uaf-lang", () => setTimeout(fillPmTip, 0));
+syncMapLegend();
 // le garde-fou des flèches a besoin du champ d'asymétrie : chargé d'emblée
 ensureView("asym", () => { arrowCache = {}; for (const k in possCache) delete possCache[k]; draw(); });
 if ($("lyrDestr")) $("lyrDestr").onchange = e => { showDestr = e.target.checked; ensureView("destr", () => { destrFor = -2; legend(); draw(); }); legend(); draw(); };
-if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.checked; if ($("lgCombatRow")) $("lgCombatRow").hidden = !showCombat; ensureView("combat", () => { combatFor = -2; legend(); draw(); }); };
+if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.checked; ensureView("combat", () => { combatFor = -2; legend(); draw(); }); };
 $("lyrArrows").onchange = e => { showArrows = e.target.checked; if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); legend(); draw(); };
 $("lyrBase").onchange = e => { showBase = e.target.checked; if (showBase) loadBasemap(); draw(); };
 if ($("lyrInfra")) $("lyrInfra").onchange = e => { showInfra = e.target.checked; if (showInfra) loadInfra(() => { legend(); draw(); }); legend(); draw(); };
@@ -1451,6 +1562,15 @@ function hover(e){
     const zs = v => v === null ? "–" : (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1).replace(".", ",");
     ctxt += `<div style="color:var(--faint)">${_t("z (mois affiché / 12 mois précédents) : feux {a} · combats {b} · pertes {c} · mouvement {d}", {a: zs(zt[0]), b: zs(zt[1]), c: zs(zt[2]), d: zs(zt[3])})}</div>`;
   } else ["zf", "zu", "zw", "zm"].forEach(v => ensureView(v, () => {}));
+  // secteurs susceptibles de bouger : tronçon de 24 km le plus proche (à moins de 20 km)
+  const pmt = showPm && FR.months[fi] && FR.months[fi].pm;
+  let pmLine = "";
+  if (pmt && pmt.length) {
+    let tb = null, td = 1e9;
+    for (const t of pmt) { const dd = Math.hypot(t[0] - i, t[1] - j); if (dd < td) { td = dd; tb = t; } }
+    if (tb && td * FR.grid.size / 1000 < 20) { pmLine = `<div class="r"><span>${_t("P(la ligne bouge d'ici 2 mois)")}</span><b>${tb[2]} %</b></div>`;
+      ctxt += pmLine + `<div style="color:var(--faint)">${_t("tronçon de 24 km, ≥ 0,5 km dans un sens ou l'autre ; moyenne {b} %", {b: Math.round(((FR.pmove && FR.pmove.base) || 0) * 100)})}</div>`; }
+  }
   const inf = nearInfra(j, i);
   if (inf) ctxt += `<div style="color:var(--faint)">${_t("à {d} km : {l}", {d: inf.d, l: inf.label})}</div>`;
   // votes des sources à cette maille (statuts par localité) et part de chaque source dans le pool
@@ -1476,7 +1596,7 @@ function hover(e){
       if (tb && td < 30 && tb[2] != null) band = `<div class="r"><span>${_t("bande 95 %")}</span><b>${dec(Math.round((tb[2] + tb[3]) * 10) / 10)} km</b></div>`;
     }
     tip.innerHTML = `<div class="r"><span>${st3}</span><b>p ${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div>` +
-      (pcv !== null && pcv > 0.05 ? `<div class="r"><span>${_t("P(contact au sol)")}</span><b>${Math.round(pcv * 100)} %</b></div>` : "") + band + more;
+      (pcv !== null && pcv > 0.05 ? `<div class="r"><span>${_t("P(contact au sol)")}</span><b>${Math.round(pcv * 100)} %</b></div>` : "") + band + pmLine + more;
     tip.style.display = "block";
     const tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
@@ -1521,7 +1641,8 @@ function legend(){
     `<span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px;box-shadow:-4px 0 0 -1px ${C.uactl}"></i>${_t("flèche avec un cercle à la base : localités qui ont basculé selon les sources dans les 30 derniers jours (journal DeepStateMap, état-major UA, MoD RF, bascules des cartes), pondérées par la fiabilité mesurée de chaque source")}</span>` +
     `<span><i style="border-top:2px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>${_t("flèche en pointillés : sens incertain (on se bat derrière la ligne, ou sens non établi le long de la limite)")}</span>` +
     `<span><i style="border:1.3px solid ${C.front};width:8px;height:8px;border-radius:50%;vertical-align:0;background:transparent"></i>${_t("cercle creux : confirmé par annonce (changement que les cartes montraient déjà, pas un mouvement nouveau) ou sens non établi")}</span>`;
-  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(0deg,rgba(30,30,30,.85) 0 1px,transparent 1px 3px);border-radius:0"></i>${_t("combats derrière la ligne : endroits où l'activité de combat vue des deux côtés (feux, UCDP, pertes) se concentre anormalement d'un côté de la ligne (asymétrie ≥ 0,2 et au-dessus de sa normale des 12 mois précédents, z ≥ 2, signal gardé 3 mois), hachures de ce côté ; ne dit pas qui avance")}</span>`;
+  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:radial-gradient(#a65612 40%,transparent 45%) 0 0/4px 4px;border-radius:0"></i>${_t("combats derrière la ligne : endroits où l'activité de combat vue des deux côtés (feux, UCDP, pertes) se concentre anormalement d'un côté de la ligne (asymétrie ≥ 0,2 et au-dessus de sa normale des 12 mois précédents, z ≥ 2, signal gardé 3 mois), pointillé brun de ce côté ; ne dit pas qui avance")}</span>`;
+  if (showPm && FR.pmove) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,rgba(138,79,184,.1),rgba(138,79,184,.7));border-radius:0"></i>${_t("secteurs susceptibles de bouger : probabilité que la ligne bouge d'au moins 0,5 km d'ici 2 mois dans ce tronçon de 24 km, dans un sens ou dans l'autre (plus foncé = plus probable ; AUC {a}, taux de base {b} %, estimée sur le seul passé) ; ne dit pas qui avance", {a: dec(FR.pmove.auc.toFixed(2)), b: Math.round(FR.pmove.base * 100)})}</span>`;
   if (showDestr) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:rgba(40,40,40,.7);border-radius:0"></i>${_t("destruction cumulée (radar Sentinel-1) : part du bâti dont la rétrodiffusion s'écarte durablement de 2021, jusqu'au mois précédent, mailles de 2 km ; contient des données Copernicus Sentinel modifiées")}</span>`;
   if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>${_t("combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 2 par rapport à ses 12 mois précédents ; ne dit pas qui avance")}</span>`;
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;

@@ -153,6 +153,7 @@ footer p{margin:0 0 8px}
 .lean .langs .btn{padding:2px 6px;font-size:10.5px}
 .maplegend{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:6px 9px;font:11px "JetBrains Mono",monospace;color:var(--muted);display:flex;flex-direction:column;gap:3px;pointer-events:none;opacity:.94}
 .maplegend div{display:flex;align-items:center;gap:7px}
+.maplegend div[hidden]{display:none}
 .maplegend{max-width:300px}
 .maplegend summary{display:none}
 .maplegend span[title]{pointer-events:auto;cursor:help}

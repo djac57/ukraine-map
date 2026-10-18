@@ -141,6 +141,9 @@ class Sectors:
         else:
             z = np.zeros_like(aw)
         self.asym_z = z
+        if not hasattr(self, "_az"):
+            self._az = {}
+        self._az[t] = z
         # anomalie : z ≥ 2 ce mois-ci ou dans les deux mois précédents (une concentration anormale qui dure reste
         # signalée même quand elle devient la nouvelle normale du lieu), et asymétrie actuelle toujours ≥ seuil
         if not hasattr(self, "_an"):
@@ -541,3 +544,81 @@ class Sectors:
             ch = (aa >= 0) & (bb >= 0) & (aa != bb)
             flips[ok] += ch[self.cellU[ok]]
         return self.smooth(flips, 2.5)
+
+    def pmove(self, tsm, SD, truth, pnow, ind=None, win=20, thr_km=0.5):
+        """« Secteurs susceptibles de bouger » : par tronçon de 24 km traversé par la ligne, P(la ligne bougera d'au moins
+        0,5 km de profondeur d'ici t+2), SANS sens. Position Y = surface russe du tronçon (consensus des cartes ; à défaut,
+        champ du mois > 0,5) / 24 km. Variables à t, moyennes à ≤ 20 km de la ligne : assauts de l'état-major, asymétrie
+        des combats côté russe et son z relatif, feux, UCDP, pertes (normalisés), mouvement récent |Y_t − Y_t−1| et
+        |Y_t − Y_t−3|. Régression logistique (ridge) réentraînée chaque mois sur les tronçons-mois q ≤ t−2 des 20 mois
+        précédents (vérité à q+2 connue à t) : walk-forward pour l'historique, même règle pour le dernier mois.
+        Telegram et la liste rejouée, testés hors ligne (+0,003 d'AUC), ne sont pas disponibles en CI : écartés.
+        Renvoie ({t: {tuile: P}}, AUC walk-forward 2023+, taux de base, n)."""
+        T_ = TILE_ASYM
+        tile = (self.jj // T_) * 1000 + self.ii // T_
+        tid = {int(k): np.flatnonzero(tile == k) for k in np.unique(tile)}
+        wkm = T_ * self.km
+        # feux EN EXCÈS, UCDP, pertes : indicateurs du nowcast (indicator_grids, grille complète) quand ils sont fournis,
+        # comme dans l'étude v4 ; à défaut, les comptes bruts de self.R
+        if ind is not None:
+            # lissage σ = 3 mailles (6 km) avant l'échelle P90, comme les indicateurs de l'étude v4 (data/cache.npz) :
+            # les comptes ponctuels donnaient AUC 0,78 au lieu de 0,82
+            RI = np.stack([np.stack([self.smooth(np.asarray(ind[t][n], np.float32)[self.U], 3.0) if t in ind else np.zeros(len(self.U), np.float32) for t in range(len(self.months))]) for n in range(3)])
+        else:
+            RI = self.R
+        Hn = [float(np.percentile(RI[n][RI[n] > 0], 90)) if (RI[n] > 0).any() else 1.0 for n in range(3)]
+        Y, F = {}, {}
+        for t in tsm:
+            src = truth.get(t)
+            own = (src == 1) if src is not None and (src >= 0).sum() > 0 else (pnow[t] > 0.5)
+            known = (src >= 0) if src is not None and (src >= 0).sum() > 0 else np.ones(len(self.U), bool)
+            sd = SD[t]
+            for k, us in tid.items():
+                if (np.abs(sd[us]) <= 20).sum() >= 20 and known[us].sum() >= 20:
+                    Y[(t, k)] = float(own[us].sum()) * self.km ** 2 / wkm
+        for t in tsm:
+            sd = SD[t]
+            if t not in self._aw:
+                continue
+            gs = np.log1p(self.smooth(self.OF["etatmajor_assauts"][t], 2.5))
+            aw, az = self._aw[t], np.clip(self._az.get(t, np.zeros(len(self.U))), -5, 5)
+            sig = [1 - np.exp(-self.smooth(RI[n, t], 2.0) / Hn[n]) for n in range(3)]
+            ru = sd > 0
+            for k, us in tid.items():
+                if (t, k) not in Y:
+                    continue
+                nr = us[np.abs(sd[us]) <= 20]
+                r1 = abs(Y[(t, k)] - Y[(t - 1, k)]) if (t - 1, k) in Y else 0.0
+                r3 = abs(Y[(t, k)] - Y[(t - 3, k)]) if (t - 3, k) in Y else 0.0
+                F[(t, k)] = np.array([gs[nr].mean(), (aw[nr] * ru[nr]).mean(), az[nr].mean(), sig[0][nr].mean(), sig[1][nr].mean(), sig[2][nr].mean(), r1, r3])
+
+        def logi(X, y, lam=3.0):
+            X = np.c_[np.ones(len(X)), X]
+            w = np.zeros(X.shape[1])
+            for _ in range(25):
+                p = 1 / (1 + np.exp(-np.clip(X @ w, -30, 30)))
+                w += np.linalg.solve((X * (p * (1 - p))[:, None]).T @ X + lam * np.diag(np.r_[0, np.ones(X.shape[1] - 1)]), X.T @ (y - p) - lam * np.r_[0, w[1:]])
+            return w
+        out, sc, ys = {}, [], []
+        for t in tsm:
+            tr = [(q, k) for (q, k) in F if t - win <= q <= t - 2 and (q + 2, k) in Y]
+            te = [(q, k) for (q, k) in F if q == t]
+            if len(tr) < 300 or not te:
+                continue
+            Xr = np.array([F[x] for x in tr])
+            yr = np.array([abs(Y[(q + 2, k)] - Y[(q, k)]) >= thr_km for q, k in tr], float)
+            mu, sdv = Xr.mean(0), Xr.std(0) + 1e-9
+            w = logi((Xr - mu) / sdv, yr)
+            out[t] = {}
+            for x in te:
+                p = float(1 / (1 + np.exp(-np.clip(w[0] + ((F[x] - mu) / sdv) @ w[1:], -30, 30))))
+                out[t][x[1]] = p
+                if self.months[t] >= "2023-01" and (t + 2, x[1]) in Y:
+                    sc.append(p); ys.append(abs(Y[(t + 2, x[1])] - Y[x]) >= thr_km)
+        auc = base = None
+        if ys and 0 < sum(ys) < len(ys):
+            s_, y_ = np.array(sc), np.array(ys, float)
+            o = np.argsort(s_); rk = np.empty(len(s_)); rk[o] = np.arange(1, len(s_) + 1); n1 = y_.sum()
+            auc, base = float((rk[y_ == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * (len(y_) - n1))), float(y_.mean())
+        self.pm_tile = tile
+        return out, auc, base, len(ys)

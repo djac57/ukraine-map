@@ -95,6 +95,7 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowChec
  try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces : '+(r.evN||0)+' ; sans sens établi (repère creux) '+(r.reoriented||0)+' ; confirmations (en retard sur les cartes, sans direction) '+(r.late||0)+' ; sens vérifié contre le territoire basculé : '+(r.flipChecked||0)+'\\n';
   {const i=w.DATA.months.indexOf('2026-09'); if(i>=0){const A=w.__uafDirBox(i,[36.3,37.8,50.0,50.8]); const bad=A.filter(a=>a.viol); o.textContent+='CAS|Vovtchansk et Belgorod (septembre 2026) : aucune flèche vers la Russie ni vers une zone déjà tenue|'+(bad.length?'ECHEC':'OK')+'|'+JSON.stringify(A)+'|'+A.length+'\\n';}}
   o.textContent+='INCERTAINES|par mois [vue d’ensemble, zoom 20+10 km, annonces] : '+JSON.stringify(r.unc||{})+'\\n';
+  o.textContent+='TETES|flèches dessinées (vue d’ensemble, zoom 3 et 6, tous types) : '+(r.heads||0)+' ; projetées sur la tangente de la frontière : '+(r.headMoved||0)+' ; retirées (tête en Russie) : '+(r.headDropped||0)+'\\n';
   o.textContent+='DIRECTION|flèches réorientées le long de la limite : '+(r.redir||0)+' ; flèches de gradient dont la base est dans la bande russe : '+(r.border||0)+' ; '+JSON.stringify(r.redirList||[])+'\\n';
   const months=w.DATA.months, inb=(a,b)=>a.lon>=b[0]&&a.lon<=b[1]&&a.lat>=b[2]&&a.lat<=b[3];
   for(const [name,ms,box,ru,dir] of CASES){let hit=null,n=0;
@@ -190,6 +191,15 @@ def check_schema():
         R = d["grid"].get("R")
         if isinstance(R, num) and not 6.3e6 < R < 6.4e6:
             errs.append(f"grid.R = {R} (rayon terrestre attendu)")
+    # secteurs susceptibles de bouger : métadonnées de validation, P par tronçon au dernier pas, champ publié
+    pm = d.get("pmove")
+    if not isinstance(pm, dict) or not isinstance(pm.get("auc"), num) or not isinstance(pm.get("base"), num) or not 0.5 < pm["auc"] <= 1:
+        errs.append(f"pmove : métadonnées absentes ou invalides ({pm!r:.80})")
+    last = [m for m in d.get("months", []) if m][-1:]
+    if last and not (isinstance(last[0].get("pm"), list) and last[0]["pm"] and all(isinstance(x, list) and len(x) == 3 and 0 <= x[2] <= 100 for x in last[0]["pm"])):
+        errs.append("pmove : P par tronçon absente au dernier pas")
+    if not os.path.exists(os.path.join(SITE, "front_pmove.js")):
+        errs.append("front_pmove.js absent")
     mo = [m for m in d.get("months", []) if m]
     if not mo or not all(isinstance(m.get("a"), dict) and isinstance(m.get("date"), str) for m in mo):
         errs.append("months : instantanés incomplets")
@@ -202,7 +212,7 @@ def check_schema():
 # i18n : chaque langue est chargée, calques allumés, zoom et survol ; échec si un mot-témoin français apparaît dans le
 # texte de la page, la légende, l'info-bulle ou les étiquettes dessinées sur la carte
 WITNESS = ["occupés", "légende", "calques", "contrôle russe", "zone grise", "flèche", "incertitude", "localités", "mois en cours",
-           "Données", "méthode", "septembre", "octobre", "avancée", "combats", "densité", "Varsovie", "Sébastopol", "Bucarest",
+           "Données", "méthode", "susceptibles", "tronçon", "septembre", "octobre", "avancée", "combats", "densité", "Varsovie", "Sébastopol", "Bucarest",
            "Moscou", "Voronej", "Rostov-sur-le-Don", "Cracovie", "Sotchi", "pas d'instantané", "équilibr", "détails", "Modèle", "sans annonces", "Contexte"]
 I18N_HARNESS = """<!doctype html><html><head><meta charset="utf-8"></head><body><pre id=o></pre><iframe id=f src="index.html?lang=__L__" style="width:1100px;height:900px"></iframe>
 <script>f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l;
@@ -255,8 +265,46 @@ def check_i18n(chrome):
     return ok
 
 
+def check_legend():
+    """Bloquant : chaque case du panneau des calques a une entrée dans la légende de la carte (data-lyr = id de la case
+    ou raw:source, avec un échantillon visuel), et chaque libellé de ces entrées existe dans les 4 langues (i18n.js)."""
+    page = open(os.path.join(SITE, "index.html"), encoding="utf-8").read()
+    i18n = open(os.path.join(SITE, "i18n.js"), encoding="utf-8").read()
+    ui = i18n[:i18n.index("const TX")]
+    pos = {lg: m.start() for lg in ("fr", "en", "uk", "ru") for m in [re.search(r"^  " + lg + r": \{", ui, re.M)] if m}
+    if len(pos) < 4:
+        print("check_arrows.py : légende : objets de langue introuvables dans i18n.js")
+        return False
+    order = sorted(pos.values()) + [len(ui)]
+    block = {lg: ui[p_:order[order.index(p_) + 1]] for lg, p_ in pos.items()}
+    leg = page[page.index('id="mapLegend"'):]
+    leg = leg[:leg.index("</details>")]
+    rows = re.findall(r'<div data-lyr="([^"]+)"[^>]*>(.*?)</div>', leg)
+    errs, n = [], 0
+    for m in re.finditer(r'<input type="checkbox"([^>]*)>', page):
+        attrs = m.group(1)
+        idm, rawm = re.search(r'id="([^"]+)"', attrs), re.search(r'data-raw="([^"]+)"', attrs)
+        key = idm.group(1) if idm else ("raw:" + rawm.group(1) if rawm else None)
+        if not key:
+            continue
+        n += 1
+        mine = [body for k, body in rows if k == key]
+        if not mine:
+            errs.append(f"{key} : pas d'entrée de légende")
+            continue
+        for body in mine:
+            if "<svg" not in body:
+                errs.append(f"{key} : entrée sans échantillon")
+            for t in re.findall(r'data-t="([^"]+)"', body):
+                miss = [lg for lg in block if not re.search(r"[{,\s]" + t + r":", block[lg])]
+                if miss:
+                    errs.append(f"{key} : clé {t} absente en {', '.join(miss)}")
+    print(f"LEGENDE|{'OK' if not errs else 'ECHEC'}|{n} cases, {len(rows)} entrées ; " + ("; ".join(errs) if errs else "chaque case a son entrée en 4 langues"))
+    return not errs
+
+
 def main():
-    if not check_workflows() or not check_schema():
+    if not check_workflows() or not check_schema() or not check_legend():
         return 1
     chrome = chrome_path(sys.argv[1] if len(sys.argv) > 1 else None)
     if not chrome:
