@@ -164,11 +164,13 @@ footer p{margin:0 0 8px}
 .mapfoot a{color:var(--muted)}
 @media (max-width:560px){
   /* légende sous la carte (et non par-dessus : elle masquait le sud), lisible, sur deux colonnes */
-  .maplegend{position:static;font-size:11px;padding:6px 8px;margin:6px 0 0;opacity:1;display:grid;grid-template-columns:1fr 1fr;gap:3px 10px}
+  .maplegend{position:static;font-size:11px;padding:6px 8px;margin:6px 0 0;opacity:1;display:grid;grid-template-columns:1fr;gap:3px 10px;max-width:none}
   .maplegend svg{width:20px;flex:none}
   /* repliable : une ligne « légende ▸ » qu'on ouvre d'un toucher */
   .maplegend{max-width:none;pointer-events:auto}
   .maplegend summary{display:block;grid-column:1/-1;cursor:pointer;min-height:32px;line-height:32px}
+  .maplegend summary::after{content:" ▾"}
+  .maplegend[open] summary::after{content:" ▴"}
   /* panneau des calques : une colonne, cibles tactiles d'au moins 40 px */
   .pgrid{grid-template-columns:1fr;gap:6px}
   .pgrid fieldset{flex-direction:row;flex-wrap:wrap}

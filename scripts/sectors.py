@@ -99,17 +99,16 @@ class Sectors:
 
     def asym(self, t, sd, art=None, thr=0.2):
         """« Combats derrière la ligne » : par secteur de 24 km, asymétrie a = (A_russe − A_ukrainien) / (A_russe + A_ukrainien)
-        de l'activité à ≤ 10 km de la ligne 50 % (feux, UCDP, pertes, menaces d'artillerie, assauts de l'état-major, chacun
-        normalisé). Renvoie (champ par maille : |a| sur le côté dominant, à ≤ 10 km, là où |a| ≥ thr ; 0 ailleurs, signe
+        de l'activité à ≤ 10 km de la ligne 50 % (feux, UCDP, pertes, chacun normalisé ; signaux vus des deux côtés). Renvoie (champ par maille : |a| sur le côté dominant, à ≤ 10 km, là où |a| ≥ thr ; 0 ailleurs, signe
         porté par le côté de la maille), {tuile: a}."""
         X = [self.SM[n][t] for n in range(3)]
-        Hs = list(self.H)
+        if not hasattr(self, "_Hsm"):   # échelles sur les champs LISSÉS (les mêmes que X)
+            self._Hsm = [float(np.percentile(self.SM[n][self.SM[n] > 0], 90)) if (self.SM[n] > 0).any() else 1.0 for n in range(3)]
+        Hs = list(self._Hsm)
+        # signaux observés des deux côtés seulement (feux, UCDP, pertes) : les menaces d'artillerie n'existent que côté
+        # ukrainien et les assauts de l'état-major citent surtout des localités ukrainiennes ; les inclure biaisait
+        # l'asymétrie vers le côté ukrainien (saillant de Vivaldi vide en juillet et septembre 2026)
         extra = []
-        if art is not None:
-            extra.append(self.smooth(art[t], 2.5))
-        of = getattr(self, "OF", None)
-        if of and "etatmajor_assauts" in of:
-            extra.append(self.smooth(of["etatmajor_assauts"][t], 2.5))
         if not hasattr(self, "_Hx"):
             self._Hx = []
         for n, v in enumerate(extra):
@@ -120,6 +119,16 @@ class Sectors:
             X.append(v); Hs.append(self._Hx[n])
         A = np.mean(np.stack([1 - np.exp(-x / max(h, 1e-6)) for x, h in zip(X, Hs)]), axis=0)
         near = np.abs(sd) <= 10
+        # champ : asymétrie en fenêtre glissante (gaussienne de 12 km) plutôt que par tuile fixe, qui coupait les saillants
+        # en morceaux (Vivaldi, septembre 2026 : 48 km² seulement avec les tuiles)
+        ru_m, ua_m = (near & (sd > 0)).astype(np.float32), (near & (sd <= 0)).astype(np.float32)
+        g = lambda v: self.smooth(v, 6.0)  # noqa: E731
+        n_ru, n_ua = g(ru_m), g(ua_m)
+        m_ru = g(A * ru_m) / np.maximum(n_ru, 1e-6)
+        m_ua = g(A * ua_m) / np.maximum(n_ua, 1e-6)
+        tot = m_ru + m_ua
+        aw = np.where((tot >= 0.05) & (n_ru > 0.05) & (n_ua > 0.05), (m_ru - m_ua) / np.maximum(tot, 1e-6), 0.0)
+        fld = np.where(near & (np.abs(aw) >= thr) & ((aw > 0) == (sd > 0)), np.abs(aw), 0.0).astype(np.float32)
         tile = (self.jj // TILE_ASYM) * 1000 + self.ii // TILE_ASYM
         out = np.zeros(len(sd), np.float32)
         tiles = {}
@@ -133,9 +142,7 @@ class Sectors:
                 continue
             a = (a_ru - a_ua) / (a_ru + a_ua)
             tiles[int(k)] = round(a, 3)
-            if abs(a) >= thr:
-                out[ru if a > 0 else ua] = abs(a)
-        return out, tiles
+        return fld, tiles
 
     def signed_dist(self, key, p):
         if key not in self._sd:
@@ -225,7 +232,35 @@ class Sectors:
 
     PC_NAMES = ["|distance|", "côté", "UCDP au sol", "part au sol", "pertes", "feux", "z feux", "urbain", "continuité", "urbain × distance",
                 "radar : abandon agricole (côté russe)", "radar : abandon agricole (côté ukrainien)", "radar : pas de cultures en 2021",
-                "état-major UA (faits) : assauts", "état-major UA (faits) : frappes aériennes", "MoD RF (faits) : localités des bilans"]
+                "état-major UA (faits) : assauts", "état-major UA (faits) : frappes aériennes", "MoD RF (faits) : localités des bilans",
+                "liste officielle des hostilités (rejouée)", "liste officielle : pas encore publiée"]
+
+    def official_list(self):
+        """Part des localités de la hromada en « hostilités actives » d'après la liste officielle ukrainienne, telle qu'elle
+        était CONNUE à la fin de chaque mois (versions de l'arrêté rejouées : data/liste_hostilites_hromada_month.csv,
+        hromadas → mailles : data/hromada_cells.json, limites OCHA COD-AB CC BY-IGO). Avant décembre 2022, aucune liste
+        n'était publiée (indicatrice) ; après le dernier mois rejoué, l'état connu est reporté."""
+        L = np.zeros((len(self.months), len(self.U)), np.float32)
+        M = np.zeros(len(self.months), np.float32)
+        pl, ph = os.path.join(self.root, "data", "liste_hostilites_hromada_month.csv"), os.path.join(self.root, "data", "hromada_cells.json")
+        if not (os.path.exists(pl) and os.path.exists(ph)):
+            self.LIST, self.LMISS = L, np.ones(len(self.months), np.float32)
+            return
+        H = json.load(open(ph, encoding="utf-8"))
+        cells = {k: [self.pos[c] for c in v if c in self.pos] for k, v in H["mailles"].items()}
+        midx = {m: i for i, m in enumerate(self.months)}
+        with open(pl, encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                t = midx.get(r["mois"])
+                if t is not None and cells.get(r["pcode"]):
+                    L[t, cells[r["pcode"]]] = float(r["part_active_connue"])
+        first, last = midx.get(H["premier_mois_connu"], 0), midx.get(H["dernier_mois"], len(self.months) - 1)
+        for t in range(len(self.months)):
+            if t < first:
+                M[t] = 1.0
+            elif t > last:
+                L[t] = L[last]
+        self.LIST, self.LMISS = L, M
     OFFICIAL = ("etatmajor_assauts", "etatmajor_frappes", "modru_localites")
 
     def official(self):
@@ -317,10 +352,13 @@ class Sectors:
                          np.clip(zf, -3, 10) / 3, urb, cont, urb * a], axis=1).astype(np.float32)
         of = getattr(self, "OF", None) or {}
         offc = [np.log1p(self.smooth(of[k][t], 2.5)) if k in of else np.zeros(len(sd), np.float32) for k in self.OFFICIAL]
-        return np.c_[X, self.sar_features(t, sd), np.stack(offc, axis=1)].astype(np.float32)
+        lst = getattr(self, "LIST", None)
+        lf = np.c_[self.smooth(lst[t], 1.5), np.full(len(sd), self.LMISS[t], np.float32)] if lst is not None else np.zeros((len(sd), 2), np.float32)
+        return np.c_[X, self.sar_features(t, sd), np.stack(offc, axis=1), lf].astype(np.float32)
 
     PC_GROUPS = {"UCDP au sol": [2, 3], "pertes WarSpotting": [4], "feux VIIRS": [5, 6], "urbain et continuité": [7, 8, 9],
-                 "radar (abandon agricole)": [10, 11, 12], "état-major UA (faits)": [13, 14], "MoD RF (faits)": [15]}
+                 "radar (abandon agricole)": [10, 11, 12], "état-major UA (faits)": [13, 14], "MoD RF (faits)": [15],
+                 "liste officielle (rejouée)": [16, 17]}
 
     def pcontact(self, ts, SD, ground, urb, Zf, truth, dis, art, start_wf="2023-06", drop=(), use_art=True):
         """P(contact au sol) par maille et par mois, régression logistique réentraînée chaque mois sur les seuls mois

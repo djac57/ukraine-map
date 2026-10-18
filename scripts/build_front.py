@@ -2053,6 +2053,8 @@ def main():
     ART = sect.artillery()
     sect.AG = sect.sar()
     sect.official()
+    sect.official_list()
+    print(f"liste officielle rejouée : {int((sect.LIST > 0).sum()):,} mailles-mois en hostilités actives (connues à la date)", flush=True)
     print("faits officiels : " + ", ".join(f"{k} {int((v > 0).sum()):,} mailles-mois" for k, v in sect.OF.items()), flush=True)
     print(f"radar : abandon agricole renseigné sur {int(np.isfinite(sect.AG).sum()):,} mailles-mois", flush=True)
     PC, PCwf = sect.pcontact(tsm, SDm, sect.G, urb, Zf_store, truth, dis_cell, ART)

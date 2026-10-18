@@ -17,6 +17,7 @@ affichée à moins de 50 km, et au moins une flèche par ~100 km de ligne en mou
 Sort avec le code 1 si un contrôle échoue (le workflow ne versionne alors pas les sorties).
 """
 import functools
+import html
 import http.server
 import os
 import re
@@ -93,6 +94,7 @@ f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR 
 const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowCheck||!w.__uafArrows)&&n<60){return setTimeout(()=>go(n+1),500);}
  try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces : '+(r.evN||0)+' ; sans sens établi (repère creux) '+(r.reoriented||0)+' ; confirmations (en retard sur les cartes, sans direction) '+(r.late||0)+' ; sens vérifié contre le territoire basculé : '+(r.flipChecked||0)+'\\n';
   {const i=w.DATA.months.indexOf('2026-09'); if(i>=0){const A=w.__uafDirBox(i,[36.3,37.8,50.0,50.8]); const bad=A.filter(a=>a.viol); o.textContent+='CAS|Vovtchansk et Belgorod (septembre 2026) : aucune flèche vers la Russie ni vers une zone déjà tenue|'+(bad.length?'ECHEC':'OK')+'|'+JSON.stringify(A)+'|'+A.length+'\\n';}}
+  o.textContent+='INCERTAINES|par mois [vue d’ensemble, zoom 20+10 km, annonces] : '+JSON.stringify(r.unc||{})+'\\n';
   o.textContent+='DIRECTION|flèches réorientées le long de la limite : '+(r.redir||0)+' ; flèches de gradient dont la base est dans la bande russe : '+(r.border||0)+' ; '+JSON.stringify(r.redirList||[])+'\\n';
   const months=w.DATA.months, inb=(a,b)=>a.lon>=b[0]&&a.lon<=b[1]&&a.lat>=b[2]&&a.lat<=b[3];
   for(const [name,ms,box,ru,dir] of CASES){let hit=null,n=0;
@@ -197,6 +199,62 @@ def check_schema():
     return True
 
 
+# i18n : chaque langue est chargée, calques allumés, zoom et survol ; échec si un mot-témoin français apparaît dans le
+# texte de la page, la légende, l'info-bulle ou les étiquettes dessinées sur la carte
+WITNESS = ["occupés", "légende", "calques", "contrôle russe", "zone grise", "flèche", "incertitude", "localités", "mois en cours",
+           "Données", "méthode", "septembre", "octobre", "avancée", "combats", "densité", "Varsovie", "Sébastopol", "Bucarest",
+           "Moscou", "Voronej", "Rostov-sur-le-Don", "Cracovie", "Sotchi", "pas d'instantané", "équilibr", "détails", "Modèle", "sans annonces", "Contexte"]
+I18N_HARNESS = """<!doctype html><html><head><meta charset="utf-8"></head><body><pre id=o></pre><iframe id=f src="index.html?lang=__L__" style="width:1100px;height:900px"></iframe>
+<script>f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l;
+const go=n=>{ if((!w.FRONTP||!w.__uafGoto)&&n<80) return setTimeout(()=>go(n+1),500);
+  const d=w.document; d.querySelectorAll('input[type=checkbox]').forEach(c=>{ if(!c.checked){c.checked=true;c.dispatchEvent(new Event('change'));} });
+  const p=d.getElementById('panel'); if(p) p.open=true;
+  w.__uafGoto('2026-09', 37.2, 48.3, 8);
+  setTimeout(()=>{ const cv=d.getElementById('map'), r=cv.getBoundingClientRect();
+    cv.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true}));
+    const tip1=d.getElementById('tip').innerText;
+    cv.dispatchEvent(new MouseEvent('click',{clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true}));
+    const tip2=d.getElementById('tip').innerText;
+    const txt=d.body.innerText+' '+tip1+' '+tip2+' '+(w.__uafLastLabels||[]).join(' ')+' '+[...d.querySelectorAll('option')].map(o=>o.textContent).join(' ');
+    const lab=(w.__uafLastLabels||[]), latin=lab.filter(x=>!/[а-яіїєґё]/i.test(x));
+    o.textContent=JSON.stringify({txt, latin: latin.length, labels: lab.length, ex: latin.slice(0,12)});},4000);};
+ setTimeout(()=>go(0),1500);};</script></body></html>"""
+
+
+def check_i18n(chrome):
+    """Bloquant : aucun mot-témoin français en EN, UK, RU."""
+    import json
+    ok = True
+    for lang in ("en", "uk", "ru"):
+        path = os.path.join(SITE, "_check_i18n.html")
+        open(path, "w").write(I18N_HARNESS.replace("__L__", lang))
+
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+        try:
+            with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=SITE)) as httpd:
+                port = httpd.server_address[1]
+                threading.Thread(target=httpd.serve_forever, daemon=True).start()
+                out = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--virtual-time-budget=60000", "--dump-dom",
+                                      f"http://127.0.0.1:{port}/_check_i18n.html"], capture_output=True, text=True, timeout=300).stdout
+                httpd.shutdown()
+        finally:
+            os.remove(path)
+        m = re.search(r'<pre id="o">([^<]*)', out)
+        try:
+            res = json.loads(html.unescape(m.group(1))) if m else {}
+        except ValueError:
+            res = {}
+        txt = res.get("txt", "")
+        found = [wd for wd in WITNESS if wd.lower() in txt.lower()]
+        good = bool(txt) and not found
+        ok &= good
+        extra = f" ; étiquettes en écriture latine : {res.get('latin')} sur {res.get('labels')} {res.get('ex')}" if lang != "en" else ""
+        print(f"I18N|{lang}|{'OK' if good else 'ECHEC'}|{len(txt)} caractères lus ; mots français trouvés : {found if txt else 'page non lue'}{extra}")
+    return ok
+
+
 def main():
     if not check_workflows() or not check_schema():
         return 1
@@ -226,6 +284,8 @@ def main():
     print("check_arrows.py :", text.strip() or "aucun résultat")
     r = re.search(r"RESULTAT total=(\d+) echecs=(\d+)", text)
     if not r or "ERREUR" in text or "|ECHEC|" in text:
+        return 1
+    if not check_i18n(chrome):
         return 1
     return 0 if int(r.group(2)) == 0 and int(r.group(1)) > 0 else 1
 
