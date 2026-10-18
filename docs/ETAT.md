@@ -359,6 +359,17 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir : missiles et drones à DEUX SENS (une seule case). Bleu pétrole : frappes russes sur l'Ukraine (Ivaniuk ;
+  Kyiv ville sans volume propre prend la teinte de l'oblast, les rapports disant « oblast de Kyiv »). Olive : frappes
+  ukrainiennes SIGNALÉES sur la Russie et les zones occupées, par région et par mois (`build_strikes_ru.py`,
+  `site/strikes_ru.js`, régions russes `site/regions_ru.js` tirées de Natural Earth) : jours où la région est citée
+  dans les bilans d'interceptions du MoD RF (annonces ; `fetch_mod_drones.py`, fil public mod_russia, 3 862 messages,
+  8 381 mentions régionales 2022-03 → 2026-10, nettement moins complet depuis avril 2026 : passage du MoD à MAX),
+  mentions des autorités régionales de Belgorod, Koursk, Briansk (`data/gouverneurs_region_month.csv`, agrégats de
+  signals4) et feux anormaux à ≤ 1,5 km d'un site industriel ou énergétique d'infra.js (231 sur 193 sites ; aucun
+  site publié). Aucune zone de lancement ukrainienne. CI : `fetch_mod_drones.py raw --recent` (~4 000 derniers
+  messages) puis `build_strikes_ru.py`, qui garde les mois déjà publiés hors de la période relue. Collecte CI des
+  gouverneurs : non faite (fichier figé, à brancher). Moscou et au-delà : régions présentes mais en bord d'emprise.
 - 18/10 soir : « Pistes écartées » complétée avec toutes les pistes créatives abandonnées (26 au total : brouillage GPS
   et GSM/IODA, Nova Poshta, Ukrzaliznytsia, écoles, évacuations, KTO, listes OCHA/NRC, Discord, Lostarmour,
   GeoConfirmed, cartes MoD RF et Rybar, MAX, alertes et KAB, Black Marble, Ookla, OIM, Sentinel-2 fortifications,

@@ -1239,10 +1239,13 @@ function arcMonth(){
 const zoneR = (z, A) => 3.5 + 10 * Math.sqrt(z.n / A.mz);
 function drawArcs(k){
   if (cur > cutIdx) return;
+  drawStrikesRu(k);
   const A = arcMonth();
   ctx.lineCap = "round"; ctx.lineJoin = "round";
   // choroplèthe des oblasts visés
-  for (const [tid, n] of Object.entries(A.regs)) { const p = regionPath[tid]; if (!p) continue;
+  const regs = Object.assign({}, A.regs);
+  if (regs["UA-32"] && !regs["UA-30"]) regs["UA-30"] = regs["UA-32"];   // Kyiv ville comptée avec l'oblast dans les rapports
+  for (const [tid, n] of Object.entries(regs)) { const p = regionPath[tid]; if (!p) continue;
     ctx.globalAlpha = 0.1 + 0.5 * Math.sqrt(n / A.mr); ctx.fillStyle = C.arc; ctx.fill(p);
     if (arcFocus && arcFocus.kind === "region" && arcFocus.id === tid) { ctx.globalAlpha = 1; ctx.strokeStyle = C.arc; ctx.lineWidth = 2 / k; ctx.stroke(p); } }
   // flux de la zone ou de l'oblast survolé
@@ -1271,6 +1274,52 @@ function drawArcs(k){
 }
 // diagnostic (headless) : zones de lancement du mois affiché, en pixels de la carte
 window.__uafArcZones = () => arcMonth().zones.map(z => { const a = proj([z.lon, z.lat]); return {name: z.names.join(", "), x: a[0] * tr.k + tr.x, y: a[1] * tr.k + tr.y, n: Math.round(z.n)}; }).sort((p, q) => q.n - p.n);
+// sens Ukraine → Russie : frappes ukrainiennes SIGNALÉES par région et par mois (strikes_ru.js, build_strikes_ru.py) :
+// jours où la région est citée dans les bilans d'interceptions du MoD RF (annonces d'une partie), mentions des autorités
+// régionales (Belgorod, Koursk, Briansk), feux anormaux près de sites industriels ; régions russes : regions_ru.js
+// (Natural Earth) ; territoires occupés : régions de geo.js. Choroplèthe olive, aucune zone de lancement.
+let SRU = null, sruLoading = false, sruCache = {m: -1};
+const sruPath = {}, sruFeat = {};
+function loadStrikesRu(then){
+  if (SRU) return then && then();
+  if (sruLoading) return; sruLoading = true;
+  let n = 0; const done = () => { if (++n < 2) return; SRU = window.STRIKES_RU || null; sruLoading = false;
+    const gp = d3.geoPath(proj);
+    for (const f of (window.REGIONS_RU || {features: []}).features) if (f.geometry) { sruPath[f.properties.id] = new Path2D(gp(f) || ""); sruFeat[f.properties.id] = f; }
+    for (const id of ["UA-43", "UA-40", "UA-23", "UA-65", "UA-14", "UA-09"]) if (regionPath[id]) { sruPath[id] = regionPath[id]; sruFeat[id] = regionFeat[id]; }
+    if (then) then(); };
+  for (const src of ["regions_ru.js", "strikes_ru.js"]) { const sc = document.createElement("script"); sc.src = src + "?v=" + (FRONT_V.strikes || ""); sc.onload = done; document.head.appendChild(sc); }
+}
+function sruMonth(){
+  if (sruCache.m === cur || !SRU) return sruCache;
+  const R = {};
+  for (const key of ["mod", "modN", "gov", "fires"]) for (const [mi, rid, n] of SRU[key] || []) if (mi === cur) { (R[rid] = R[rid] || {mod: 0, modN: 0, gov: 0, fires: 0})[key] += n; }
+  const mx = Math.max(1, ...Object.values(R).map(v => v.mod));
+  return sruCache = {m: cur, R, mx};
+}
+const SRU_COL = () => C.dark ? "#b5c25a" : "#6f7f1f";
+function drawStrikesRu(k){
+  if (!SRU || cur > cutIdx) return;
+  const S = sruMonth();
+  const R = Object.assign({}, S.R);
+  if (R["UA-43"] && !R["UA-40"]) R["UA-40"] = R["UA-43"];   // Sébastopol citée avec la Crimée
+  for (const [rid, v] of Object.entries(R)) { const p = sruPath[rid]; if (!p || !(v.mod || v.gov || v.fires)) continue;
+    ctx.globalAlpha = 0.12 + 0.5 * Math.sqrt((v.mod || 0.5) / S.mx); ctx.fillStyle = SRU_COL(); ctx.fill(p);
+    if (arcFocus && arcFocus.kind === "sru" && arcFocus.id === rid) { ctx.globalAlpha = 1; ctx.strokeStyle = SRU_COL(); ctx.lineWidth = 2 / k; ctx.stroke(p); } }
+  ctx.globalAlpha = 1;
+}
+function sruHover(ll){
+  if (!SRU || cur > cutIdx) return null;
+  const S = sruMonth();
+  for (const [rid, v] of Object.entries(S.R)) if (sruFeat[rid] && d3.geoContains(sruFeat[rid], ll)) {
+    const nm = topoC(SRU.names[rid] || rid);
+    return {id: rid, text: _t("frappes ukrainiennes signalées : {r} ce mois-ci", {r: nm}) +
+      `<div>${_t("bilans d'interceptions du MoD RF (annonces) : région citée {d} jour(s){n}", {d: fmt(v.mod), n: v.modN ? _t(", {x} drones annoncés", {x: fmt(v.modN)}) : ""})}</div>` +
+      (v.gov ? `<div>${_t("autorités régionales : {g} mention(s) de frappes", {g: fmt(v.gov)})}</div>` : "") +
+      (v.fires ? `<div>${_t("feux anormaux près de sites industriels ou énergétiques : {f}", {f: fmt(v.fires)})}</div>` : "")};
+  }
+  return null;
+}
 // survol de la couche : zone de lancement (cercle) ou oblast visé ; renvoie le texte de l'info-bulle ou null
 function arcHover(mx, my){
   if (!showArcs || cur > cutIdx) return null;
@@ -1278,11 +1327,15 @@ function arcHover(mx, my){
   let f = null;
   for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (a && Math.hypot((a[0] - gx) * k, (a[1] - gy) * k) <= zoneR(z, A) + 3) { f = {kind: "zone", id: z.key, z}; break; } }
   if (!f) { const ll = proj.invert([gx, gy]);
-    for (const tid of Object.keys(A.regs)) if (regionFeat[tid] && d3.geoContains(regionFeat[tid], ll)) { f = {kind: "region", id: tid}; break; } }
+    const ids = Object.keys(A.regs); if (A.regs["UA-32"] && !A.regs["UA-30"]) ids.unshift("UA-30");
+    for (const tid of ids) if (regionFeat[tid] && d3.geoContains(regionFeat[tid], ll)) { f = {kind: "region", id: A.regs[tid] ? tid : "UA-32"}; break; } }
+  let sh = null;
+  if (!f) { sh = sruHover(proj.invert([gx, gy])); if (sh) f = {kind: "sru", id: sh.id}; }
   const key = f ? f.kind + f.id : null, old = arcFocus ? arcFocus.kind + arcFocus.id : null;
   arcFocus = f ? {kind: f.kind, id: f.id} : null;
   if (key !== old) draw();
   if (!f) return null;
+  if (f.kind === "sru") return sh.text;
   if (f.kind === "zone") return _t("zone de lancement : {z} · {n} lancements vers des cibles précisées ce mois-ci", {z: f.z.names.join(", "), n: fmt(Math.round(f.z.n))});
   const nm = (regionFeat[f.id].properties || {}).n || f.id;
   return _t("oblast visé : {o} · {n} lancements (cibles précisées) ce mois-ci", {o: topoC(nm), n: fmt(Math.round(A.regs[f.id]))});
@@ -1606,7 +1659,7 @@ document.querySelectorAll("[data-raw]").forEach(cb => cb.onchange = () => { rawO
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
-$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; legend(); draw(); };
+$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); };
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
 if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };
 if ($("lyrPm")) $("lyrPm").onchange = e => { showPm = e.target.checked; ensureView("pmove", () => { pmFor = -2; legend(); draw(); }); legend(); draw(); };
@@ -1808,7 +1861,8 @@ function legend(){
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>${_t("événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)")}</span>`;
-  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : oblasts visés (teinte selon le volume du mois) · zones de lancement (cercles selon le nombre) ; survoler une zone ou un oblast montre ses flux ({n} % des lancements ont une cible précisée ; source : armée de l'air ukrainienne, compilation P. Ivaniuk)", {n: O.launch.specificShare})}</span>`;
+  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : oblasts visés (teinte selon le volume du mois) · zones de lancement (cercles selon le nombre) ; survoler une zone ou un oblast montre ses flux ({n} % des lancements ont une cible précisée ; source : armée de l'air ukrainienne, compilation P. Ivaniuk)", {n: O.launch.specificShare})}</span>` +
+    `<span><i style="background:${SRU_COL()};opacity:.6;border-radius:0"></i>${_t("frappes ukrainiennes signalées sur la Russie et les territoires occupés : régions citées dans les bilans d'interceptions du MoD RF (annonces d'une partie), mentions des autorités régionales de Belgorod, Koursk et Briansk, feux anormaux près de sites industriels ; aucune zone de lancement")} ${_t("Bilans du MoD RF moins complets depuis avril 2026 (le ministère publie surtout sur MAX).")}</span>`;
   $("legend").innerHTML = html;
 }
 
