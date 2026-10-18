@@ -1166,6 +1166,26 @@ function drawTg(k){
     } }
   ctx.restore(); ctx.globalAlpha = 1;
 }
+// impacts détectés par Sentinel-2 (indicateur affiché, données figées) : par tronçon de 20 km et par mois, z local des
+// impacts de chaque côté de la ligne (barre brune : côté russe, barre vert sombre : côté ukrainien), hauteur selon z ≥ 1
+let showImp = false, IMP = null, impHits = [];
+function loadImp(then){ if (window.IMPACTS) { IMP = window.IMPACTS; return then && then(); }
+  const sc = document.createElement("script"); sc.src = "impacts_troncons.js?v=0"; sc.onload = () => { IMP = window.IMPACTS; if (then) then(); }; document.head.appendChild(sc); }
+function drawImp(k){
+  impHits = []; if (!IMP) return;
+  const fi = frontIdx(); if (fi < 0) return; const m = FR.months[fi].date.slice(0, 7);
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const [mm, gx, gy, zr, zu, as] of IMP.rows) { if (mm !== m) continue;
+    const x = (gAff[0] + gx * gAff[2]) * k + tr.x, y = (gAff[1] + gy * gAff[2]) * k + tr.y;
+    if (x < -10 || x > W + 10 || y < -20 || y > H + 10) continue;
+    let any = false;
+    for (const [z, col, dx] of [[zr, "#8c510a", -4], [zu, "#01665e", 1]]) { if (z == null || z < 1) continue; any = true;
+      const h = Math.min(22, 3 + 2.2 * z); ctx.globalAlpha = z >= 2 ? 0.95 : 0.55; ctx.fillStyle = col; ctx.strokeStyle = C.bg; ctx.lineWidth = 0.8;
+      ctx.fillRect(x + dx, y - h, 3.5, h); ctx.strokeRect(x + dx, y - h, 3.5, h); }
+    if (any) impHits.push({x, y, zr, zu});
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 // liseré P(mouvement) dessiné AU-DESSUS des feux et des hachures, avec un fin contour sombre pour le détacher
 function drawPm(k){
   const fp = frontIdx(); if (fp < 0) return;
@@ -1522,6 +1542,7 @@ function draw(){
   if (showLoss) drawLosses(k);
   if (showArcs) drawArcs(k);
   if (showTg) drawTg(k);
+  if (showImp) drawImp(k);
   if (showPm) drawPm(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
   if (showArrows) { drawArrows(k); drawEventArrows(k); }
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
@@ -1707,6 +1728,7 @@ $("varSel").onchange = () => {
   frontFor = -2; draw(); updateArea(); legend(); varNote();
 };
 document.querySelectorAll("[data-raw]").forEach(cb => cb.onchange = () => { rawOn[cb.dataset.raw] = cb.checked; legend(); draw(); });
+if ($("lyrImp")) $("lyrImp").onchange = e => { showImp = e.target.checked; if (showImp) loadImp(() => draw()); legend(); draw(); };
 if ($("lyrTg")) $("lyrTg").onchange = e => { showTg = e.target.checked; if (showTg) loadTg(() => draw()); legend(); draw(); };
 if ($("lyrClaims")) $("lyrClaims").onchange = e => { showClaims = e.target.checked; legend(); draw(); };
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
@@ -1748,6 +1770,15 @@ const tip = $("tip");
 let tipKey = null, tipFull = false;   // position du dernier affichage, détails ouverts ou non
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (showImp && impHits.length) {
+    let best = null; for (const h of impHits) if (Math.abs(h.x - mx) < 8 && my < h.y + 3 && my > h.y - 24) { best = h; break; }
+    if (best) {
+      const zs = v => v == null ? "–" : (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1).replace(".", ",");
+      tip.innerHTML = `<div>${_t("impacts détectés (30 j), anomalie locale z : côté russe {r} · côté ukrainien {u}", {r: zs(best.zr), u: zs(best.zu)})}</div><div style="color:var(--faint)">${_t("environ une détection sur deux est un cratère ; indice, pas une preuve")}</div>`;
+      tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
+    }
+  }
   if (showTg && tgHits.length) {
     let best = null; for (const h of tgHits) if (Math.hypot(h.x - mx, h.y - my) <= h.r + 2) { best = h; break; }
     if (best) {

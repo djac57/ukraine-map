@@ -359,6 +359,10 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 19/10 : couche « impacts détectés (Sentinel-2) », FIGÉE, décochée : z local des impacts par tronçon de 20 km, côté
+  russe (barre brune) et ukrainien (vert sombre), fenêtre 30 j (`build_impacts_layer.py` → `site/impacts_troncons.js`,
+  depuis `sar/out/impacts_troncons.csv`) ; ⓘ : ~1 détection sur 2 est un cratère, Lyman z +6,9 fin mai 2026, signal faible
+  sur tout le front (34 à 61 cas). Méthode : « affiché comme indicateur ».
 - 18/10 nuit : couche « signaux Telegram (30 j) », FIGÉE (collecte CI à venir), décochée : par tronçon de 24 km et
   par mois, losange bleu = attaques/présence ukrainiennes signalées par 9 canaux russes, losange rouge = russes
   signalées par 5 canaux ukrainiens ; agrégats seulement (`scripts/build_telegram_layer.py` →
