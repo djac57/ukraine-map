@@ -659,8 +659,9 @@ function flippedCentroid(pc, pold, cx, cy, camp){
 // flèches (pleines, pointillées, « poussée possible », annonces). Le minimum des flèches pointillées ne sert qu'à
 // garder une hampe lisible et ne dépasse jamais le plafond d'une flèche pleine.
 function arrowPx(v, k, uncertain){
-  const overview = k < 1.6, cap = overview ? 26 : 70, w = overview ? 1.6 : Math.min(7, 1.2 + v * 0.5), hs = 3 + w * 1.6;
-  let len = overview ? Math.min(cap, 14 + v * 2.5) : Math.min(cap, 10 + v * 7);
+  // plancher de lisibilité (≈ 20 px, hampe comprise) et plafond (40 px en vue d'ensemble, 70 px au zoom), proportionnel entre
+  const overview = k < 1.6, cap = overview ? 40 : 70, floor = 20, w = overview ? 1.8 : Math.min(7, 1.2 + v * 0.5), hs = 3 + w * 1.6;
+  let len = overview ? Math.min(cap, floor + v * 4) : Math.min(cap, Math.max(floor, 10 + v * 7));
   if (uncertain) len = Math.max(len, Math.min(cap, hs * 1.6 + 12));
   return {len, w, hs, overview, cap};
 }
@@ -1091,7 +1092,7 @@ function buildAsym(fi){
 let pmFor = -2, pmImg = null, showPm = !!(document.getElementById("lyrPm") && document.getElementById("lyrPm").checked);
 function buildPm(fi, k){
   // en vue d'ensemble, le liseré (± 3 km) est élargi à l'affichage pour rester visible
-  const r = k < 1.6 ? 3 : k < 3 ? 1 : 0, key = fi + ":" + r;
+  const r = k < 1.6 ? 5 : k < 3 ? 2 : 0, key = fi + ":" + r;
   if (pmFor === key) return;
   pmFor = key; pmImg = null;
   const F = viewFields("pmove"); if (!F || !F[fi]) return;
@@ -1099,9 +1100,9 @@ function buildPm(fi, k){
   const cx = cv.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data, q = F[fi];
   for (let u = 0; u < UCELLS.length; u++) {
     if (!q[u]) continue;
-    const p = (q[u] - 1) / 62, a = Math.max(0, Math.min(1, (p - 0.05) / 0.45));
+    const p = (q[u] - 1) / 62, a = Math.max(0, Math.min(1, (p - 0.1) / 0.4));   // sous 10 % : rien (taux de base 13 %)
     if (a <= 0) continue;
-    const c0 = UCELLS[u], i0 = c0 % GX, j0 = Math.floor(c0 / GX), al = Math.round(255 * (0.15 + 0.7 * a));
+    const c0 = UCELLS[u], i0 = c0 % GX, j0 = Math.floor(c0 / GX), al = Math.round(255 * (0.2 + 0.75 * a));
     for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
       if (di * di + dj * dj > r * r || i0 + di < 0 || i0 + di >= GX || j0 + dj < 0 || j0 + dj >= GY) continue;
       const o = ((j0 + dj) * GX + i0 + di) * 4; if (d[o + 3] < al) { d[o] = 138; d[o+1] = 79; d[o+2] = 184; d[o+3] = al; } }
@@ -1242,6 +1243,70 @@ function cellRect(i, j){
   return r;
 }
 
+// ---------- relief (ombrage du MNT Copernicus GLO-90, statique ; case « relief » des calques) ----------
+// Images en niveaux de gris dans la projection de la grille (255 = neutre), dessinées en « multiply ».
+// Niveaux (relief/relief.js) : z0 1 km/px et z1 400 m/px (images entières), z2 160 m/px (tuiles de 512 px, zone du
+// front) ; chargement paresseux : rien avant que la case soit cochée, z1 et z2 seulement au zoom.
+let showRelief = !!(document.getElementById("lyrRelief") && document.getElementById("lyrRelief").checked), RLF = null, rlfLoading = false;
+const rlfImgs = {};
+let rlfCont = null, rlfContLoading = false;
+// « over » (défaut) : au-dessus de la densité en multiply léger, visible des deux côtés de la ligne ; « under » (?relief=under) :
+// sous la densité, masqué là où la densité russe est opaque
+const RELIEF_MODE = new URLSearchParams(location.search).get("relief") === "under" ? "under" : "over";
+function loadRelief(then){
+  if (RLF) return then && then();
+  if (rlfLoading) return; rlfLoading = true;
+  const go = () => { RLF = window.RELIEF || null; rlfLoading = false; if (then) then(); };
+  if (window.RELIEF) return go();
+  const sc = document.createElement("script"); sc.src = "relief/relief.js"; sc.onload = go; document.head.appendChild(sc);
+}
+function rlfImg(src){
+  let im = rlfImgs[src];
+  if (!im) { im = new Image(); im.onload = () => draw(); im.src = "relief/" + src; rlfImgs[src] = im; }
+  return im.complete && im.naturalWidth ? im : null;
+}
+function drawRelief(k){
+  if (!showRelief || !RLF) return;
+  const g = FR.grid, kmpx = kmPerPx(k), L = RLF.levels;
+  ctx.save();
+  ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]);          // unités : mailles de 2 km
+  if (typeof domainPath !== "undefined" && domainPath) ctx.clip(domainPath);   // Ukraine et bande russe du modèle
+  ctx.globalCompositeOperation = "multiply";
+  ctx.globalAlpha = RELIEF_MODE === "over" ? 0.5 : 0.85;
+  ctx.imageSmoothingEnabled = true;
+  const z0 = rlfImg(L[0].file), z1 = kmpx < 0.9 ? rlfImg(L[1].file) : null;
+  const full = z1 || z0, z2 = L[2], tiles = [];
+  if (z2 && kmpx < 0.3) {
+    // tuiles visibles seulement (écran en px CSS : x = tr.x + k·(gAff0 + gAff2·gx))
+    const ox = (z2.x0 - g.x0) / g.size, oy = (g.y1 - z2.y1) / g.size, ts = z2.tile * z2.res / g.size;
+    const gx0 = (-tr.x / k - gAff[0]) / gAff[2], gx1 = ((W - tr.x) / k - gAff[0]) / gAff[2];
+    const gy0 = (-tr.y / k - gAff[1]) / gAff[2], gy1 = ((H - tr.y) / k - gAff[1]) / gAff[2];
+    for (const [tx, ty, tw, th] of z2.tiles) {
+      const x = ox + tx * ts, y = oy + ty * ts, w = tw * z2.res / g.size, h = th * z2.res / g.size;
+      if (x > gx1 || x + w < gx0 || y > gy1 || y + h < gy0) continue;
+      const im = rlfImg(z2.dir + tx + "_" + ty + ".webp");
+      if (im) tiles.push([im, x, y, w, h]);
+    }
+  }
+  if (full) {
+    // le niveau entier est exclu sous les tuiles fines chargées (pas de double ombrage en multiply)
+    if (tiles.length) { const cp = new Path2D(); cp.rect(0, 0, g.nx, g.ny); for (const t of tiles) cp.rect(t[1], t[2], t[3], t[4]); ctx.save(); ctx.clip(cp, "evenodd"); ctx.drawImage(full, 0, 0, g.nx, g.ny); ctx.restore(); }
+    else ctx.drawImage(full, 0, 0, g.nx, g.ny);
+  }
+  for (const [im, x, y, w, h] of tiles) ctx.drawImage(im, x, y, w, h);
+  window.__uafRelief = {kmpx: kmpx, level: z1 ? "z1" : "z0", tiles: tiles.length, contours: !!rlfCont};
+  // courbes de niveau (50 m, zone du front) : au zoom seulement, trait fin, chargées à la demande
+  if (kmpx < 0.6) {
+    if (!rlfCont && !rlfContLoading) { rlfContLoading = true; const sc = document.createElement("script"); sc.src = "relief/contours_50m.js";
+      sc.onload = () => { const C_ = window.RELIEF_CONTOURS; rlfCont = {p1: new Path2D(), p2: new Path2D()};
+        for (const [lev, c] of C_.lines) { const pth = lev % 100 === 0 ? rlfCont.p2 : rlfCont.p1; pth.moveTo(c[0], c[1]); for (let n = 2; n < c.length; n += 2) pth.lineTo(c[n], c[n + 1]); }
+        draw(); }; document.head.appendChild(sc); }
+    if (rlfCont) { ctx.globalCompositeOperation = "source-over"; ctx.strokeStyle = "rgb(70,55,35)"; ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 0.7 / (k * gAff[2]); ctx.stroke(rlfCont.p1); ctx.globalAlpha = 0.5; ctx.lineWidth = 1.1 / (k * gAff[2]); ctx.stroke(rlfCont.p2); }
+  }
+  ctx.restore();
+}
+
 function draw(){
   const k = tr.k;
   let bg = null;
@@ -1251,9 +1316,11 @@ function draw(){
   ctx.fillStyle = C.land; ctx.fill(paths.land);
   ctx.fillStyle = C.ua; ctx.fill(paths.ua);
   ctx.fillStyle = C.water; ctx.fill(paths.lakes);
+  if (RELIEF_MODE === "under") drawRelief(k);
   bg = showBase ? baseProject() : null;
   if (bg) { ctx.strokeStyle = C.road; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.1 / k; ctx.stroke(bg.r1); if (k >= 2) { ctx.lineWidth = 0.6 / k; ctx.globalAlpha = 0.4; ctx.stroke(bg.r2); } ctx.globalAlpha = 1; }
   drawFront(k);
+  if (RELIEF_MODE === "over") drawRelief(k);
   ctx.lineWidth = 0.8/k; ctx.strokeStyle = C.water; ctx.stroke(paths.rivers);
   ctx.lineWidth = 0.5/k; ctx.strokeStyle = C.admin; ctx.stroke(paths.regions);
   ctx.lineWidth = 1.1/k; ctx.strokeStyle = C.border; ctx.stroke(paths.borders);
@@ -1466,6 +1533,8 @@ function syncMapLegend(){
     if (k === "always") { row.hidden = false; return; }
     const cb = k.startsWith("raw:") ? document.querySelector(`input[data-raw="${k.slice(4)}"]`) : document.getElementById(k);
     row.hidden = !(cb && cb.checked); });
+  // un groupe sans entrée visible disparaît
+  document.querySelectorAll("#mapLegend details.lggrp").forEach(g => { g.hidden = ![...g.querySelectorAll("[data-lyr]")].some(r => !r.hidden); });
 }
 document.querySelectorAll('#panel input[type="checkbox"]').forEach(cb => cb.addEventListener("change", syncMapLegend));
 // ⓘ des secteurs susceptibles de bouger : AUC et taux de base lus dans la validation du build (front.js)
@@ -1475,6 +1544,8 @@ fillPmTip(); setTimeout(fillPmTip, 0); document.addEventListener("uaf-lang", () 
 syncMapLegend();
 // le garde-fou des flèches a besoin du champ d'asymétrie : chargé d'emblée
 ensureView("asym", () => { arrowCache = {}; for (const k in possCache) delete possCache[k]; draw(); });
+if ($("lyrRelief")) $("lyrRelief").onchange = e => { showRelief = e.target.checked; if (showRelief) loadRelief(() => { legend(); draw(); }); legend(); draw(); };
+if (showRelief) loadRelief(() => { legend(); draw(); });
 if ($("lyrDestr")) $("lyrDestr").onchange = e => { showDestr = e.target.checked; ensureView("destr", () => { destrFor = -2; legend(); draw(); }); legend(); draw(); };
 if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.checked; ensureView("combat", () => { combatFor = -2; legend(); draw(); }); };
 $("lyrArrows").onchange = e => { showArrows = e.target.checked; if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); legend(); draw(); };
@@ -1644,6 +1715,7 @@ function legend(){
   if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:radial-gradient(#a65612 40%,transparent 45%) 0 0/4px 4px;border-radius:0"></i>${_t("combats derrière la ligne : endroits où l'activité de combat vue des deux côtés (feux, UCDP, pertes) se concentre anormalement d'un côté de la ligne (asymétrie ≥ 0,2 et au-dessus de sa normale des 12 mois précédents, z ≥ 2, signal gardé 3 mois), pointillé brun de ce côté ; ne dit pas qui avance")}</span>`;
   if (showPm && FR.pmove) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,rgba(138,79,184,.1),rgba(138,79,184,.7));border-radius:0"></i>${_t("secteurs susceptibles de bouger : probabilité que la ligne bouge d'au moins 0,5 km d'ici 2 mois dans ce tronçon de 24 km, dans un sens ou dans l'autre (plus foncé = plus probable ; AUC {a}, taux de base {b} %, estimée sur le seul passé) ; ne dit pas qui avance", {a: dec(FR.pmove.auc.toFixed(2)), b: Math.round(FR.pmove.base * 100)})}</span>`;
   if (showDestr) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:rgba(40,40,40,.7);border-radius:0"></i>${_t("destruction cumulée (radar Sentinel-1) : part du bâti dont la rétrodiffusion s'écarte durablement de 2021, jusqu'au mois précédent, mailles de 2 km ; contient des données Copernicus Sentinel modifiées")}</span>`;
+  if (showRelief) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,#fff,#b9b9b9,#fff);border-radius:0"></i>${_t("relief : ombrage du modèle numérique de surface Copernicus GLO-90 (90 m), exagéré pour un pays plat ; arbres et bâti y laissent une texture ; © DLR e.V. 2010-2014 et © Airbus Defence and Space GmbH 2014-2018, fourni dans le cadre de COPERNICUS par l'Union européenne et l'ESA ; tous droits réservés")}</span>`;
   if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>${_t("combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 2 par rapport à ses 12 mois précédents ; ne dit pas qui avance")}</span>`;
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;

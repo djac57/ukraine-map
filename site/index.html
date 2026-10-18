@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=f7fab64547">
+<link rel="stylesheet" href="style.css?v=e218ff0b0b">
 </head>
 <body class="lean">
 <div class="wrap">
@@ -24,33 +24,42 @@
   <div class="month-big"><b id="mLabel"></b><span id="mSub"></span></div>
   <div class="zoom"><button class="btn" id="zin" type="button" aria-label="Zoomer">+</button><button class="btn" id="zout" type="button" aria-label="Dézoomer">−</button><button class="btn" id="zreset" type="button" aria-label="Recadrer">⌂</button></div>
   <details class="maplegend" id="mapLegend" open><summary data-t="lgTitle">légende</summary>
-    <div data-lyr="lyrFront"><svg width="30" height="10"><defs><linearGradient id="lgm"><stop offset="0" stop-color="var(--front)" stop-opacity=".06"/><stop offset="1" stop-color="var(--front)" stop-opacity=".7"/></linearGradient></defs><rect width="30" height="10" fill="url(#lgm)"/></svg><span data-t="lgP">contrôle russe probable</span></div>
-    <div data-lyr="lyrLines"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/></svg><span data-t="lg50">ligne la plus probable (50 %)</span></div>
-    <div data-lyr="lyrContact"><svg width="30" height="10"><defs><pattern id="hct" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="1" height="3" fill="var(--ink)" opacity=".55"/></pattern></defs><rect width="30" height="10" fill="url(#hct)"/></svg><span data-t="lgGrey" data-tt="lgGreyTip" title="Probabilité de contact au sol estimée par nos signaux (feux, combats au sol, pertes, menaces d’artillerie, radar, bilans officiels). Alertes d’artillerie : données arrêtées le 7 sept. 2026. Détails sur la page méthode.">zone grise : contact mesuré ⓘ</span></div>
-    <div data-lyr="always"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--ink)" stroke-width="1" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgPre">occupé avant 2022</span></div>
-    <div data-lyr="lyrFront"><svg width="30" height="10"><rect width="30" height="10" fill="var(--uactl)" opacity=".55"/></svg><span data-t="lgUa">contrôle ukrainien en Russie</span></div>
-    <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h17" stroke="var(--front)" stroke-width="1.8"/><path d="M19 1l7 4-7 4z" fill="var(--front)"/></svg><span data-t="lgArr">qui avance (rouge : Russie, bleu : Ukraine)</span></div>
-    <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M6 5h13" stroke="var(--uactl)" stroke-width="1.8"/><path d="M19 1l7 4-7 4z" fill="var(--uactl)"/><circle cx="5" cy="5" r="3" fill="var(--bg)" stroke="var(--uactl)" stroke-width="1.4"/></svg><span data-t="lgEv">localités qui ont basculé (sources, 30 jours)</span></div>
-    <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h16" stroke="var(--front)" stroke-width="1.4" stroke-dasharray="3 3"/><path d="M19 1l7 4-7 4z" fill="none" stroke="var(--front)" stroke-width="1.2"/></svg><span data-t="lgUncArr">sens incertain (on se bat derrière la ligne)</span></div>
-    <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h15" stroke="var(--uactl)" stroke-width="2" stroke-dasharray="4 3"/><path d="M18 1l8 4-8 4z" fill="var(--bg)" stroke="var(--uactl)" stroke-width="1.4"/></svg><span data-t="lgPoss" data-tt="lgPossTip" title="">poussée possible (combats derrière la ligne) ⓘ</span></div>
-    <div data-lyr="lyrPm"><svg width="30" height="10"><defs><linearGradient id="lgpm"><stop offset="0" stop-color="#8a4fb8" stop-opacity=".08"/><stop offset="1" stop-color="#8a4fb8" stop-opacity=".75"/></linearGradient></defs><rect y="2" width="30" height="6" fill="url(#lgpm)"/></svg><span data-t="lgPm" data-tt="lgPmTip" title="">secteurs susceptibles de bouger (2 mois) ⓘ</span></div>
-    <div data-lyr="lyrCombat" hidden><svg width="30" height="10"><defs><pattern id="hcb" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.6" height="4" fill="var(--front)"/></pattern></defs><rect width="30" height="10" fill="url(#hcb)"/></svg><span data-t="lgCombat">combats intenses (sans direction)</span></div>
-    <div data-lyr="lyrStates" hidden><svg width="30" height="10"><rect width="10" height="10" fill="var(--front)" opacity=".6"/><rect x="10" width="10" height="10" fill="rgba(var(--grey-rgb),.7)"/><rect x="20" width="10" height="10" fill="none" stroke="var(--rule)"/></svg><span data-t="lgStates">3 états : russe (p > 0,95), incertain, ukrainien</span></div>
-    <div data-lyr="lyrUnc" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="0.9" stroke-dasharray="4 3"/></svg><span data-t="lgUnc">incertitude des cartes : lignes 5 % et 95 %</span></div>
-    <div data-lyr="lyrNowcast" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/><circle cx="8" cy="5" r="1.6" fill="var(--bg)"/><circle cx="22" cy="5" r="1.6" fill="var(--bg)"/></svg><span data-t="lgNow">ligne ajustée par les signaux de combat (nowcast)</span></div>
-    <div data-lyr="lyrAsym" hidden><svg width="30" height="10"><defs><pattern id="hasy" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="2" height="2" fill="#a65612"/></pattern></defs><rect width="30" height="10" fill="url(#hasy)"/></svg><span data-t="lgAsym">combats derrière la ligne (anomalie, sans direction)</span></div>
-    <div data-lyr="raw:dsm" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#2f7fd8" stroke-width="2"/></svg><span data-t="lgRawDsm">tracé DeepStateMap</span></div>
-    <div data-lyr="raw:isw" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#d89a2f" stroke-width="2" stroke-dasharray="5 3"/></svg><span data-t="lgRawIsw">tracé ISW</span></div>
-    <div data-lyr="raw:wiki" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#8a5bd8" stroke-width="2" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgRawWiki">tracé Wikipédia</span></div>
-    <div data-lyr="raw:modru" hidden><svg width="30" height="10"><path d="M15 1l5 8h-10z" fill="var(--front)"/></svg><span data-t="lgRawModru">annonces de prise du MoD RF</span></div>
-    <div data-lyr="raw:gsua" hidden><svg width="30" height="10"><path d="M10 1h10l-5 8z" fill="var(--cool)"/></svg><span data-t="lgRawGsua">annonces de reprise de l'état-major UA</span></div>
-    <div data-lyr="lyrFire" hidden><svg width="30" height="10"><circle cx="9" cy="5" r="2.5" fill="var(--fire-now)"/><circle cx="20" cy="5" r="2" fill="var(--fire-old)"/></svg><span data-t="lgFire">feux anormaux (FIRMS)</span></div>
-    <div data-lyr="lyrLoss" hidden><svg width="30" height="10"><rect x="11" y="1" width="8" height="8" fill="var(--loss-now)"/></svg><span data-t="lgLoss">pertes documentées (WarSpotting)</span></div>
-    <div data-lyr="lyrUcdp" hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="var(--ucdp)" opacity=".8"/></svg><span data-t="lgUcdp">combats au sol (UCDP)</span></div>
-    <div data-lyr="lyrArcs" hidden><svg width="30" height="10"><path d="M2 8Q15 -2 28 8" stroke="var(--arc)" stroke-width="1.6" fill="none"/></svg><span data-t="lgArcs">missiles et drones (lancement → oblast visé)</span></div>
-    <div data-lyr="lyrBase" hidden><svg width="30" height="10"><line x1="0" y1="7" x2="30" y2="3" stroke="var(--road)" stroke-width="1.4"/><circle cx="15" cy="5" r="2" fill="var(--label)"/></svg><span data-t="lgBase">routes et localités</span></div>
-    <div data-lyr="lyrInfra" hidden><svg width="30" height="10"><line x1="0" y1="8" x2="30" y2="8" stroke="rgba(95,95,95,.6)" stroke-width="1"/><path d="M15 0l4 6h-8z" fill="var(--ink)"/></svg><span data-t="lgInfra">infrastructures (au zoom)</span></div>
-    <div data-lyr="lyrDestr" hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="rgba(40,40,40,.7)"/></svg><span data-t="lgDestr">destruction cumulée (radar)</span></div>
+    <details class="lggrp" open data-grp="lgGrpLine"><summary data-t="lgGrpLine">ligne</summary>
+      <div data-lyr="lyrFront"><svg width="30" height="10"><defs><linearGradient id="lgm"><stop offset="0" stop-color="var(--front)" stop-opacity=".06"/><stop offset="1" stop-color="var(--front)" stop-opacity=".7"/></linearGradient></defs><rect width="30" height="10" fill="url(#lgm)"/></svg><span data-t="lgP">contrôle russe probable</span></div>
+      <div data-lyr="lyrFront"><svg width="30" height="10"><rect width="30" height="10" fill="var(--uactl)" opacity=".55"/></svg><span data-t="lgUa">contrôle ukrainien en Russie</span></div>
+      <div data-lyr="lyrLines"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/></svg><span data-t="lg50">ligne la plus probable (50 %)</span></div>
+      <div data-lyr="lyrUnc" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="0.9" stroke-dasharray="4 3"/></svg><span data-t="lgUnc">incertitude des cartes : lignes 5 % et 95 %</span></div>
+      <div data-lyr="lyrStates" hidden><svg width="30" height="10"><rect width="10" height="10" fill="var(--front)" opacity=".6"/><rect x="10" width="10" height="10" fill="rgba(var(--grey-rgb),.7)"/><rect x="20" width="10" height="10" fill="none" stroke="var(--rule)"/></svg><span data-t="lgStates">3 états : russe (p > 0,95), incertain, ukrainien</span></div>
+      <div data-lyr="lyrNowcast" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/><circle cx="8" cy="5" r="1.6" fill="var(--bg)"/><circle cx="22" cy="5" r="1.6" fill="var(--bg)"/></svg><span data-t="lgNow">ligne ajustée par les signaux de combat (nowcast)</span></div>
+      <div data-lyr="lyrContact"><svg width="30" height="10"><defs><pattern id="hct" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="1" height="3" fill="var(--ink)" opacity=".55"/></pattern></defs><rect width="30" height="10" fill="url(#hct)"/></svg><span data-t="lgGrey" data-tt="lgGreyTip" title="Probabilité de contact au sol estimée par nos signaux (feux, combats au sol, pertes, menaces d’artillerie, radar, bilans officiels). Alertes d’artillerie : données arrêtées le 7 sept. 2026. Détails sur la page méthode.">zone grise : contact mesuré ⓘ</span></div>
+      <div data-lyr="always"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--ink)" stroke-width="1" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgPre">occupé avant 2022</span></div>
+      <div data-lyr="raw:dsm" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#2f7fd8" stroke-width="2"/></svg><span data-t="lgRawDsm">tracé DeepStateMap</span></div>
+      <div data-lyr="raw:isw" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#d89a2f" stroke-width="2" stroke-dasharray="5 3"/></svg><span data-t="lgRawIsw">tracé ISW</span></div>
+      <div data-lyr="raw:wiki" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#8a5bd8" stroke-width="2" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgRawWiki">tracé Wikipédia</span></div>
+    </details>
+    <details class="lggrp" open data-grp="lgGrpMove"><summary data-t="lgGrpMove">mouvements</summary>
+      <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h17" stroke="var(--front)" stroke-width="1.8"/><path d="M19 1l7 4-7 4z" fill="var(--front)"/></svg><span data-t="lgArr">qui avance (rouge : Russie, bleu : Ukraine)</span></div>
+      <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M6 5h13" stroke="var(--uactl)" stroke-width="1.8"/><path d="M19 1l7 4-7 4z" fill="var(--uactl)"/><circle cx="5" cy="5" r="3" fill="var(--bg)" stroke="var(--uactl)" stroke-width="1.4"/></svg><span data-t="lgEv">localités qui ont basculé (sources, 30 jours)</span></div>
+      <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h16" stroke="var(--front)" stroke-width="1.4" stroke-dasharray="3 3"/><path d="M19 1l7 4-7 4z" fill="none" stroke="var(--front)" stroke-width="1.2"/></svg><span data-t="lgUncArr">sens incertain (on se bat derrière la ligne)</span></div>
+      <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h15" stroke="var(--uactl)" stroke-width="2" stroke-dasharray="4 3"/><path d="M18 1l8 4-8 4z" fill="var(--bg)" stroke="var(--uactl)" stroke-width="1.4"/></svg><span data-t="lgPoss" data-tt="lgPossTip" title="">poussée possible (combats derrière la ligne) ⓘ</span></div>
+      <div data-lyr="lyrPm"><svg width="30" height="10"><defs><linearGradient id="lgpm"><stop offset="0" stop-color="#8a4fb8" stop-opacity=".08"/><stop offset="1" stop-color="#8a4fb8" stop-opacity=".75"/></linearGradient></defs><rect y="2" width="30" height="6" fill="url(#lgpm)"/></svg><span data-t="lgPm" data-tt="lgPmTip" title="">secteurs susceptibles de bouger (2 mois) ⓘ</span></div>
+      <div data-lyr="raw:modru" hidden><svg width="30" height="10"><path d="M15 1l5 8h-10z" fill="var(--front)"/></svg><span data-t="lgRawModru">annonces de prise du MoD RF</span></div>
+      <div data-lyr="raw:gsua" hidden><svg width="30" height="10"><path d="M10 1h10l-5 8z" fill="var(--cool)"/></svg><span data-t="lgRawGsua">annonces de reprise de l'état-major UA</span></div>
+    </details>
+    <details class="lggrp" open data-grp="lgGrpCombat"><summary data-t="lgGrpCombat">combats</summary>
+      <div data-lyr="lyrCombat" hidden><svg width="30" height="10"><defs><pattern id="hcb" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.6" height="4" fill="var(--front)"/></pattern></defs><rect width="30" height="10" fill="url(#hcb)"/></svg><span data-t="lgCombat">combats intenses (sans direction)</span></div>
+      <div data-lyr="lyrAsym" hidden><svg width="30" height="10"><defs><pattern id="hasy" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="2" height="2" fill="#a65612"/></pattern></defs><rect width="30" height="10" fill="url(#hasy)"/></svg><span data-t="lgAsym">combats derrière la ligne (anomalie, sans direction)</span></div>
+      <div data-lyr="lyrFire" hidden><svg width="30" height="10"><circle cx="9" cy="5" r="2.5" fill="var(--fire-now)"/><circle cx="20" cy="5" r="2" fill="var(--fire-old)"/></svg><span data-t="lgFire">feux anormaux (FIRMS)</span></div>
+      <div data-lyr="lyrLoss" hidden><svg width="30" height="10"><rect x="11" y="1" width="8" height="8" fill="var(--loss-now)"/></svg><span data-t="lgLoss">pertes documentées (WarSpotting)</span></div>
+      <div data-lyr="lyrUcdp" hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="var(--ucdp)" opacity=".8"/></svg><span data-t="lgUcdp">combats au sol (UCDP)</span></div>
+      <div data-lyr="lyrArcs" hidden><svg width="30" height="10"><path d="M2 8Q15 -2 28 8" stroke="var(--arc)" stroke-width="1.6" fill="none"/></svg><span data-t="lgArcs">missiles et drones (lancement → oblast visé)</span></div>
+      <div data-lyr="lyrDestr" hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="rgba(40,40,40,.7)"/></svg><span data-t="lgDestr">destruction cumulée (radar)</span></div>
+    </details>
+    <details class="lggrp" open data-grp="lgGrpCtx"><summary data-t="lgGrpCtx">contexte</summary>
+      <div data-lyr="lyrBase" hidden><svg width="30" height="10"><line x1="0" y1="7" x2="30" y2="3" stroke="var(--road)" stroke-width="1.4"/><circle cx="15" cy="5" r="2" fill="var(--label)"/></svg><span data-t="lgBase">routes et localités</span></div>
+      <div data-lyr="lyrInfra" hidden><svg width="30" height="10"><line x1="0" y1="8" x2="30" y2="8" stroke="rgba(95,95,95,.6)" stroke-width="1"/><path d="M15 0l4 6h-8z" fill="var(--ink)"/></svg><span data-t="lgInfra">infrastructures (au zoom)</span></div>
+      <div data-lyr="lyrRelief" hidden><svg width="30" height="10"><defs><linearGradient id="grel" x1="0" x2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#b9b9b9"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><rect width="30" height="10" fill="url(#grel)"/></svg><span data-t="lgRelief">relief (ombrage du terrain)</span></div>
+    </details>
   </details>
 </div>
 <div class="controls">
@@ -104,6 +113,7 @@
     <label class="chk"><input type="checkbox" id="lyrArcs"> <span data-t="cbArcs">missiles et drones</span></label>
     <label class="chk"><input type="checkbox" id="lyrBase" checked> <span data-t="cbBase">routes / localités</span></label>
     <label class="chk"><input type="checkbox" id="lyrInfra"> <span data-t="cbInfra">infrastructures (si zoom sur localité)</span></label>
+    <label class="chk"><input type="checkbox" id="lyrRelief"> <span data-t="cbRelief">relief</span></label>
     <label class="chk"><input type="checkbox" id="lyrDestr"> <span data-t="cbDestr">destruction cumulée (radar)</span></label>
     <div class="controls" id="fireOpts" hidden style="margin:4px 0 0">
       <span class="seg" role="group"><button class="btn" id="modePts" type="button" aria-pressed="true" data-t="pts">points</button><button class="btn" id="modeDen" type="button" aria-pressed="false" data-t="den">densité</button></span>
@@ -122,7 +132,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="i18n.js?v=c1e27fb21e"></script>
+<script src="i18n.js?v=4ae5f60b2c"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
@@ -153,6 +163,6 @@
   set(l);
 })();
 </script>
-<script src="app.js?v=b23945a775"></script>
+<script src="app.js?v=39152ec16d"></script>
 </body>
 </html>

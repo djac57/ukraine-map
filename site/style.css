@@ -154,6 +154,12 @@ footer p{margin:0 0 8px}
 .maplegend{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:6px 9px;font:11px "JetBrains Mono",monospace;color:var(--muted);display:flex;flex-direction:column;gap:3px;pointer-events:none;opacity:.94}
 .maplegend div{display:flex;align-items:center;gap:7px}
 .maplegend div[hidden]{display:none}
+.maplegend details.lggrp{display:flex;flex-direction:column;gap:3px;margin:0}
+.maplegend details.lggrp[hidden]{display:none}
+.maplegend details.lggrp>summary{display:block;pointer-events:auto;cursor:pointer;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-size:10px;margin-top:2px;min-height:0;line-height:1.4}
+.maplegend details.lggrp>summary::after{content:""}
+.maplegend details.lggrp:not([open])>summary::before{content:"▸ "}
+.maplegend details.lggrp[open]>summary::before{content:"▾ "}
 .maplegend{max-width:300px}
 .maplegend summary{display:none}
 .maplegend span[title]{pointer-events:auto;cursor:help}

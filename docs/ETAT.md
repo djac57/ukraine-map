@@ -334,7 +334,8 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 - 18/10 : couche « secteurs susceptibles de bouger » (P(mouvement), AUC 0,83) validée, COCHÉE par défaut : liseré
   violet sans sens, ⓘ avec AUC et taux de base, P en % au survol (§ 3.12).
 - 18/10 : flèches : une seule règle de longueur pour tous les types (pleines, pointillées, « poussée possible »,
-  annonces) : proportionnelle au mouvement, plafond 26 px en vue d'ensemble et 70 px au zoom ; le minimum des
+  annonces) : proportionnelle au mouvement, plancher de lisibilité 20 px (hampe comprise), plafond 40 px en vue
+  d'ensemble et 70 px au zoom (relevé le 18/10 au soir : 26 px ne laissait voir que des têtes) ; le minimum des
   pointillées ne sert qu'à la lisibilité de la hampe et ne dépasse pas ce plafond (`arrowPx`). Tête jamais en Russie
   hors bande de Koursk tenue par l'Ukraine, pour tous les types (`headGuard` : projection sur la tangente de la
   frontière, sinon pas de flèche) ; test bloquant à la longueur dessinée (vue d'ensemble, zoom 3 et 6). Cas d'origine :
@@ -342,6 +343,10 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 - 18/10 : légende dynamique : une entrée par case cochable, avec échantillon, visible seulement si la case est cochée
   (test bloquant LEGENDE : chaque case a son entrée en 4 langues). Styles distincts : zone grise = hachures grises,
   combats intenses = diagonales rouges, combats derrière la ligne = pointillé brun.
+  Légende groupée (Ligne / Mouvements / Combats / Contexte), groupes repliables, groupe vide masqué.
+- 18/10 : liseré P(mouvement) élargi en vue d'ensemble (± 10 km affichés), rien sous P = 10 %, opacité selon P.
+- 18/10 : couche relief publiée, décochée par défaut, au-dessus de la densité (opacité 0,5). Covariables de terrain
+  non retenues pour le modèle.
 - 18/10 : page méthode réduite à : but, algorithme pas à pas, validation (tableaux), décisions et limites, sources et
   licences. Carte et panneaux annexes (surfaces, désaccord, feux, ciel, Oryx, repères) masqués (`div.annexe hidden`) :
   app.js, partagé avec la carte, attend encore ces éléments (dette : séparer un `methode.js`).
@@ -369,6 +374,7 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 | IODA, éditions OSM | rien | rejetés |
 | Sentinel-2 refait (front ±15 km, NDVI/NBR/texture/sol nu, `sar/rapport_S2.md`) | seul +0,024 d'AUC à distance égale (0,541 → 0,565) ; avec le radar 0,583 → 0,582 ; P(mouvement) 0,745 → 0,732 | redondant avec le radar ; couche de contexte et remplaçant du radar |
 | Impacts KAB/obus (`sar/rapport_IMPACTS.md`) | S2 10 m : ≈ 1 détection sur 2, gradient vers la ligne, plus fort côté défenseur ; nord de Lyman : asymétrie vers le côté russe en août 2026 (1,8×), un mois avant les cartes ; S1 inexploitable | non intégré (comptes trop faibles) ; diagnostic d'asymétrie possible en saison claire |
+| Covariables de terrain (GLO-90, WorldCover, HydroRIVERS, OSM ; `terrain/ETAT_TERRAIN.md`) | P(mouvement) +0,008 walk-forward mais −0,017 en validation spatiale ; vitesse et sens : rien ; P(contact) +0,018 → −0,011 en spatial, +0,001 avec la mémoire de la maille ; crêtes et Dnipro freinent le front (cote 0,83 par 10 m), rivières moyennes non | NON retenues (gain = mémoire du lieu) ; relief affiché comme couche |
 | InSAR (cohérence 12 j, 2024-01 → 2026-06) | P(mouvement) 0,710 → 0,707 ; sens 0,68 → 0,64 | non retenu |
 | Asymétrie des combats | voir §4 | couche + garde-fou ; moteur v4 à tester |
 
@@ -450,6 +456,13 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
 8 bis. **Chantier TERRAIN** (agent lancé le 18/10/2026, état dans `ukraine-recherche/terrain/ETAT_TERRAIN.md`) :
    covariables de relief, rivières, crêtes, lignes d'arbres, villages-forteresses ; couche relief (ombrage) sur la carte ;
    question ouverte de la vue 3D inclinée, qui demanderait de passer à MapLibre GL (à évaluer : coût, poids, licences).
+8 quater. **« Mémoire de la maille » dans P(contact)** (étude terrain : 0,796 → 0,917 à distance égale) : énorme,
+   mais à tester proprement (risque de circularité : la vérité « contact » est en partie l'historique de la maille).
+   Validation par blocs spatiaux et décalage temporel strict avant tout usage.
+8 quinquies. **Couche relief** : publiée le 18/10/2026 (ombrage Copernicus GLO-90, 3 niveaux, 2,1 Mo + courbes 0,7 Mo,
+   chargés seulement quand la case est cochée ; au-dessus de la densité, opacité 0,5 ; `?relief=under` en option).
+   Vue 3D (MapLibre) : NON sur la carte principale (LAEA non gérée) ; page « 3D d'un secteur » possible (2-4 j).
+   L'agent terrain teste l'a priori « barrière » pour placer la ligne et prépare l'instantané des fortifications.
 8 ter. **Telegram dans P(mouvement)** : signal de MOUVEMENT seulement, jamais de sens. À brancher dans le modèle publié
    dès que la collecte Telegram par tronçon tourne en CI (aujourd'hui dans le dossier de recherche).
 9. Messages à Clément Molin (X @clement_molin, t.me/clement_molin) et à Tytelman, une fois v4 en ligne.

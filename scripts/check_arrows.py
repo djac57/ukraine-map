@@ -278,7 +278,7 @@ def check_legend():
     order = sorted(pos.values()) + [len(ui)]
     block = {lg: ui[p_:order[order.index(p_) + 1]] for lg, p_ in pos.items()}
     leg = page[page.index('id="mapLegend"'):]
-    leg = leg[:leg.index("</details>")]
+    leg = leg[:leg.index('<div class="controls">')]
     rows = re.findall(r'<div data-lyr="([^"]+)"[^>]*>(.*?)</div>', leg)
     errs, n = [], 0
     for m in re.finditer(r'<input type="checkbox"([^>]*)>', page):
