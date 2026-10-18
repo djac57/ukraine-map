@@ -359,6 +359,14 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir (correction de l'utilisateur) : la section devient « Pistes en cours de travail » (LLM à retravailler ;
+  destruction cumulée en refonte : InSAR désaisonnalisé, validation UNOSAT et villes connues ; TERRAIN DUR : grands
+  fleuves Dnipro, Siverskyi Donets, Oskil large, reliefs abrupts ; TELEGRAM gardé comme INDICATEUR affiché) et
+  « Pistes écartées » (le reste). Terrain dur : au minimum contrainte d'affichage (aucune flèche ne traverse le
+  Dnipro ; flèches et liseré P(mouvement) atténués le long d'une barrière dure), dans le modèle seulement si le test de
+  l'agent terrain le valide. Telegram : couche d'indicateur décochée « sources russes : attaques ou présence
+  ukrainiennes signalées (30 j) » et l'inverse, par tronçon, ⓘ honnête (signale le mouvement, 66 % contre 36 %, pas le
+  sens) ; collecte CI des 15 canaux (agrégats seulement), ~2 h, planifiée après les frappes ukrainiennes.
 - 18/10 soir : page méthode, section « Pistes testées et non retenues » (FR et EN, titre et résumé en UK et RU) :
   19 pistes avec leur raison chiffrée (LLM, données seules, Telegram, Ookla, OIM, GPSJam, IODA, éditions OSM, alertes,
   Black Marble, terrain, barrière, Sentinel-2, impacts S1, Meteosat, destruction, fortifications, filtre infra, σ local).
