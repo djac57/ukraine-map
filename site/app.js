@@ -2011,8 +2011,14 @@ function methodTables(){
   }
   if (FR.events && $("evTab")) {
     const LB = {dsmlog: "journal DeepStateMap (déclarations datées)", gsua: "état-major ukrainien", modru: "MoD RF", dsm: "bascules de DeepStateMap (VIINA)", wiki: "bascules de Wikipédia (VIINA)"};
-    $("evTab").innerHTML = `<tr><th>source</th><th>fiabilité mesurée (confirmée par une autre carte sous 90 jours)</th></tr>` +
-      FR.events.sources.map(k => `<tr><td>${LB[k] || k}</td><td>${Math.round(FR.events.reliability[k] * 100)} %</td></tr>`).join("");
+    // tableau public de fiabilité : annonces jugeables (une autre carte se prononce sous 90 jours), confirmées, délai de
+    // confirmation (jours, P25 · médiane · P75), mentions anciennes écartées (localité déjà au camp annonceur), par année
+    const TB = FR.events.table || {}, yrs = [...new Set(Object.values(TB).flatMap(v => Object.keys(v.years || {})))].sort();
+    $("evTab").innerHTML = `<tr><th>source</th><th>jugeables</th><th>confirmées par une autre carte (90 j)</th><th>délai de confirmation (jours : P25 · médiane · P75)</th><th>mentions anciennes écartées</th>${yrs.map(y => `<th>${y}</th>`).join("")}</tr>` +
+      FR.events.sources.map(k => { const v = TB[k];
+        if (!v) return `<tr><td>${LB[k] || k}</td><td>–</td><td>${Math.round(FR.events.reliability[k] * 100)} %</td><td>–</td><td>–</td>${yrs.map(() => "<td>–</td>").join("")}</tr>`;
+        return `<tr><td>${LB[k] || k}</td><td>${fmt(v.n)}</td><td>${Math.round(v.rate * 100)} % (${fmt(v.ok)})</td><td>${v.delay ? v.delay.join(" · ") : "–"}</td><td>${k === "dsm" || k === "wiki" ? "–" : fmt(v.stale)}</td>` +
+          yrs.map(y => { const a = (v.years || {})[y]; return `<td>${a && a[1] ? Math.round(a[0] / a[1] * 100) + " %" : "–"}</td>`; }).join("") + "</tr>"; }).join("");
   }
   const CS = FR.claimStats || {}, CR = FR.claimReliability || {};
   const cs = k => CS[k] ? `${k === "modru" ? "MoD RF" : "état-major ukrainien"} : ${fmt(CS[k].annonces || 0)} annonces géocodées, ${Math.round((CS[k].taux_rejet_localites || 0) * 100)}\u00a0% des localités reconnues rejetées (${fmt(CS[k].ambigu || 0)} ambiguës, ${fmt(CS[k]["loin du front"] || 0)} loin du front, ${fmt(CS[k]["incohérent"] || 0)} incohérentes), et ${fmt(CS[k]["introuvable"] || 0)} mots à majuscule sans correspondance (noms communs, localités absentes de GeoNames)` : "";

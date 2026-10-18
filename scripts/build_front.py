@@ -2300,7 +2300,7 @@ def main():
         "claimPlaces": claim_places,
         "mcDraws": MC_DRAWS, "calibSlope": round(slope, 2), "calibMonths": len(sample),
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
-        "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30},
+        "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30, "table": getattr(control_events, "table", {})},
         "contact": {"method": "P(contact au sol), régression logistique walk-forward", "auc": sect.pc_auc, "coef": sect.pc_coef,
                     "features": sect.PC_NAMES, "aucEq": sect.pc_auc_eq, "contrib": pc_contrib, "artillery": {"source": "canal officiel des alertes « Повітряна тривога » (t.me/air_alert_ua), menaces d'artillerie agrégées par hromada (limites OCHA COD-AB, CC BY-IGO) puis par maille", "gain": "AUC à distance égale 0,681 → 0,731 en walk-forward (deux étapes : une alerte relève P, son absence ne le change pas)", "stopped": "2026-09-07"}, "bins": list(range(-58, 62, 4)),
                     "profile": [round(float(x), 4) for x in np.mean(np.array(contact_prof), axis=0)] if contact_prof else []},

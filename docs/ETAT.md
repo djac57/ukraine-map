@@ -359,6 +359,13 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   « Sources et licences » en haut de la page méthode avec toutes les attributions (ODbL, CC BY, CC BY-NC-SA, CC BY-IGO,
   Copernicus Sentinel et DEM, WarSpotting, sources officielles) ; cadence affichée conforme : instantanés MENSUELS à J-7,
   calcul relancé chaque jour, pas quotidien pas encore actif (test bloquant : lien, ancre, 4 langues).
+- 18/10 soir : tableau public de fiabilité des sources (page méthode, « Fiabilité des sources ») : par source,
+  annonces jugeables, part confirmée par une autre carte sous 90 jours, délai de confirmation (P25 · médiane · P75),
+  mentions anciennes écartées, part par année. Valeurs du build : journal DeepState 89 % (322 jugeables, délai médian
+  19 j), état-major UA 59 % (56 ; 19 j), MoD RF 65 % (1 063 ; 19 j ; 395 mentions anciennes écartées), bascules
+  DeepState 85 %, Wikipédia 75 % (délais de ~30 j : résolution des instantanés mensuels).
+- 18/10 soir : FORTIFICATIONS ABANDONNÉES (décision de l'utilisateur) : OSM trop incomplet, détection automatique sur
+  Sentinel-2 en échec. Rien n'est intégré. À rouvrir seulement avec l'autorisation écrite de Brady Africk.
 - 18/10 soir : couche « missiles et drones » refaite (retour « tout part et arrive de partout »). Diagnostic : pas
   d'inversion ni de lieu de lancement en territoire ukrainien contrôlé (61 lieux, tous en Russie, en zone occupée, en
   mer ou en Biélorussie ; test bloquant MISSILES : 161 lancements situés en Ukraine, tous en zone tenue par la Russie au
@@ -409,6 +416,7 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 | IODA, éditions OSM | rien | rejetés |
 | Sentinel-2 refait (front ±15 km, NDVI/NBR/texture/sol nu, `sar/rapport_S2.md`) | seul +0,024 d'AUC à distance égale (0,541 → 0,565) ; avec le radar 0,583 → 0,582 ; P(mouvement) 0,745 → 0,732 | redondant avec le radar ; couche de contexte et remplaçant du radar |
 | Impacts KAB/obus (`sar/rapport_IMPACTS.md`) | S2 10 m : ≈ 1 détection sur 2, gradient vers la ligne, plus fort côté défenseur ; nord de Lyman : asymétrie vers le côté russe en août 2026 (1,8×), un mois avant les cartes ; S1 inexploitable | non intégré (comptes trop faibles) ; diagnostic d'asymétrie possible en saison claire |
+| Ookla Open Data (baisse des tests de débit mobile + fixe, bloc 10 km, trimestriel ; CC BY-NC-SA 4.0 ; `signals4/ookla`) | agent : +0,036 à +0,046 contre une base feux+UCDP+pertes ; dans le faisceau complet du build (avec liste rejouée, radar, artillerie), masqué côté occupé après 2025-06 : AUC 0,9245 → 0,9271 (+0,0026) mais à distance égale 0,8006 → 0,7995 (−0,0011) ; contribution à distance égale −0,0011 | NON retenu (redondant avec la liste rejouée et le radar ; licence NC-SA contaminante pour un gain nul) |
 | Covariables de terrain (GLO-90, WorldCover, HydroRIVERS, OSM ; `terrain/ETAT_TERRAIN.md`) | P(mouvement) +0,008 walk-forward mais −0,017 en validation spatiale ; vitesse et sens : rien ; P(contact) +0,018 → −0,011 en spatial, +0,001 avec la mémoire de la maille ; crêtes et Dnipro freinent le front (cote 0,83 par 10 m), rivières moyennes non | NON retenues (gain = mémoire du lieu) ; relief affiché comme couche |
 | InSAR (cohérence 12 j, 2024-01 → 2026-06) | P(mouvement) 0,710 → 0,707 ; sens 0,68 → 0,64 | non retenu |
 | Asymétrie des combats | voir §4 | couche + garde-fou ; moteur v4 à tester |
@@ -497,7 +505,13 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
 8 quinquies. **Couche relief** : publiée le 18/10/2026 (ombrage Copernicus GLO-90, 3 niveaux, 2,1 Mo + courbes 0,7 Mo,
    chargés seulement quand la case est cochée ; au-dessus de la densité, opacité 0,5 ; `?relief=under` en option).
    Vue 3D (MapLibre) : NON sur la carte principale (LAEA non gérée) ; page « 3D d'un secteur » possible (2-4 j).
-   L'agent terrain teste l'a priori « barrière » pour placer la ligne et prépare l'instantané des fortifications.
+   A priori « barrière » pour placer la ligne : testé, NÉGATIF (erreur 2,603 → 2,603 km ; tout κ > 0 dégrade).
+   Fortifications : ABANDONNÉES le 18/10 (OSM trop incomplet, détection S2 en échec) ; à rouvrir seulement avec
+   l'autorisation de Brady Africk.
+   Plus tard : demander l'autorisation à Playfra (X @Playfra0, dépôt GitHub playframap, surtout côté UA) et à Brady
+   Africk (côté RU) pour une densité agrégée par maille de 10 km, avec crédit, non commerciale. Si les deux acceptent,
+   couche symétrique. Le blocage est juridique (pas de licence, droit des bases de données), pas sécuritaire : les
+   données sont publiques et connues des deux camps.
 8 ter. **Telegram dans P(mouvement)** : signal de MOUVEMENT seulement, jamais de sens. Testé le 18/10 au soir avec le
    code de production (`sectors.pmove(..., tg=…)`, mentions de combat localisées par tronçon-mois, 15 canaux, fichier
    de recherche `signals3/sens_troncons_month.csv`) : AUC 0,8038 → 0,8056 (+0,002, n = 5 239), dans le bruit. La collecte
