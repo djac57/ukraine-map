@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"combat": "95de17d15a", "contact": "893d4a8b10", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "01d6b2d188", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "5c6bae7126", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"combat": "95de17d15a", "contact": "6de379e9e7", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "01d6b2d188", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "5c6bae7126", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmt = L.format(",d"), pct = v => String(v).replace(".", ",") + " %";
@@ -818,6 +818,21 @@ function buildCombat(fi){
   }
   cx.putImageData(img, 0, 0); combatPat = cv;
 }
+// destruction cumulée (radar Sentinel-1) : part du bâti modifié depuis 2021, mailles de 2 km, couche d'information
+let destrFor = -1, destrImg = null, showDestr = false;
+function buildDestr(fi){
+  if (destrFor === fi) return;
+  destrFor = fi; destrImg = null;
+  const F = viewFields("destr"); if (!F || !F[fi]) return;
+  const cv = document.createElement("canvas"); cv.width = GX; cv.height = GY;
+  const cx = cv.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data, q = F[fi];
+  for (let u = 0; u < UCELLS.length; u++) {
+    if (q[u] < 8) continue;  // < 6 % du bâti modifié : rien
+    const c = UCELLS[u], o = c * 4, v = Math.min(1, q[u] / 63);
+    d[o] = 40; d[o+1] = 40; d[o+2] = 40; d[o+3] = Math.round(255 * (0.25 + 0.65 * v));
+  }
+  cx.putImageData(img, 0, 0); destrImg = cv;
+}
 function drawFront(k){
   buildFront();
   ctx.save();
@@ -842,6 +857,7 @@ function drawFront(k){
   }
   const fi = frontIdx();
   if (fvar && fi >= 0) { buildDiff(fi); if (diffPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.8; ctx.drawImage(diffPat, 0, 0, GX, GY); ctx.restore(); } }
+  if (showDestr && fi >= 0) { buildDestr(fi); if (destrImg) { ctx.save(); ctx.clip(domainPath); ctx.imageSmoothingEnabled = false; ctx.drawImage(destrImg, 0, 0, GX, GY); ctx.restore(); } }
   if (showCombat && fi >= 0) { buildCombat(fi); if (combatPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.85; ctx.drawImage(combatPat, 0, 0, GX, GY); ctx.restore(); } }
   if (fi >= 0) for (const src of ["dsm", "isw", "wiki"]) {
     if (!rawOn[src]) continue;
@@ -1144,6 +1160,7 @@ $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
 $("lyrArcs").onchange = e => { showArcs = e.target.checked; legend(); draw(); };
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
+if ($("lyrDestr")) $("lyrDestr").onchange = e => { showDestr = e.target.checked; ensureView("destr", () => { destrFor = -2; legend(); draw(); }); legend(); draw(); };
 if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.checked; if ($("lgCombatRow")) $("lgCombatRow").hidden = !showCombat; ensureView("combat", () => { combatFor = -2; legend(); draw(); }); };
 $("lyrArrows").onchange = e => { showArrows = e.target.checked; if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); legend(); draw(); };
 $("lyrBase").onchange = e => { showBase = e.target.checked; if (showBase) loadBasemap(); draw(); };
@@ -1265,6 +1282,7 @@ function legend(){
     `<span>flèche pleine : déplacement de la ligne 50 % (km par 30 jours, sur 3 périodes de 30 jours)</span>` +
     `<span><i style="background:${C.front};height:5px;border-radius:0;vertical-align:2px;outline:1.5px solid ${C.ink}"></i>flèche cerclée : changements de contrôle annoncés et datés des 30 derniers jours (journal DeepStateMap, état-major UA, MoD RF, bascules des cartes), pondérés par la fiabilité mesurée de chaque source</span>` +
     `<span><i style="border:1.3px solid ${C.front};width:8px;height:8px;border-radius:50%;vertical-align:0;background:transparent"></i>cercle creux : confirmé par annonce (changement que les cartes montraient déjà, pas un mouvement nouveau)</span>`;
+  if (showDestr) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:rgba(40,40,40,.7);border-radius:0"></i>destruction cumulée (radar Sentinel-1) : part du bâti dont la rétrodiffusion s'écarte durablement de 2021, jusqu'au mois précédent, mailles de 2 km ; contient des données Copernicus Sentinel modifiées</span>`;
   if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 2 par rapport à ses 12 mois précédents ; ne dit pas qui avance</span>`;
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1.2px dashed ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>voies ferrées</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>gares principales, sites lourds</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>centrales électriques</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>aéroports et aérodromes</span><span>contours : zones industrielles de plus de 1 km² ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)</span>`;
@@ -1452,6 +1470,12 @@ function methodTables(){
   }
   if (FR.contact && FR.contact.auc != null) {
     $("pContactAuc").textContent = FR.contact.auc.toFixed(3).replace(".", ",");
+    if ($("pContrib") && FR.contact.contrib) {
+      const f4 = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(4).replace(".", ",");
+      $("pContactAucEq").textContent = FR.contact.aucEq != null ? FR.contact.aucEq.toFixed(3).replace(".", ",") : "–";
+      $("pContrib").innerHTML = `<tr><th>signal retiré</th><th>perte d'AUC</th><th>perte d'AUC à distance égale</th></tr>` +
+        FR.contact.contrib.map(([g, a, e]) => `<tr><td>${g}</td><td>${f4(a)}</td><td>${f4(e)}</td></tr>`).join("");
+    }
     $("pContactCoef").textContent = Object.entries(FR.contact.coef || {}).filter(([k]) => k !== "const").map(([k, v]) => `${k} ${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2).replace(".", ",")}`).join(" ; ") + " (variables standardisées)";
   }
   if (FR.localSigma && FR.localSigma.validation) {

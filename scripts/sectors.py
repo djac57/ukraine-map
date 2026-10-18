@@ -14,6 +14,7 @@ variables du σ local.
 - Combats intenses : moyenne des deux plus forts z de combat ≥ 2, à moins de 30 km de la ligne. Chaque secteur est jugé
   par rapport à sa propre normale (le Dnipro, actif mais stable, n'y apparaît plus).
 """
+import csv
 import json
 import math
 import os
@@ -39,6 +40,7 @@ class Sectors:
         self.pos = {int(k): n for n, k in enumerate(self.U)}
         self.grid_index = grid_index
         self.root = root
+        self.AG = None   # radar (abandon agricole), chargé par sar()
         NM = len(months)
         D = json.loads(open(os.path.join(root, "site", "data.js"), encoding="utf-8").read()[len("window.DATA="):].rstrip().rstrip(";"))
         O = json.loads(open(os.path.join(root, "site", "osint.js"), encoding="utf-8").read()[len("window.OSINT="):].rstrip().rstrip(";"))
@@ -180,7 +182,46 @@ class Sectors:
             g[sl] |= (yy[sl] - j0) ** 2 + (xx[sl] - i0) ** 2 <= r * r
         return g[self.jj, self.ii].astype(np.float32)
 
-    PC_NAMES = ["|distance|", "côté", "UCDP au sol", "part au sol", "pertes", "feux", "z feux", "urbain", "continuité", "urbain × distance"]
+    PC_NAMES = ["|distance|", "côté", "UCDP au sol", "part au sol", "pertes", "feux", "z feux", "urbain", "continuité", "urbain × distance",
+                "radar : abandon agricole (côté russe)", "radar : abandon agricole (côté ukrainien)", "radar : pas de cultures en 2021"]
+    SAR_ZONE_KM = 15.0   # fenêtre de la mise à jour mensuelle (scripts/sar_update.py --radius 15)
+
+    def sar(self):
+        """Amplitude du cycle agricole (dB) par maille et par mois, data/sar_cells.csv (Copernicus Sentinel-1) ; NaN sinon."""
+        A = np.full((len(self.months), len(self.U)), np.nan, np.float32)
+        self.BD = np.full((len(self.months), len(self.U)), np.nan, np.float32)   # bâti modifié depuis 2021 (part)
+        self.BS = np.zeros(len(self.U), np.float32)                               # part de bâti (WorldCover 2021)
+        path = os.path.join(self.root, "data", "sar_cells.csv")
+        if not os.path.exists(path):
+            return A
+        midx = {m: i for i, m in enumerate(self.months)}
+        with open(path, encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                t, u = midx.get(r["month"]), self.pos.get(int(r["cell"]))
+                if t is None or u is None:
+                    continue
+                if r["agri_amp_db"] != "":
+                    A[t, u] = float(r["agri_amp_db"])
+                if r["built_damage_since_2021"] != "":
+                    self.BD[t, u] = float(r["built_damage_since_2021"])
+                if r.get("built_share"):
+                    self.BS[u] = max(self.BS[u], float(r["built_share"]))
+        return A
+
+    def sar_features(self, t, sd):
+        """Abandon agricole en z du mois, calculé sur les seules mailles à ≤ 15 km de la ligne du mois t. L'historique
+        radar a été lu sur des tuiles choisies d'après la ligne de toute la période : hors de cette fenêtre, la présence
+        d'une donnée annoncerait l'arrivée future du front ; dans la fenêtre, la lecture est systématique."""
+        zone = np.abs(sd) <= self.SAR_ZONE_KM
+        raw = np.where(zone, self.AG[t], np.nan) if self.AG is not None else np.full(len(sd), np.nan, np.float32)
+        v = raw[np.isfinite(raw)]
+        if len(v) > 50:
+            q1, q2, q3 = np.percentile(v, [25, 50, 75])
+            raw = (raw - q2) / max(q3 - q1, 1e-3)
+        ag = self.smooth(np.nan_to_num(raw, nan=0.0), 1.5)
+        miss = (zone & ~np.isfinite(raw)).astype(np.float32) if len(v) > 50 else np.zeros(len(sd), np.float32)
+        ru = (sd > 0).astype(np.float32)
+        return np.c_[ag * ru, ag * (1 - ru), miss]
 
     def artillery(self, carry=0):
         """Heures de « menace d'artillerie » par maille et par mois (canal officiel des alertes, agrégé par hromada puis
@@ -214,15 +255,22 @@ class Sectors:
         keep = np.unique(lu[np.abs(sd) <= 2])
         cont = np.isin(lu, keep[keep > 0]).astype(np.float32)
         a = np.clip(np.abs(sd), 0, 60) / 10
-        return np.stack([a, np.clip(sd, -60, 60) / 30, np.log1p(g), g / (ua + 0.05), np.log1p(w), np.log1p(f),
+        X = np.stack([a, np.clip(sd, -60, 60) / 30, np.log1p(g), g / (ua + 0.05), np.log1p(w), np.log1p(f),
                          np.clip(zf, -3, 10) / 3, urb, cont, urb * a], axis=1).astype(np.float32)
+        return np.c_[X, self.sar_features(t, sd)].astype(np.float32)
 
-    def pcontact(self, ts, SD, ground, urb, Zf, truth, dis, art, start_wf="2023-06"):
+    PC_GROUPS = {"UCDP au sol": [2, 3], "pertes WarSpotting": [4], "feux VIIRS": [5, 6], "urbain et continuité": [7, 8, 9],
+                 "radar (abandon agricole)": [10, 11, 12]}
+
+    def pcontact(self, ts, SD, ground, urb, Zf, truth, dis, art, start_wf="2023-06", drop=(), use_art=True):
         """P(contact au sol) par maille et par mois, régression logistique réentraînée chaque mois sur les seuls mois
         dont la vérité est connue (t' ≤ t − 3) ; avant la période walk-forward, ajustement sur tout l'historique
         étiqueté (indiqué). Vérité (proxy) : la maille change de camp dans les 3 mois, ou les cartes s'y contredisent."""
         rng = np.random.default_rng(0)
-        F = {t: self.pc_features(t, SD[t], ground, urb, Zf[t]) for t in ts}
+        if not hasattr(self, "_pcF"):
+            self._pcF = {t: self.pc_features(t, SD[t], ground, urb, Zf[t]) for t in ts}
+        keep = [j for j in range(len(self.PC_NAMES)) if not any(j in self.PC_GROUPS[g] for g in drop)]
+        F = {t: self._pcF[t][:, keep] for t in ts}
         # menaces d'artillerie : indice « certain mais rare », en deuxième étape (voir plus bas)
         Ha = {t: self.smooth(art[t], 1.5) for t in ts}
         Za = {t: np.c_[np.log1p(Ha[t]), (Ha[t] > 0.05).astype(np.float32)] for t in ts}
@@ -251,7 +299,7 @@ class Sectors:
         labelled = [t for t in ts if t in L]
         full = fit(labelled) if labelled else None
         out, wf, base = {}, {}, {}
-        sc, ys = [], []
+        sc, ys, dd = [], [], []
         self.pc_boost = {}
 
         def boost(train):
@@ -280,14 +328,16 @@ class Sectors:
             w, mu, sdv = fit(tr) if in_wf else full
             Z = (F[t] - mu) / sdv
             base[t] = w[0] + Z @ w[1:]
-            g = boost(tr) if in_wf else np.zeros(2)
+            g = boost(tr) if in_wf and use_art else np.zeros(2)
             self.pc_boost[t] = g
             out[t] = 1 / (1 + np.exp(-np.clip(base[t] + Za[t] @ g, -30, 30)))
             wf[t] = in_wf
             # composition : contribution de chaque signal de combat au logit (UCDP au sol, pertes, feux)
             if in_wf and t in L:
                 m = np.abs(SD[t]) <= 60
-                sc.append(out[t][m]); ys.append(L[t][m])
+                sc.append(out[t][m]); ys.append(L[t][m]); dd.append(np.abs(SD[t][m]))
+        if drop or not use_art:
+            return self._auc(sc, ys, dd)
         self.pc_coef = dict(zip(["const"] + self.PC_NAMES, [round(float(x), 3) for x in full[0]])) if full else {}
         last = [t for t in ts if wf.get(t)]
         if last:
@@ -302,7 +352,20 @@ class Sectors:
             n1, n0 = y.sum(), len(y) - y.sum()
             auc = float((r[y == 1].sum() - n1 * (n1 + 1) / 2) / max(n1 * n0, 1))
         self.pc_auc = auc
+        self.pc_auc_eq = self._auc(sc, ys, dd)[1] if sc else None
         return out, wf
+
+    @staticmethod
+    def _auc(sc, ys, dd):
+        """(AUC, AUC à distance égale : moyenne pondérée des AUC dans les tranches 0-3, 3-6, 6-10, 10-20 km)."""
+        def auc(s, y):
+            o = np.argsort(s)
+            r = np.empty(len(s)); r[o] = np.arange(1, len(s) + 1)
+            n1, n0 = y.sum(), len(y) - y.sum()
+            return float((r[y == 1].sum() - n1 * (n1 + 1) / 2) / max(n1 * n0, 1))
+        s, y, d = np.concatenate(sc), np.concatenate(ys), np.concatenate(dd)
+        w = [(auc(s[(d >= a) & (d < b)], y[(d >= a) & (d < b)]), int(((d >= a) & (d < b)).sum())) for a, b in ((0, 3), (3, 6), (6, 10), (10, 20))]
+        return auc(s, y), sum(a * n for a, n in w) / max(sum(n for _, n in w), 1)
 
     # ---------- z-scores ----------
     def z(self, t, ts_ok):

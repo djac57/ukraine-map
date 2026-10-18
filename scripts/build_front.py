@@ -1867,7 +1867,7 @@ def main():
     U = model.U
     months_out = {m: None for m in months}
     days_out = {}
-    allf = list(fields) + ["nowcast", "combat", "contact", "zf", "zu", "zw", "zm"]
+    allf = list(fields) + ["nowcast", "combat", "contact", "zf", "zu", "zw", "zm", "destr"]
     contact_prof = []
     P_now, dis_cell, Zf_store, line_km = {}, {}, {}, {}
     qstore = {f: {} for f in allf}   # champs quantifiés par instantané, encodés à la fin dans l'ordre publié
@@ -2039,8 +2039,27 @@ def main():
     SDm = {t: sect.signed_dist(("c", t), P_now[t])[0] for t in tsm}
     truth = {t: ncast.T[t] for t in tsm if t in ncast.T}
     ART = sect.artillery()
+    sect.AG = sect.sar()
+    print(f"radar : abandon agricole renseigné sur {int(np.isfinite(sect.AG).sum()):,} mailles-mois", flush=True)
     PC, PCwf = sect.pcontact(tsm, SDm, sect.G, urb, Zf_store, truth, dis_cell, ART)
-    print(f"P(contact au sol) : AUC walk-forward {sect.pc_auc:.3f} ; coefficients {sect.pc_coef}" if sect.pc_auc else "P(contact au sol) : pas de validation", flush=True)
+    print(f"P(contact au sol) : AUC walk-forward {sect.pc_auc:.3f}, à distance égale {sect.pc_auc_eq:.3f} ; coefficients {sect.pc_coef}" if sect.pc_auc else "P(contact au sol) : pas de validation", flush=True)
+    # couche d'information « destruction cumulée » (radar, décochée) : part du bâti (≥ 5 % de bâti en 2021) dont la
+    # rétrodiffusion s'écarte durablement de 2021, maximum courant jusqu'au mois PRÉCÉDENT (un mois de recul en plus du
+    # J-7 de la donnée) ; mailles de 2 km seulement, aucun composite plus fin ; 63 = 50 % du bâti modifié ou plus
+    BDc = np.zeros(len(U), np.float32)
+    for t, m in enumerate(months):
+        if m in qstore["equilibre"]:
+            qstore["destr"][m] = bytes(np.clip(np.round(BDc / 0.5 * 63), 0, 63).astype(np.uint8).tolist())
+        x = sect.BD[t]
+        BDc = np.maximum(BDc, np.where(np.isfinite(x) & (sect.BS >= 0.05), np.nan_to_num(x), 0.0))
+    print(f"destruction cumulée (radar) : {int((BDc >= 0.2).sum())} mailles bâties à ≥ 20 % de bâti modifié en fin de période", flush=True)
+    # contribution de chaque signal : perte d'AUC (globale et à distance égale) quand on le retire du faisceau complet
+    pc_contrib = []
+    if sect.pc_auc and not FAST:
+        for g in list(sect.PC_GROUPS) + ["menaces d'artillerie"]:
+            a_, e_ = sect.pcontact(tsm, SDm, sect.G, urb, Zf_store, truth, dis_cell, ART, drop=(g,) if g in sect.PC_GROUPS else (), use_art=g in sect.PC_GROUPS)
+            pc_contrib.append([g, round(sect.pc_auc - a_, 4), round(sect.pc_auc_eq - e_, 4)])
+            print(f"  contribution {g} : AUC {sect.pc_auc - a_:+.4f} ; à distance égale {sect.pc_auc_eq - e_:+.4f}", flush=True)
     a2 = CELL_KM ** 2
     tile = (sect.jj // 25) * 1000 + sect.ii // 25
     for t in tsm:
@@ -2211,7 +2230,7 @@ def main():
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
         "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30},
         "contact": {"method": "P(contact au sol), régression logistique walk-forward", "auc": sect.pc_auc, "coef": sect.pc_coef,
-                    "features": sect.PC_NAMES, "artillery": {"source": "canal officiel des alertes « Повітряна тривога » (t.me/air_alert_ua), menaces d'artillerie agrégées par hromada (limites OCHA COD-AB, CC BY-IGO) puis par maille", "gain": "AUC à distance égale 0,681 → 0,731 en walk-forward (deux étapes : une alerte relève P, son absence ne le change pas)", "stopped": "2026-09-07"}, "bins": list(range(-58, 62, 4)),
+                    "features": sect.PC_NAMES, "aucEq": sect.pc_auc_eq, "contrib": pc_contrib, "artillery": {"source": "canal officiel des alertes « Повітряна тривога » (t.me/air_alert_ua), menaces d'artillerie agrégées par hromada (limites OCHA COD-AB, CC BY-IGO) puis par maille", "gain": "AUC à distance égale 0,681 → 0,731 en walk-forward (deux étapes : une alerte relève P, son absence ne le change pas)", "stopped": "2026-09-07"}, "bins": list(range(-58, 62, 4)),
                     "profile": [round(float(x), 4) for x in np.mean(np.array(contact_prof), axis=0)] if contact_prof else []},
         "localSigma": getattr(model, "local", None) or getattr(model, "local_report", None),
         "localBand": local_band,
