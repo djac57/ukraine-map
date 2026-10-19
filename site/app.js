@@ -1030,7 +1030,7 @@ let domainPath = null, bandPath = null;
   bandPath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(mb)[0].coordinates); }
 { const m = new Float32Array(GX * GY); for (let c = 0; c < GX * GY; c++) { const k = cellPlace[c]; if (k >= 0 && pFlags[k]) m[c] = 1; }
   prePath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates); }
-const RAWCOL = {dsm: "#2f7fd8", isw: "#d89a2f", wiki: "#8a5bd8"};
+const RAWCOL = {dsm: "#1f6fe0", isw: "#e08a00", wiki: "#8a3fd8"};
 const rawCache = {};
 function rawPath(src, fi){
   const key = src + fi; if (rawCache[key]) return rawCache[key];
@@ -1295,6 +1295,17 @@ function drawImp(k){
 let showAdv = false, ADV = null, advHits = [];
 function loadAdv(then){ if (window.FRONT_ADVANCE) { ADV = window.FRONT_ADVANCE; return then && then(); }
   const sc = document.createElement("script"); sc.src = "front_advance.js?v=" + (FRONT_V.advance || ""); sc.onload = () => { ADV = window.FRONT_ADVANCE; if (then) then(); }; document.head.appendChild(sc); }
+// fourchette « de combien » (front_advance.js) du tronçon le plus proche, à moins de 20 km, sur le dernier mois connu ; texte ou ""
+function advText(fi, i, j){
+  if (!ADV && window.FRONT_ADVANCE) ADV = window.FRONT_ADVANCE;
+  const H2 = ADV && ADV.horizons && ADV.horizons["2"]; if (!H2 || !H2.show || !H2.show.troncons || !FR.months[fi] || FR.months[fi].date.slice(0, 7) !== H2.base) return "";
+  let tb = null, td = 1e9; for (const t of H2.tiles) { const d = Math.hypot(t[0] - i, t[1] - j); if (d < td) { td = d; tb = t; } }
+  if (!tb || td * FR.grid.size / 1000 > 20 || (tb[4] < 0.5 && tb[3] > -0.5)) return "";
+  const f = v => dec(Math.round(Math.abs(v) * 10) / 10);
+  const part = (v, ru) => v > 0.05 ? (ru ? _t("{v} km d'avancée russe", {v: f(v)}) : _t("{v} km de reprise ukrainienne", {v: f(v)})) : null;
+  const a = part(tb[4], true), b = part(-tb[3], false);
+  return _t("de combien d'ici 2 mois (80 %) : jusqu'à {l}", {l: [a, b].filter(Boolean).join(_t(" ou "))});
+}
 function drawAdv(k){
   advHits = []; if (!ADV) return; const H2 = ADV.horizons && ADV.horizons["2"]; if (!H2 || !H2.show || !H2.show.troncons) return;
   const fi = frontIdx(); if (fi < 0 || FR.months[fi].date.slice(0, 7) !== H2.base) return;
@@ -1321,6 +1332,7 @@ function drawAdv(k){
 }
 function drawPm(k){
   const fp = frontIdx(); if (fp < 0) return;
+  if (!window.FRONT_ADVANCE) loadAdv();
   if (!window.FRONT_SENS) loadSens(() => { pmFor = -2; draw(); });
   buildPm(fp, k); if (!pmImg) return;
   ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(tr.x, tr.y); ctx.scale(k, k);
@@ -1376,8 +1388,10 @@ function drawFront(k){
   if (fi >= 0) for (const src of ["dsm", "isw", "wiki"]) {
     if (!rawOn[src]) continue;
     const pth = rawPath(src, fi); if (!pth) continue;
-    ctx.strokeStyle = RAWCOL[src]; ctx.globalAlpha = 0.95; ctx.lineWidth = 1.4 * u; ctx.setLineDash(src === "isw" ? [5*u, 2*u] : src === "wiki" ? [1.5*u, 2*u] : []);
-    ctx.stroke(pth);
+    // tracés bruts cochés : trait épais sur un liseré clair, pour ressortir sur la densité et la zone grise
+    const dash = src === "isw" ? [7*u, 3*u] : src === "wiki" ? [2*u, 3*u] : [];
+    ctx.setLineDash(dash); ctx.strokeStyle = C.bg; ctx.globalAlpha = 0.85; ctx.lineWidth = 4.6 * u; ctx.stroke(pth);
+    ctx.strokeStyle = RAWCOL[src]; ctx.globalAlpha = 1; ctx.lineWidth = 2.6 * u; ctx.stroke(pth);
   }
   ctx.restore();
   ctx.setLineDash([]); ctx.globalAlpha = 1;
@@ -1428,22 +1442,25 @@ for (const f of G.regions) if (f.properties.id) regionCentroid[f.properties.id] 
 // occupés, de la mer Noire, de la mer d'Azov, de la Caspienne ou de Biélorussie (contrôlé par check_arrows.py).
 let arcFocus = null, arcCache = {m: -1};
 const regionPath = {}, regionFeat = {};
+// mois des missiles et frappes affiché : le mois courant s'il est publié (mois complet + 7 jours), sinon le dernier mois
+// publié s'il précède directement (mois en cours) ; −1 sinon
+const arcM = () => cur <= cutIdx ? cur : cur - cutIdx <= 1 ? cutIdx : -1;
 function arcMonth(){
-  if (arcCache.m === cur) return arcCache;
+  if (arcCache.m === arcM()) return arcCache;
   const pl = O.launch.places, zones = new Map(), regs = {};
   for (const [mi, li, tid, n] of O.launch.arcs) {
-    if (mi !== cur || !regionCentroid[tid]) continue;
+    if (mi !== arcM() || !regionCentroid[tid]) continue;
     const key = pl[li][1] + "," + pl[li][2];
     let z = zones.get(key); if (!z) zones.set(key, z = {key, lon: pl[li][1], lat: pl[li][2], names: [], n: 0, flows: {}});
     if (!z.names.includes(pl[li][0])) z.names.push(pl[li][0]);
     z.n += n; z.flows[tid] = (z.flows[tid] || 0) + n; regs[tid] = (regs[tid] || 0) + n;
   }
   const zs = [...zones.values()], mz = Math.max(1, ...zs.map(z => z.n)), mr = Math.max(1, ...Object.values(regs));
-  return arcCache = {m: cur, zones: zs, regs, mz, mr};
+  return arcCache = {m: arcM(), zones: zs, regs, mz, mr};
 }
 const zoneR = (z, A) => 3.5 + 10 * Math.sqrt(z.n / A.mz);
 function drawArcs(k){
-  if (cur > cutIdx) return;
+  if (arcM() < 0) return;
   drawStrikesRu(k);
   const A = arcMonth();
   ctx.lineCap = "round"; ctx.lineJoin = "round";
@@ -1496,15 +1513,15 @@ function loadStrikesRu(then){
   for (const src of ["regions_ru.js", "strikes_ru.js"]) { const sc = document.createElement("script"); sc.src = src + "?v=" + (FRONT_V.strikes || ""); sc.onload = done; document.head.appendChild(sc); }
 }
 function sruMonth(){
-  if (sruCache.m === cur || !SRU) return sruCache;
+  if (sruCache.m === arcM() || !SRU) return sruCache;
   const R = {};
-  for (const key of ["mod", "modN", "gov", "fires"]) for (const [mi, rid, n] of SRU[key] || []) if (mi === cur) { (R[rid] = R[rid] || {mod: 0, modN: 0, gov: 0, fires: 0})[key] += n; }
+  for (const key of ["mod", "modN", "gov", "fires"]) for (const [mi, rid, n] of SRU[key] || []) if (mi === arcM()) { (R[rid] = R[rid] || {mod: 0, modN: 0, gov: 0, fires: 0})[key] += n; }
   const mx = Math.max(1, ...Object.values(R).map(v => v.mod));
-  return sruCache = {m: cur, R, mx};
+  return sruCache = {m: arcM(), R, mx};
 }
 const SRU_COL = () => C.dark ? "#b5c25a" : "#6f7f1f";
 function drawStrikesRu(k){
-  if (!SRU || cur > cutIdx) return;
+  if (!SRU || arcM() < 0) return;
   const S = sruMonth();
   const R = Object.assign({}, S.R);
   if (R["UA-43"] && !R["UA-40"]) R["UA-40"] = R["UA-43"];   // Sébastopol citée avec la Crimée
@@ -1514,7 +1531,7 @@ function drawStrikesRu(k){
   ctx.globalAlpha = 1;
 }
 function sruHover(ll){
-  if (!SRU || cur > cutIdx) return null;
+  if (!SRU || arcM() < 0) return null;
   const S = sruMonth();
   for (const [rid, v] of Object.entries(S.R)) if (sruFeat[rid] && d3.geoContains(sruFeat[rid], ll)) {
     const nm = topoC(SRU.names[rid] || rid);
@@ -1527,7 +1544,7 @@ function sruHover(ll){
 }
 // survol de la couche : zone de lancement (cercle) ou oblast visé ; renvoie le texte de l'info-bulle ou null
 function arcHover(mx, my){
-  if (!showArcs || cur > cutIdx) return null;
+  if (!showArcs || arcM() < 0) return null;
   const A = arcMonth(), k = tr.k, gx = (mx - tr.x) / k, gy = (my - tr.y) / k;
   let f = null;
   for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (a && Math.hypot((a[0] - gx) * k, (a[1] - gy) * k) <= zoneR(z, A) + 3) { f = {kind: "zone", id: z.key, z}; break; } }
@@ -2004,7 +2021,7 @@ function hover(e){
       const fi = frontIdx(), camp = _t(best.a.ru ? "russe" : "ukrainienne");
       if (!full) {
         tip.innerHTML = (best.a.hard ? `<div style="color:var(--faint)">${_t("flèche arrêtée par une barrière naturelle (grand fleuve, plan d'eau ou escarpement)")}</div>` : "") + (best.a.ev ? (best.a.undirected ? _t("localités qui ont basculé ({c}), sens non établi", {c: camp}) : best.a.late ? _t("confirmé par annonce ({c}), pas un mouvement nouveau", {c: camp})
-          : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.probable ? _t("poussée russe probable : P(bouge) {b} %, sens russe {p} % (sur le passé, suivie d'une avancée russe d'au moins 2 km dans {q} % des cas, contre {m} % en moyenne ; signale surtout des poussées déjà engagées)", {b: best.a.pb, p: best.a.ps, q: Math.round(100 * best.a.q.precision), m: dec(Math.round(1000 * best.a.q.base) / 10)}) : best.a.possible ? (best.a.q ? _t("poussée ukrainienne possible : P(bouge) {b} %, sens ukrainien {p} % (sur le passé, suivie d'une reprise ukrainienne d'au moins 1 km dans {q} % des cas, contre {m} % en moyenne ; peu de cas)", {b: best.a.pb != null ? best.a.pb : "–", p: best.a.ps != null ? 100 - best.a.ps : "–", q: dec(Math.round(1000 * best.a.q.precision) / 10), m: dec(Math.round(1000 * best.a.q.base) / 10)}) : _t("poussée ukrainienne possible : on se bat anormalement derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 3, peu de cas)")) : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
+          : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.probable ? _t("poussée russe probable : P(bouge) {b} %, sens russe {p} % (sur le passé, suivie d'une avancée russe d'au moins 2 km dans {q} % des cas, contre {m} % en moyenne ; signale surtout des poussées déjà engagées)", {b: best.a.pb, p: best.a.ps, q: Math.round(100 * best.a.q.precision), m: dec(Math.round(1000 * best.a.q.base) / 10)}) + (() => { const at = advText(fi, best.a.gx, best.a.gy); return at ? "<br>" + at : ""; })() : best.a.possible ? (best.a.q ? _t("poussée ukrainienne possible : P(bouge) {b} %, sens ukrainien {p} % (sur le passé, suivie d'une reprise ukrainienne d'au moins 1 km dans {q} % des cas, contre {m} % en moyenne ; peu de cas)", {b: best.a.pb != null ? best.a.pb : "–", p: best.a.ps != null ? 100 - best.a.ps : "–", q: dec(Math.round(1000 * best.a.q.precision) / 10), m: dec(Math.round(1000 * best.a.q.base) / 10)}) : _t("poussée ukrainienne possible : on se bat anormalement derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 3, peu de cas)")) : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
         tip.style.display = "block";
         const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
         return;
@@ -2073,6 +2090,7 @@ function hover(e){
     for (const t of pmt) { const dd = Math.hypot(t[0] - i, t[1] - j); if (dd < td) { td = dd; tb = t; } }
     if (tb && td * FR.grid.size / 1000 < 20) { pmLine = `<div class="r"><span>${_t("P(la ligne bouge d'ici 2 mois)")}</span><b>${tb[2]} %</b></div>`;
       ctxt += pmLine + `<div style="color:var(--faint)">${_t("tronçon de 24 km, ≥ 0,5 km dans un sens ou l'autre ; moyenne {b} %", {b: Math.round(((FR.pmove && FR.pmove.base) || 0) * 100)})}</div>`; }
+    { const at = advText(fi, i, j); if (at) { ctxt += `<div>${at}</div>`; pmLine += `<div style="color:var(--faint)">${at}</div>`; } }
   }
   { const sr = sensRows(fi); let sb = null, sd = 1e9;
     if (sr) for (const r of sr) { const dd = Math.hypot(r[0] - i, r[1] - j); if (dd < sd) { sd = dd; sb = r; } }
@@ -2160,7 +2178,7 @@ function legend(){
   if (showLoss) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("pertes russes documentées (WarSpotting), cliquer pour filtrer :")}</span>` +
     O.groups.map((g,i) => `<span class="lchip" role="button" tabindex="0" data-g="${i}" aria-pressed="${lossOn[i]}">${pictoSvg(i, C["loss-now"])}${g}</span>`).join("");
   const raws = Object.entries(rawOn).filter(([, v]) => v).map(([s]) => s);
-  if (raws.length) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("tracés bruts, au pas affiché :")}</span>` + raws.map(s => `<span><i style="border-top:2px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>${_t("tracé {s} : limite de sa zone russe (statut par localité, VIINA)", {s: s === "dsm" ? "DeepStateMap" : s === "isw" ? "ISW" : "Wikipedia"})}</span>`).join("");
+  if (raws.length) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("tracés bruts, au pas affiché :")}</span>` + raws.map(s => `<span><i style="border-top:3px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>${_t("tracé {s} : limite de sa zone russe (statut par localité, VIINA)", {s: s === "dsm" ? "DeepStateMap" : s === "isw" ? "ISW" : "Wikipedia"})}</span>`).join("");
   if (showClaims) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i><i style="background:${C.cool};border-radius:0;clip-path:polygon(0 0,100% 0,50% 100%)"></i>${_t("annonces officielles des 30 jours précédant le pas affiché (pâles : 30 à 60 jours) : prises annoncées par le MoD RF, reprises annoncées par l'état-major ukrainien ; cliquer un triangle pour sa date et sa confirmation par une autre carte")}</span>`;
   if (showArrows) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée russe")}</span><span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée ukrainienne")}</span>` +
     `<span>${_t("flèche pleine : déplacement de la ligne 50 % (km par 30 jours, sur 3 périodes de 30 jours)")}</span>` +
@@ -2215,7 +2233,8 @@ function layerNotes(){
   if (showUcdp) { let any = false; for (let j = 0; j < NU; j++) if (UC[j*5+2] === cur) { any = true; break; }
     if (!any && ucdpMonth() !== cur) n.push(_t("combats UCDP : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(ucdpMonth())}));
     else if (!any) n.push(_t(cur > cutIdx || D.months[cur] > (O.ucdp.last || "") ? "combats UCDP : pas encore publiés pour ce mois" : "combats UCDP : aucun événement localisé")); }
-  if (showArcs && !O.launch.arcs.some(a => a[0] === cur)) n.push(_t(cur > cutIdx ? "missiles : pas encore publiés (mois complet + 7 jours)" : D.months[cur] < "2022-10" ? "missiles : série à partir d'octobre 2022" : "missiles : aucune cible précisée ce mois-ci"));
+  if (showArcs && arcM() >= 0 && arcM() !== cur) n.push(_t("missiles : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(arcM())}));
+  else if (showArcs && !O.launch.arcs.some(a => a[0] === cur)) n.push(_t(cur > cutIdx ? "missiles : pas encore publiés (mois complet + 7 jours)" : D.months[cur] < "2022-10" ? "missiles : série à partir d'octobre 2022" : "missiles : aucune cible précisée ce mois-ci"));
   return n;
 }
 const SECT = {"Kharkiv":"Kharkiv", "Luhans'k":"Louhansk", "Donets'k":"Donetsk", "Zaporizhzhya":"Zaporijjia", "Kherson":"Kherson", "Dnipropetrovs'k":"Dnipropetrovsk", "Sumy":"Soumy", "Mykolayiv":"Mykolaïv", "Chernihiv":"Tchernihiv", "Kiev":"Kyiv (oblast)"};
