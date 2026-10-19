@@ -208,3 +208,6 @@ footer p{margin:0 0 8px}
 .selrow{display:flex;align-items:center;gap:8px;font:12px "JetBrains Mono",monospace;color:var(--ink)}
 .selrow select{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--rule);border-radius:4px;padding:5px 8px;min-height:32px;max-width:100%}
 .varbanner:not(:empty){border-left:3px solid var(--accent);padding:4px 8px;color:var(--ink);background:var(--chip)}
+
+.dtip{position:absolute;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:3px 8px;font:12px "JetBrains Mono",monospace;color:var(--muted);pointer-events:none;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.dtip b{color:var(--ink);font-weight:500}

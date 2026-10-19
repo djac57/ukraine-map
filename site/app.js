@@ -2351,13 +2351,22 @@ function drawDeltaChart(cm){
   svg.append("g").selectAll("line").data(y.ticks(4)).join("line").attr("x1", m.l).attr("x2", w - m.r).attr("y1", y).attr("y2", y).attr("stroke", C.rule).attr("opacity", v => v === 0 ? 1 : .6);
   svg.append("g").selectAll("text").data(y.ticks(4)).join("text").attr("class", "tick").attr("x", m.l - 5).attr("y", y).attr("dy", "0.32em").attr("text-anchor", "end").text(v => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v)));
   svg.append("g").selectAll("rect").data(rows).join("rect").attr("x", r => x(r[0])).attr("width", x.bandwidth())
-    .attr("y", r => y(Math.max(0, r[1]))).attr("height", r => Math.abs(y(r[1]) - y(0))).attr("fill", r => r[1] >= 0 ? C.front : C.uactl).attr("opacity", .9)
-    .append("title").text(r => _t("{m} : {v} km² sur 30 jours (écart habituel ± {e})", {m: monthLabel(r[0]), v: (r[1] >= 0 ? "+" : "−") + fmt(Math.round(Math.abs(r[1]) / 10) * 10), e: fmt(Math.round(E1 / 10) * 10)}));
+    .attr("y", r => y(Math.max(0, r[1]))).attr("height", r => Math.abs(y(r[1]) - y(0))).attr("fill", r => r[1] >= 0 ? C.front : C.uactl).attr("opacity", .9);
   svg.append("text").attr("class", "tick").attr("x", m.l).attr("y", 11).text(_t("variation sur 30 jours (km²) ; bande grise : écart habituel"));
   svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class", "tick").attr("x", i => x(i)).attr("y", h - m.b + 14).text(i => D.months[i].slice(0, 4));
   const mk = svg.append("rect").attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "none").attr("stroke", C.accent).attr("stroke-width", 1.5);
   marks.push(() => mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3));
-  el.replaceChildren(svg.node());
+  // survol : valeur immédiate au-dessus de la barre (cible = toute la colonne du mois) ; clic : aller à ce mois
+  const tipD = document.createElement("div"); tipD.className = "dtip"; tipD.hidden = true;
+  const val = new Map(rows.map(r => [r[0], r[1]]));
+  svg.append("g").selectAll("rect").data(rows).join("rect").attr("x", r => x(r[0]) - x.step() * x.paddingInner() / 2).attr("width", x.step())
+    .attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "transparent").style("cursor", "pointer")
+    .on("mouseenter", (e, r) => { const v = val.get(r[0]);
+      tipD.innerHTML = `<b>${(v >= 0 ? "+" : "−") + fmt(Math.round(Math.abs(v) / 10) * 10)} km²</b> ${monthLabel(r[0])}` + (Math.abs(v) < E1 ? ` <span>${_t("(dans l'écart habituel)")}</span>` : "");
+      tipD.hidden = false; const bx = x(r[0]) / w * el.clientWidth; tipD.style.left = Math.max(0, Math.min(el.clientWidth - 220, bx - 60)) + "px"; tipD.style.top = "0px"; })
+    .on("mouseleave", () => { tipD.hidden = true; })
+    .on("click", (e, r) => { stop(); setMonth(r[0]); });
+  el.style.position = "relative"; el.replaceChildren(svg.node(), tipD);
 }
 function drawAreaChart(){
   const eq = fmode === "equilibre";
