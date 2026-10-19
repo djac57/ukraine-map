@@ -2322,6 +2322,8 @@ function lineChart(el, rows, opt){
   svg.append("g").selectAll("line").data(y.ticks(4)).join("line").attr("x1",m.l).attr("x2",w-m.r).attr("y1",y).attr("y2",y).attr("stroke",C.rule);
   svg.append("g").selectAll("text").data(y.ticks(4)).join("text").attr("class","tick").attr("x",m.l-6).attr("y",y).attr("dy","0.32em").attr("text-anchor","end").text(v => L.format(",d")(v));
   if (opt.band) svg.append("path").attr("d", d3.area().defined(r => r[opt.band[0]] != null).x(r => fx(r[0])).y0(r => y(r[opt.band[0]])).y1(r => y(r[opt.band[1]])).curve(d3.curveMonotoneX)(rows)).attr("fill", opt.color).attr("opacity", .16);
+  if (opt.ref) { svg.append("line").attr("x1", m.l).attr("x2", w - m.r).attr("y1", y(opt.ref.v)).attr("y2", y(opt.ref.v)).attr("stroke", C.ink).attr("stroke-dasharray", "4 3").attr("opacity", .55);
+    svg.append("text").attr("class", "tick").attr("x", w - m.r - 4).attr("y", y(opt.ref.v) - 5).attr("text-anchor", "end").text(opt.ref.label); }
   for (const ln of opt.lines) svg.append("path").attr("d", d3.line().defined(r => r[ln.i] != null).x(r => fx(r[0])).y(r => y(r[ln.i])).curve(d3.curveMonotoneX)(rows))
     .attr("fill","none").attr("stroke", ln.color).attr("stroke-width", ln.w || 1.6).attr("stroke-dasharray", ln.dash || null).attr("opacity", ln.op || 1);
   svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class","tick").attr("x", i => x(i)).attr("y", h-m.b+16).text(i => D.months[i].slice(0,4));
@@ -2353,7 +2355,7 @@ function drawDeltaChart(cm){
   svg.append("g").selectAll("text").data(y.ticks(4)).join("text").attr("class", "tick").attr("x", m.l - 5).attr("y", y).attr("dy", "0.32em").attr("text-anchor", "end").text(v => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v)));
   svg.append("g").selectAll("rect").data(rows).join("rect").attr("x", r => x(r[0])).attr("width", x.bandwidth())
     .attr("y", r => y(Math.max(0, r[1]))).attr("height", r => Math.abs(y(r[1]) - y(0))).attr("fill", r => r[1] >= 0 ? C.front : C.uactl).attr("opacity", .9);
-  svg.append("text").attr("class", "tick").attr("x", m.l).attr("y", 11).text(_t("variation sur 30 jours (km²) ; bande grise : écart habituel"));
+  svg.append("text").attr("class", "tick").attr("x", m.l).attr("y", 11).text(_t("variation sur 30 jours (km²)"));
   svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class", "tick").attr("x", i => x(i)).attr("y", h - m.b + 14).text(i => D.months[i].slice(0, 4));
   const mk = svg.append("rect").attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "none").attr("stroke", C.accent).attr("stroke-width", 1.5);
   marks.push(() => mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3));
@@ -2375,7 +2377,9 @@ function drawAreaChart(){
   const rows = chartFrames().map((v, i) => v && v.a[cm] ? [i, v.a[cm][perim][0], v.a[cm][perim][1], eq ? mcOf(v)[perim][0] : null, eq ? mcOf(v)[perim][1] : null,
     v.a.ru[perim][0], v.a.ua[perim][0]] : null).filter(Boolean);
   const lean = document.body.classList.contains("lean");
-  lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], lines: lean ? [{i: 1, color: C.front, w: 2.2}] : [
+  // axe depuis 0 et repère « occupé avant le 24/02/2022 » : la courbe commence fin février 2022, invasion déjà en cours
+  const f0 = FR.months[frontIdx()] || chartFrames().filter(Boolean).pop(), pre = f0 && f0.a[cm] && f0.a[cm][perim] && f0.a[cm].depuis2022 && perim === "tout" ? f0.a[cm].tout[0] - f0.a[cm].depuis2022[0] : null;
+  lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], zero: true, ref: pre ? {v: pre, label: _t("occupé avant le 24 février 2022 : ≈ {v} km²", {v: fmt(Math.round(pre / 100) * 100)})} : null, lines: lean ? [{i: 1, color: C.front, w: 2.2}] : [
       {i: 5, color: C.ink, w: 1, dash: "2 3", op: .55}, {i: 6, color: C.cool, w: 1, dash: "2 3", op: .8},
       {i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.front, w: 2.2}],
     title: i => FR.months[i] ? _t("{m} — {mode} : {a} km² (95 % : {lo} – {hi}) ; vue russe {r}, vue ukrainienne {u}", {m: monthLabel(i), mode: MODEN[cm], a: fmt(FR.months[i].a[cm][perim][0]), lo: fmt(mcOf(FR.months[i])[perim][0]), hi: fmt(mcOf(FR.months[i])[perim][1]), r: fmt(FR.months[i].a.ru[perim][0]), u: fmt(FR.months[i].a.ua[perim][0])}) : _t("{m} — pas d'instantané", {m: monthLabel(i)})});
