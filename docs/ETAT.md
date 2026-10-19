@@ -301,6 +301,7 @@ mailles ukrainiennes, moyenne des 12 derniers mois (et dernier mois).
 |---|---|---|---|---|---|
 | 9a2616f (en ligne le 18/10) | 2025-10 → 2026-09 | 3,87 % | 3,64 % | 0,58 km | 2,89 % / 2,89 % / 0,40 km |
 | lot P(mouvement) (18/10) | idem | 3,87 % | 3,64 % | 0,58 km | identique : la couche ne modifie pas le champ |
+| essai Telegram dans p (19/10, non retenu) | idem | 4,05 % | 3,66 % | 0,58 km | 3,08 % / 2,93 % / 0,40 km (précision dégradée : voir § 6) |
 
 Ce qui fera bouger ces chiffres : des signaux intégrés au champ final (nowcast), pas des couches d'information.
 
@@ -365,6 +366,15 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   signaux traversant la ligne en losange plein cerné, signaux du même côté (confirmation de contrôle) en losange creux ;
   infrastructures visibles dès 0,8 km/px (étiquettes dès 0,3) : pictogrammes sombres sur pastille (gare, centrale,
   aéroport, usine), voies ferrées gris foncé à traverses, étiquettes détourées.
+- 19/10 : **Telegram dans le champ p (point 2 ter) : testé, NON RETENU**, pipeline inchangé
+  (`ukraine-recherche/analyses/telegram_p/RAPPORT.md`). Terme de logit sur le nowcast publié, agrégats par maille de
+  2 km × mois (attaques et présence signalées, côté de la maille), θ appris en walk-forward (Brier, vérité à t+2).
+  AVANT → APRÈS (variante de base, 2023-01 → 2026-07) : Brier ≤ 30 km 0,03291 → 0,03296 ; mailles qui changent de camp
+  0,3585 → 0,3651 ; AUC bande 0,9913 → 0,9909 ; couverture par secteur (champ publié, ligne vraie interpolée) médiane
+  95,7 → 94,4 %, P10 81,0 → 81,0 %, secteurs sous 90 % 23,7 → 28,8 % ; KPI (a) 3,87 → 4,05 %. Meilleure variante sur la
+  bande (≥ 4 km de la ligne) : 0,03271 mais mailles changeantes 0,3665 et couverture médiane 92,4 %. Raison : l'activité
+  signalée du même côté ne « rassure » pas (la maille change de camp 6,5 fois plus souvent : 1,44 % contre 0,22 %),
+  le traversant signale le mouvement (× 14) mais pas le sens (poids appris nul). Telegram reste un signal de MOUVEMENT.
 - 19/10 : couche « impacts détectés (Sentinel-2) », FIGÉE, décochée : z local des impacts par tronçon de 20 km, côté
   russe (barre brune) et ukrainien (vert sombre), fenêtre 30 j (`build_impacts_layer.py` → `site/impacts_troncons.js`,
   depuis `sar/out/impacts_troncons.csv`) ; ⓘ : ~1 détection sur 2 est un cratère, Lyman z +6,9 fin mai 2026, signal faible
@@ -470,6 +480,7 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 | Bilans MoD RF (localités) | ≈ 0 ; 2024-01 → 2026-02 presque chaque jour, 2026-03 → 10 : 9 à 15 jours par mois (citations Interfax, RIA, Telegram) | retenu pour le pluralisme |
 | Liste officielle des hostilités (rejouée, 59 actes) | +0,027 à distance égale | retenu |
 | Telegram « qui attaque / présence » (15 canaux) | P(contact) −0,0014 ; sens : non (signale un MOUVEMENT : 66 % des tronçons cités bougent contre 36 %) ; P(mouvement) +0,003 d'AUC | signal de MOUVEMENT, jamais de sens ; dans P(mouvement) dès qu'il est collecté en CI (absent aujourd'hui) |
+| Telegram dans le champ p (19/10, par maille de 2 km : même côté = confirmation, traversant = présence adverse ; terme de logit walk-forward sur le nowcast publié, `analyses/telegram_p/`) | Brier ≤ 30 km 0,03291 → 0,03296, mailles changeantes 0,3585 → 0,3651, couverture médiane par secteur 95,7 → 94,4 %, KPI (a) 3,87 → 4,05 % ; même côté : la maille change de camp 6,5 × plus souvent ; traversant : poids appris nul | NON retenu (signal de mouvement, pas de contrôle) |
 | VIINA events | redondants | optionnels (v4) |
 | IODA, éditions OSM | rien | rejetés |
 | Sentinel-2 refait (front ±15 km, NDVI/NBR/texture/sol nu, `sar/rapport_S2.md`) | seul +0,024 d'AUC à distance égale (0,541 → 0,565) ; avec le radar 0,583 → 0,582 ; P(mouvement) 0,745 → 0,732 | redondant avec le radar ; couche de contexte et remplaçant du radar |
@@ -509,6 +520,9 @@ de dépendance aux cartes (3,87 % d'information hors cartes).
 2 ter. **Telegram dans le champ p** (demande de l'utilisateur, 19/10) : que ces signaux PÈSENT dans la prédiction ET dans
    l'état des lieux : même côté = confirmation de contrôle (resserre la bande), traversant = présence adverse (élargit
    ou fait pencher). À tester en walk-forward dans v4 avec le KPI de dépendance et la précision.
+   **Testé le 19/10 : NON RETENU** (§ 6 et `ukraine-recherche/analyses/telegram_p/RAPPORT.md`) : KPI (a) 3,87 → 4,05 %
+   seulement, mailles qui changent de camp 0,3585 → 0,3651, couverture par secteur en baisse. Piste restante : bande
+   locale qui s'ÉLARGIT là où Telegram signale de l'activité (largeur conditionnelle dans `conformal.py`).
 2 bis. **Destruction relative dans les villes** (11 villes, AUC 0,85 intra-ville) : demander à l'agent radar d'écrire
    `<ville>_cells.csv` (maille 2 km, mois, part détruite persistante) ; il n'existe aujourd'hui que des statistiques
    T à 10 m (`work_destr_hr/*_T.npz`, 10 villes). Couche ensuite ~20 min : percentile intra-ville, décochée, ⓘ
