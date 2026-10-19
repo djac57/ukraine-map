@@ -2175,7 +2175,20 @@ function updateArea(){
     if (!mo) big.innerHTML = "—";
     else { const a = mo.a[fieldName() in mo.a ? fieldName() : fmode] || mo.a.equilibre, r = v => fmt(Math.round(v/100)*100), v = fvar && mo.v && mo.v[fvar] ? mo.v[fvar].tout[0] : a.tout[0];
       const ru = a.russie ? a.russie[1] : 0;
-      big.innerHTML = `<b>${r(v)} km²</b><span>${document.documentElement.dataset.kmLabel || "occupés"} · ${frameLabel(fi)}${fmode === "equilibre" && !fvar ? ` · 95 % : ${r(mcOf(mo).tout[0])} – ${r(mcOf(mo).tout[1])}` : ""}</span>` +
+      // gros titre : le CHANGEMENT (qui gagne du terrain, à quel rythme) plutôt que le stock, dont l'intervalle (±1 900 km²,
+      // incertitude sur la position exacte de la ligne) noie l'information ; intervalle sur le changement à venir
+      // (tirages appariés entre deux instantanés dans build_front.py)
+      // changement mesuré sur la vue des sources (fmode : équilibrée, UA, RU, tiers), pas sur le nowcast, plus bruité d'un mois à l'autre
+      const kmAt = j => { const m = j >= 0 ? FR.months[j] : null; if (!m) return null; const aa = m.a[fmode] || m.a.equilibre;
+        return fvar && m.v && m.v[fvar] ? m.v[fvar].tout[0] : aa.tout[0]; };
+      const v0 = kmAt(fi);
+      const j12 = frameAt(fi, 365), j1 = frameAt(fi, 30), d12 = j12 >= 0 ? v0 - kmAt(j12) : null, d1 = j1 >= 0 ? v0 - kmAt(j1) : null;
+      const r10s = x => fmt(Math.round(Math.abs(x) / 10) * 10), who = x => x >= 0 ? _t("gagnés par la Russie") : _t("repris par l'Ukraine");
+      const sgn = x => (x >= 0 ? "+" : "−") + r10s(x) + "\u00a0km²";
+      const share = (v / UA_KM2 * 100).toFixed(0);
+      big.innerHTML = (d12 !== null ? `<b>${sgn(d12)}</b><span>${who(d12)} ${_t("en 12 mois")}${d1 !== null ? ` · ${_t("{d} sur 30 jours", {d: sgn(d1)})}` : ""} · ${frameLabel(fi)}</span>` +
+          `<span>${_t("occupé : ≈ {k} km² ({s} % de l'Ukraine)", {k: fmt(Math.round(v / 1000) * 1000), s: share})}</span>`
+        : `<b>${r(v)} km²</b><span>${document.documentElement.dataset.kmLabel || "occupés"} · ${frameLabel(fi)}</span>`) +
         (ru >= 50 ? `<span style="color:var(--cool)">${document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien"} : ${fmt(Math.round(ru/10)*10)} km²</span>` : ""); }
   }
   const fi = frontIdx(), el = $("areaBox");
