@@ -1350,7 +1350,8 @@ function drawFront(k){
     if (showUnc) { ctx.stroke(isoPaths[0]); ctx.stroke(isoPaths[2]); }
     ctx.setLineDash([]); ctx.lineWidth = 1.8 * u; ctx.globalAlpha = 1; if (showLines) ctx.stroke(isoPaths[1]);
     ctx.restore();
-    if (isoBand) { ctx.save(); ctx.clip(bandPath); ctx.strokeStyle = C.uactl; ctx.lineWidth = 1.8 * u; ctx.stroke(isoBand); ctx.restore(); }
+    // ligne de front en Russie (Koursk, Belgorod) : même style que la ligne principale, c'est une ligne de front comme une autre
+    if (isoBand && showLines) { ctx.save(); ctx.clip(bandPath); ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.strokeStyle = C.front; ctx.lineWidth = 1.8 * u; ctx.stroke(isoBand); ctx.restore(); }
   }
   const fi = frontIdx();
   if (fvar && fi >= 0) { buildDiff(fi); if (diffPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.8; ctx.drawImage(diffPat, 0, 0, GX, GY); ctx.restore(); } }
