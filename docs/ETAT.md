@@ -47,7 +47,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `fetch_osint.py` | VIINA, UCDP, Oryx, missiles, WarSpotting (reprise incrémentale). |
 | `fetch_claims.py` | Aperçu public Telegram : MoD RF et état-major UA (annonces de prise, bilans quotidiens). Messages gardés en local, jamais publiés. |
 | `fetch_dsmlog.py` | Journal public de DeepStateMap (déclarations datées). |
-| `fetch_telegram.py`, `tglib.py`, `tg_sens.py`, `build_telegram_layer.py` | Signaux Telegram (15 canaux, aperçu public t.me/s sans compte) : relecture des 45 derniers jours (même pas d'échantillonnage que l'historique), messages de combat ou de présence gardés avec leur texte dans `raw/telegram/` (cache Actions, jamais versionné) ; construction : lieux À LA PHRASE (GeoNames UA + `data/ru_border.tsv`, `tglib.events`), « qui attaque » (`tg_sens.classify_strict`) et « présence signalée » sur la phrase, comptes par tronçon de 24 km × mois et décade et par maille de 2 km × mois et 30 derniers jours, fusion incrémentale (une période n'est remplacée que si elle est entièrement relue et pas plus pauvre), coupure J-7. Sorties `data/telegram_troncons.csv`, `data/telegram_cells.csv`, `site/telegram_troncons.js`, `site/telegram_cells.js`. Historique reconstruit avec `--seed ukraine-recherche/signals3/internal` (avec l'ancienne attribution au message entier, il reproduisait exactement `sens_troncons_month.csv`). |
+| `fetch_telegram.py`, `tglib.py`, `tg_sens.py`, `build_telegram_layer.py` | Signaux Telegram (15 canaux, aperçu public t.me/s sans compte) : relecture des 45 derniers jours (même pas d'échantillonnage que l'historique), messages de combat ou de présence gardés avec leur texte dans `raw/telegram/` (cache Actions, jamais versionné) ; construction : lieux (GeoNames UA + `data/ru_border.tsv`) ; deux attributions (§ 6) : au MESSAGE pour le modèle (`data/telegram_troncons.csv`, `tglib.events_message`), à la PHRASE pour l'affichage (mailles et `site/telegram_troncons.js`, `tglib.events`) ; « qui attaque » (`tg_sens.classify_strict`) et « présence signalée », comptes par tronçon de 24 km × mois et décade et par maille de 2 km × mois et 30 derniers jours, fusion incrémentale (une période n'est remplacée que si elle est entièrement relue et pas plus pauvre), coupure J-7. Sorties `data/telegram_troncons.csv`, `data/telegram_cells.csv`, `site/telegram_troncons.js`, `site/telegram_cells.js`. Historique reconstruit avec `--seed ukraine-recherche/signals3/internal` (avec l'ancienne attribution au message entier, il reproduisait exactement `sens_troncons_month.csv`). |
 | `fetch_alerts_in_ua.py` | alerts.in.ua (menaces d'artillerie), sauté sans `ALERTS_IN_UA_TOKEN`. Identifiants d'oblast 3-31 à vérifier au premier passage. |
 | `fetch_infra.py`, `build_infra.py` | Couche infrastructures (Natural Earth, WRI, OurAirports, OSM/Overpass), toute l'Ukraine. À relancer à la main de loin en loin. |
 | `sar_update.py` | Radar Sentinel-1 (Planetary Computer, sans compte) : abandon agricole et bâti modifié, mensuel. |
@@ -482,8 +482,17 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   128 km ; attributions message × tronçon : attaques UA 10 317 → 1 776, attaques RU 22 030 → 4 247, présence UA
   6 077 → 706, présence RU 1 921 → 281 ; présences adverses « traversantes » à plus de 6 km de la ligne 43,7 % → 38,7 %
   (le reste est surtout réel : raids et ДРГ en Russie, incursion de Koursk, infiltrations ; médiane 116 km avant le
-  correctif des adjectifs). Historique reconstruit avec ces règles : la couche n'est plus identique à
-  `signals3/sens_troncons_month.csv` (beaucoup moins de tronçons cités) ; les AUC de `bilan_sens.json` sont à refaire.
+  correctif des adjectifs).
+- 19/10/2026 : **deux usages, deux attributions**. Avec l'attribution à la phrase, le modèle de sens
+  (`build_direction.py`) perdait (AUC sens 0,738 → 0,707 à ≥ 1 km, 0,786 → 0,755 à ≥ 2 km) : les bulletins multi-lieux
+  portent une information d'ACTIVITÉ par secteur, fausse comme « présence à tel point ». Donc :
+  MODÈLE = `data/telegram_troncons.csv`, attribution au MESSAGE (`tglib.events_message`, règle de signals3) avec le
+  géocodage corrigé ; AFFICHAGE = `data/telegram_cells.csv`, `site/telegram_cells.js` et `site/telegram_troncons.js`,
+  attribution à la PHRASE (`tglib.events`). Validation interne de `build_direction.py` sur le CSV au message :
+  AUC sens 0,760 (≥ 1 km) et 0,808 (≥ 2 km) ; flèche russe précision 0,702 / 0,528 ; « poussée possible » précision
+  0,014 / 0,0 (environ 1 alerte par mois, très bruité). Même règle sans les correctifs de géocodage (`TG_GEO=v1`, mesure
+  seulement) : AUC 0,747 / 0,799, poussée possible 0,066 / 0,053. Correctifs gardés (AUC meilleure ; ils retirent
+  surtout des faux lieux en Crimée), la poussée possible est à revoir dans `build_direction.py`.
 - 19/10 (décisions de l'utilisateur sur l'étude contre-offensives) : (1) VALIDÉ, ajouter le « dans quel sens » à
   P(mouvement), modèle à deux étages P(bouge) × P(sens | bouge), Telegram en anomalie par tronçon (deux camps), impacts
   S2 par côté utilisés « si par chance c'est disponible », sans pénaliser leur absence ; flèche « poussée russe
@@ -626,8 +635,8 @@ gains walk-forward ; rien n'est intégré, pipeline inchangé) :
    dictionnaire `data/ru_border.tsv`. Étapes ajoutées dans `update.yml` (collecte avec budget de 45 min, construction
    après `build_strikes_ru.py`). Sorties : `site/telegram_troncons.js` (format inchangé + `upto`), `site/telegram_cells.js`
    (par maille de 2 km, nouveau, pas encore chargé par app.js), `data/telegram_troncons.csv` (tronçon × mois et × décade)
-   et `data/telegram_cells.csv` (maille × mois et 30 derniers jours). Attribution À LA PHRASE (correctif du 19/10, voir
-   § 6). Reste côté affichage (app.js, i18n.js, autre chantier) : retirer « données arrêtées en septembre 2026 » de
+   et `data/telegram_cells.csv` (maille × mois et 30 derniers jours). Attribution au message pour le CSV des tronçons (modèle),
+   à la phrase pour l'affichage (§ 6). Reste côté affichage (app.js, i18n.js, autre chantier) : retirer « données arrêtées en septembre 2026 » de
    `lgTgTip` (4 langues), charger `telegram_cells.js` pour placer les losanges à la maille.
    **Le « dans quel sens » en dépend** (19/10) : `build_direction.py` lit `data/telegram_troncons.csv` avec les
    5 comptes par camp de la source (`n_combat`, `n_ua`, `n_ru`, `n_presence_ua`, `n_presence_ru`). Il accepte `k`

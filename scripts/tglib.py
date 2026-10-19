@@ -72,6 +72,7 @@ LOCNOUN = re.compile(r"(?:^|\s)(?:пункт\w*|сел[оаеиі]|селом|с
 REGION_NEXT = re.compile(r"(?:\s*(?:,|и\b|і\b|та\b|and\b)\s*[А-ЯІЇЄҐЁ][\w-]*){0,5}\s*(?:област\w*|обл\b|обл\.|район\w*|р-н|направлен\w*|напрям\w*|"
                          r"округ\w*|губерн\w*|приграничь\w*|прикордонн\w*|участк\w*|ділянц\w*|фронт\w*|групп?ировк\w*|"
                          r"oblast|region|direction|axis|front)", re.I)
+GEO_V2 = os.environ.get("TG_GEO", "v2") != "v1"   # TG_GEO=v1 : géocodage de signals3 sans les correctifs (mesures)
 LISTSEP = re.compile(r"^\s*(?:,|,?\s*(?:и|і|та|й|and)\s)\s*$", re.I)
 CAPW = re.compile(r"(?<![\w'’])([А-ЯІЇЄҐЁA-Z][а-яіїєґёa-z'’ʼ]+)")
 ENDINGS = sorted(["ого", "ому", "ої", "ій", "ів", "ах", "ями", "ами", "ям", "ою", "ею", "ий", "ом", "ем", "ой", "ым", "ых",
@@ -224,13 +225,13 @@ def places_in(text, gaz):
     while k < len(ws):
         m = ws[k]
         pre = text[max(0, m.start() - 25):m.start()]
-        if not (LOCPREP.search(pre) or LOCNOUN.search(pre) or (prev_end >= 0 and LISTSEP.match(text[prev_end:m.start()]))):
+        if not (LOCPREP.search(pre) or (GEO_V2 and (LOCNOUN.search(pre) or (prev_end >= 0 and LISTSEP.match(text[prev_end:m.start()]))))):
             k += 1
             continue
         hit = None
         # adjectif de région ou d'axe (« Брянской области », « Херсонском направлении », « Курском приграничье ») : ce
         # n'est pas une localité (sinon un village homonyme, souvent en Crimée, est pris à tort ; correctif du 19/10/2026)
-        if REGION_NEXT.match(text, m.end()):
+        if GEO_V2 and REGION_NEXT.match(text, m.end()):
             k += 1
             continue
         if k + 1 < len(ws) and text[m.end():ws[k + 1].start()] in (" ", "-"):

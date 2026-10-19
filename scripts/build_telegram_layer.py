@@ -273,9 +273,9 @@ def main():
     months = sorted({deb for (pas, deb, _, _) in rows_ce if pas == "mois"})
     mi = {m: i for i, m in enumerate(months)}
     sel = lambda v: [v[k] for k in CELL_IDX[1:]]  # noqa: E731
-    cm = [[mi[deb], c, CAMPS.index(camp)] + sel(v) for (pas, deb, c, camp), v in sorted(rows_ce.items(), key=lambda kv: (kv[0][1], kv[0][2]))
+    cm = [[mi[deb], c, CAMPS.index(camp)] + sel(v) for (pas, deb, c, camp), v in sorted(rows_ce.items(), key=lambda kv: (kv[0][1], kv[0][2], kv[0][3]))
           if pas == "mois" and any(sel(v))]
-    cr = [[c, CAMPS.index(camp)] + sel(v) for (pas, deb, c, camp), v in sorted(rows_ce.items(), key=lambda kv: kv[0][2])
+    cr = [[c, CAMPS.index(camp)] + sel(v) for (pas, deb, c, camp), v in sorted(rows_ce.items(), key=lambda kv: (kv[0][2], kv[0][3]))
           if pas == "30j" and any(sel(v))]
     cells_out = {"nx": T.NX, "camps": CAMPS, "months": months, "upto": upto, "m": cm,
                  "recent": {"from": recent[0], "to": recent[1], "rows": cr} if recent else None}

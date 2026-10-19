@@ -92,6 +92,14 @@ jobs:
         run: python scripts/build_front.py raw/viina
         timeout-minutes: 90
         continue-on-error: true
+      - name: "Modèle de sens à deux étages (poussée russe probable, poussée possible) : décades"
+        run: python scripts/build_direction.py
+        timeout-minutes: 10
+        continue-on-error: true
+      - name: "Avancée possible d'ici 2 mois : fourchettes par tronçon (affichées seulement si la validation passe)"
+        run: python scripts/build_advance.py
+        timeout-minutes: 10
+        continue-on-error: true
 
       - name: Empreintes anti-cache de toutes les pages
         run: python scripts/stamp.py
