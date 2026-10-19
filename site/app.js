@@ -150,7 +150,7 @@ const lastFront = FR.months.reduce((a, m, i) => m ? i : a, -1);
 // après le dernier instantané (règle des 7 jours), on garde le dernier front connu plutôt qu'une carte vide
 const frontIdx = () => { const a = AX[stepIdx]; if (!a) return -1; if (a.f >= 0) return a.f;
   return stepIdx > AX.findIndex(x => x.f === lastFront) ? lastFront : -1; };
-{ const k = AX.findIndex(x => x.f === lastFront); if (k >= 0) { stepIdx = k; cur = AX[k].m; } }  // ouverture : dernier pas du front
+// ouverture : le mois en cours (dernier pas) ; le front affiché y est le dernier instantané connu (règle des 7 jours)
 // instantané le plus récent daté au plus tard (date de fi) − jours (+ 3 jours de tolérance) : pour les vitesses
 const FDATE = FR.months.map(m => m ? Date.parse(m.date) : null);
 function frameAt(fi, days){
