@@ -49,6 +49,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `fetch_dsmlog.py` | Journal public de DeepStateMap (déclarations datées). |
 | `fetch_telegram.py`, `tglib.py`, `tg_sens.py`, `build_telegram_layer.py` | Signaux Telegram (15 canaux, aperçu public t.me/s sans compte) : relecture des 45 derniers jours (même pas d'échantillonnage que l'historique), messages de combat ou de présence gardés avec leur texte dans `raw/telegram/` (cache Actions, jamais versionné) ; construction : lieux (GeoNames UA + `data/ru_border.tsv`) ; deux attributions (§ 6) : au MESSAGE pour le modèle (`data/telegram_troncons.csv`, `tglib.events_message`), à la PHRASE pour l'affichage (mailles et `site/telegram_troncons.js`, `tglib.events`) ; « qui attaque » (`tg_sens.classify_strict`) et « présence signalée », comptes par tronçon de 24 km × mois et décade et par maille de 2 km × mois et 30 derniers jours, fusion incrémentale (une période n'est remplacée que si elle est entièrement relue et pas plus pauvre), coupure J-7. Sorties `data/telegram_troncons.csv`, `data/telegram_cells.csv`, `site/telegram_troncons.js`, `site/telegram_cells.js`. Historique reconstruit avec `--seed ukraine-recherche/signals3/internal` (avec l'ancienne attribution au message entier, il reproduisait exactement `sens_troncons_month.csv`). |
 | `fetch_alerts_in_ua.py` | alerts.in.ua (menaces d'artillerie), sauté sans `ALERTS_IN_UA_TOKEN`. Identifiants d'oblast 3-31 à vérifier au premier passage. |
+| `fetch_ookla.py` | Ookla Open Data (Speedtest®, CC BY-NC-SA 4.0) : bucket S3 public, lecture ANONYME (aucune clé), dépendance `pyarrow` ; ajoute les trimestres publiés absents de `data/ookla_blocs_trimestre.csv` (tests mobile + fixe par bloc de 10 km × trimestre, ~3 s par trimestre ; aucune tuile écrite). Amorcé le 19/10/2026 depuis `signals4/ookla` (`--seed`), identique au téléchargement direct (2026-Q3 : 1 859 blocs sur 1 859). **Étape CI à ajouter** (voir § 8). |
 | `fetch_infra.py`, `build_infra.py` | Couche infrastructures (Natural Earth, WRI, OurAirports, OSM/Overpass), toute l'Ukraine. À relancer à la main de loin en loin. |
 | `sar_update.py` | Radar Sentinel-1 (Planetary Computer, sans compte) : abandon agricole et bâti modifié, mensuel. |
 | `build.py`, `build_osint.py`, `build_claims.py` | Feux, couches OSINT, annonces géocodées. |
@@ -63,6 +64,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `envkeys.py` | Lecture des secrets depuis l'environnement, jamais écrits ni affichés (le nom évite la règle `*secret*` du .gitignore). |
 | `build_toponyms.py` | `site/toponyms.js` (toponymes EN/UK/RU, GeoNames) à partir de `ukraine-recherche/i18n/places_i18n.json` ; à relancer seulement si le fond de carte change. |
 | `guard.py` | Garde-fous des fichiers d'entrée. |
+| `kpi_avance.py` | KPI interne « avance sur les cartes » (§ 4) : lancé en local, lit `site/front_*.js` et VIINA, écrit dans `ukraine-recherche/analyses/kpi_avance/`. |
 
 ### Données versionnées (`data/`)
 
@@ -72,7 +74,10 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 ≤ 15 km de la ligne) ; `officiels_cells_month.csv`, `officiels_couverture.csv` (bilans officiels) ;
 `telegram_troncons.csv` (signaux Telegram par tronçon de 24 km × mois et × décade, comptes seulement : pas, debut,
 troncon, i0, j0, camp_source, n_localises, n_combat, n_att_ua, n_att_ru, n_sq, n_presence_ua, n_presence_ru, partiel) ;
-`ru_border.tsv` (localités GeoNames RU des oblasts de Koursk, Belgorod et Briansk, CC BY 4.0, entrée).
+`ru_border.tsv` (localités GeoNames RU des oblasts de Koursk, Belgorod et Briansk, CC BY 4.0, entrée) ;
+`alertes_kab.csv` (alertes KAB du canal officiel par maille × mois, sept. 2024 → sept. 2026, figé : canal arrêté le
+7/9/2026 ; agrégats de `signals/alerts_cells_month.csv`) ; `ookla_blocs_trimestre.csv` (Speedtest® by Ookla®, tests par
+bloc de 10 km × trimestre, **CC BY-NC-SA 4.0**, mention en première ligne ; `fetch_ookla.py`).
 
 ### Site (`site/`)
 
@@ -170,7 +175,10 @@ probabilité de contrôle russe** partout (bande russe comprise) ; les distances
   urbain, continuité avec la ligne, urbain × distance, radar (abandon agricole côté russe, côté ukrainien, pas de
   cultures en 2021 ; ≤ 15 km de la ligne), état-major UA (assauts, frappes aériennes), MoD RF (localités des bilans),
   liste officielle rejouée (part des localités de la hromada en hostilités actives connue à la fin du mois, et
-  indicatrice « pas encore publiée » avant décembre 2022) (`official_list`).
+  indicatrice « pas encore publiée » avant décembre 2022) (`official_list`) ; depuis le 19/10/2026 : mouvement récent
+  (|Δp| du champ des cartes sur un mois, tendance sur deux mois, lissés σ = 2 mailles ; `sect.PEQ`) et alertes KAB
+  (log1p, lissées σ = 1,5 ; `kab`). Avant / après dans le build : AUC 0,9245 → 0,927, à distance égale 0,8006 → 0,808
+  (`FRONT.contact.before`).
 - Étape 2 « certaine mais rare » : logit P = logit P₀ + γ·log1p(h) + δ·1[h > 0], γ, δ ≥ 0, h = heures de menace
   d'artillerie lissées ; ajustés sur les 12 derniers mois avec logit P₀ en décalage fixe (sans alerte, P = P₀).
 
@@ -183,6 +191,8 @@ probabilité de contrôle russe** partout (bande russe comprise) ; les distances
 - Reconstruction : p(x) = σ(ln 19 · D(x) / s(x)), s = −q_{α/2} si D < 0, q_{1−α/2} sinon (bornes interpolées entre
   tuiles), si bien que les isolignes 5 % et 95 % tombent sur les bornes ; seule la ligne contestée en Ukraine est
   recalibrée.
+- Modulation par P(mouvement) (`LocalBand(act=…)`, échelle × exp(γ·a), γ choisi chaque mois au score de Winkler) :
+  codée, testée dans le build du 19/10/2026, **désactivée** (`act_lb = None` dans `build_front.py`), voir § 6.
 
 ### 3.9 Aires
 - Aire attendue = Σ_x p(x)·aire(x) ; médiane = aire où p ≥ 0,5 ; zone grise = aire où 0,05 ≤ p ≤ 0,95.
@@ -225,15 +235,21 @@ probabilité de contrôle russe** partout (bande russe comprise) ; les distances
   - asymétrie a_w côté russe et son z relatif (borné à ±5) ;
   - feux en excès, UCDP, pertes (`indicator_grids`, comptes ponctuels lissés σ = 6 km puis 4 km) : 1 − exp(−lissé / P90) ;
     sans le premier lissage, l'AUC tombe à 0,78 (l'étude v4 lisait des indicateurs déjà lissés) ;
-  - mouvement récent |Y_t − Y_{t−1}| et |Y_t − Y_{t−3}|.
+  - mouvement récent |Y_t − Y_{t−1}| et |Y_t − Y_{t−3}| ;
+  - (19/10/2026) liste officielle rejouée : part active moyenne, écart côté russe − côté ukrainien, hausse sur un mois,
+    indicatrice « pas encore publiée » ;
+  - (19/10/2026) Ookla : baisse des tests (log(1 + tests 2021-Q4) − log(1 + tests du trimestre), recentrée sur les blocs
+    témoins de l'ouest), côté ukrainien seulement ; au mois t, trimestre contenant t − 3 (dernier publié reporté).
 - Régression logistique ridge (λ = 3), variables standardisées, réentraînée chaque mois sur les tronçons-mois
-  q ∈ [t − 20, t − 2]. Même règle pour le dernier mois (vérité à q + 2 connue à t).
+  q ∈ [t − 20, t − 2], **sans les mois antérieurs à 2022-05** (`train_from`). Même règle pour le dernier mois (vérité à
+  q + 2 connue à t).
 - Publication : champ `pmove` (q = 1 + 62·P sur les mailles à ≤ 3 km de la ligne, 0 ailleurs), P par tronçon dans
   `months[].pm` ([colonne, ligne, P %]) pour le survol, validation dans `FRONT.pmove`. Les pas de 3 jours reprennent le
   dernier mois calculé.
-- Absents de la CI, donc retirés du modèle publié : Telegram (+0,003 d'AUC hors ligne) et liste rejouée (0).
-- Validation du build (walk-forward, 2023-01 → 2026-08, n = 5 245 tronçons-mois, taux de base 13 %) : **AUC 0,805**.
-  Hors ligne, l'étude donnait 0,83 avec Telegram et la liste ; le même code sur les données de l'étude : 0,80 à 0,82.
+- Absent du modèle publié : Telegram (+0,003 d'AUC hors ligne, paramètre `tg`).
+- Validation du build du 19/10/2026 (walk-forward, 2023-01 → 2026-07, n = 5 239 tronçons-mois, taux de base 13 %,
+  mêmes lignes à chaque étape, `FRONT.pmove.steps`) : **AUC 0,804 → 0,822** (sans février-avril 2022) **→ 0,839**
+  (+ liste) **→ 0,842** (+ Ookla, publié). Ookla seul sur la fenêtre : 0,828 ; liste + Ookla en gardant 2022 : 0,836.
 
 ### 3.13 Validation
 - Walk-forward : chaque paramètre appris au mois t n'utilise que des mois dont la vérité était connue à t.
@@ -282,7 +298,36 @@ Chiffres du build d'octobre 2026 (journal du build et méta de `site/front.js`).
 
 ---
 
-### KPI PRINCIPAL : information hors cartes (indicateur INTERNE, non publié)
+### KPI PRINCIPAL (depuis le 19/10/2026) : AVANCE SUR LES CARTES (indicateur INTERNE, non publié)
+
+Décision de l'utilisateur du 19/10/2026 (§ 6). Script : `scripts/kpi_avance.py` (local, aucune étape de CI). Rapport :
+`ukraine-recherche/analyses/kpi_avance/RAPPORT.md`.
+
+**Vérité** : consensus des cartes à t + 1 mois (le retard propre des cartes ; t + 2 mois en variante), au pas de la
+décade. Tout est appris sur des dates q telles que q + h ≤ t.
+
+**KPI** = gain d'EMPILEMENT, net du placebo. On apprend deux logistiques en walk-forward : « consensus du jour + notre
+champ » et « consensus du jour seul ». Le gain est 1 − Brier(empilé) / Brier(seul), sur les mailles à ≤ 30 km. On en
+retranche le même gain pour un placebo : notre champ dont l'écart au pool est appliqué dans un sens tiré au hasard,
+par tronçon et par mois.
+- Variantes : mailles qui changent de camp et distance de ligne (km).
+- Intervalle à 95 % : bootstrap par blocs de 3 mois.
+- Mesures associées :
+  - « qui avait raison » : distance de ligne et Brier par source, avec une vérité sans la source pour les cartes ;
+  - délai de détection et fausses détections, au pas décadaire.
+
+**Valeur de référence** (site du 18/10, 2023-01 → 2026-08, h = 1 mois) : **−0,2 point [−1,5 ; +1,7]** sur les mailles à
+≤ 30 km et **+1,6 point [−0,0 ; +3,3]** sur les mailles qui changent. Sur 12 mois : −1,5 [−3,6 ; +1,0] et
++1,7 [+0,5 ; +2,5]. À h = 2 mois, sur les mailles qui changent : +3,4 [+1,7 ; +5,3].
+
+**Règle** : tout lot qui touche le champ rapporte ce KPI AVANT et APRÈS, avec la couverture de la bande par secteur.
+
+**Cible proposée** : KPI net > 0 sur les mailles à ≤ 30 km (borne basse de l'IC > 0), sans recul sur les mailles qui
+changent.
+
+### Ancien KPI : information hors cartes (REMPLACÉ le 19/10/2026 : il mesurait l'écart aux cartes, pas la justesse ; placebo 7,9 %)
+
+`scripts/map_dependence.py` reste imprimé par le build, comme indicateur de dépendance seulement.
 
 **Objectif fixé par l'utilisateur le 18/10/2026** : faire MONTER la part d'information hors cartes (a), aujourd'hui
 3,9 % (soit 96 % de dépendance aux cartes), TOUT EN améliorant la précision. Cible de v4 : (a) ≥ 10 % sur 12 mois,
@@ -307,6 +352,7 @@ mailles ukrainiennes, moyenne des 12 derniers mois (et dernier mois).
 | 9a2616f (en ligne le 18/10) | 2025-10 → 2026-09 | 3,87 % | 3,64 % | 0,58 km | 2,89 % / 2,89 % / 0,40 km |
 | lot P(mouvement) (18/10) | idem | 3,87 % | 3,64 % | 0,58 km | identique : la couche ne modifie pas le champ |
 | essai Telegram dans p (19/10, non retenu) | idem | 4,05 % | 3,66 % | 0,58 km | 3,08 % / 2,93 % / 0,40 km (précision dégradée : voir § 6) |
+| intégration du banc (19/10 : P(mouvement), P(contact) ; bande inchangée), build local avant → après | idem | 3,87 → 3,87 % | 3,64 → 3,64 % | 0,58 → 0,58 km | 2,89 % / 2,89 % / 0,40 km, identique : ces couches ne modifient pas le champ |
 
 Ce qui fera bouger ces chiffres : des signaux intégrés au champ final (nowcast), pas des couches d'information.
 
@@ -536,6 +582,57 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   l'horizon t+2 par tronçon passe la règle de publication intégrée, recalculée à chaque build : CRPS de production
   0,2225 contre 0,2353, toutes les classes et tous les secteurs ≥ nominal − 5 pts. t+1 (CRPS 0,1361 contre 0,1357) et
   les km² ont `show` à faux et ne s'affichent pas. Décision d'affichage à prendre par l'utilisateur (§ 8, point 2 quater).
+- **19/10/2026 : Ookla APPROUVÉ par l'utilisateur** (licence CC BY-NC-SA 4.0 acceptée, projet non commercial), dans
+  P(mouvement) si le gain tient dans le build réel (il tient : 0,839 → 0,842). Conditions : attribution « Speedtest® by
+  Ookla® Global Fixed and Mobile Network Performance Maps » avec lien et licence sur la page méthode (sources et
+  licences, 4 langues) ; tout fichier dérivé publié contenant des agrégats Ookla porte la mention CC BY-NC-SA 4.0 en tête
+  (`data/ookla_blocs_trimestre.csv` : première ligne). `front.js` ne contient que P(mouvement), pas d'agrégat Ookla ;
+  attribution rappelée dans `FRONT.pmove.ookla`.
+- **19/10/2026 : intégration des trois recommandations du banc d'essai** (`ukraine-recherche/analyses/banc/`), chacune
+  revalidée AVANT / APRÈS dans le build réel (brut VIINA du 17/10, `ukraine-recherche/front/raw`), walk-forward strict :
+  1. **Bande locale modulée par P(mouvement) : NON RETENUE** (code gardé, désactivé). Build, vue nowcast, 61 secteurs :
+     sans modulation médiane 95,3 %, P10 90,1 %, secteurs < 90 % 9,8 %, largeur 22,74 km ; avec la P(mouvement) du build
+     (tuiles avec P) : 95,3 % / 90,7 % / 8,2 % / **23,30 km** (plus large ; P10 +0,6 pt = bruit du placebo du banc). Le
+     −12 % du banc (20,0 km) venait du codage : les tuiles sans tronçon valent 0 et la standardisation porte sur toutes
+     les tuiles ; une simple indicatrice « tuile avec tronçon » donne 17,65 km à couverture intacte, alors que 0,1 % des
+     points de vérité 2023+ sont hors tronçon. C'est donc une échelle commune à tout le mois (recalibrage dans le
+     temps), pas une information locale de P(mouvement). Avec la NOUVELLE P(mouvement) codée comme au banc : médiane
+     94,2 %, P10 89,7 %, secteurs < 90 % 13,1 % (couverture dégradée). Exigence « 95 % secteur par secteur » : la bande
+     publiée ne change pas. Piste : un facteur d'échelle MENSUEL explicite, à tester proprement, au lieu de l'artefact.
+  2. **P(mouvement) : RETENU.** AUC 0,804 → 0,822 (apprentissage sans février-avril 2022) → 0,839 (+ liste rejouée) →
+     0,842 (+ Ookla), n = 5 239 tronçons-mois identiques.
+  3. **P(contact) : mouvement récent et KAB RETENUS, bâti radar NON** (+0,0008, sous l'erreur type du banc ±0,0012).
+     AUC à distance égale 0,8006 → 0,808 (AUC 0,9245 → 0,927) ; contributions : mouvement récent +0,006, KAB +0,002.
+     **Sentinel-2 et terrain : validation par blocs spatiaux** (blocs de 100 km de la grille, le long de la ligne ; le
+     modèle du mois t apprend sur q ≤ t − 3 HORS du bloc évalué ; référence = production + mouvement, KAB, bâti) :
+     Sentinel-2 +0,0121 ± 0,0048 sans blocs, **+0,0177 ± 0,0054 avec** (28 mois) : le gain TIENT (à intégrer quand la
+     chaîne S2 sera en CI) ; terrain +0,0150 ± 0,0042 sans blocs, **−0,0050 ± 0,0061 avec** (37 mois) : mémoire du lieu,
+     NON. Script : `ukraine-recherche/analyses/banc/blocs_spatiaux.py`, résultats `resultats/blocs100.txt`.
+  KPI (a) « information hors cartes » : 3,87 % avant et après (aucune des trois intégrations ne touche le champ p ; la
+  bande, seule à pouvoir le faire, est inchangée).
+- **19/10/2026 : NOUVEAU KPI PRINCIPAL, « avance sur les cartes »** (décision de l'utilisateur ; il remplace
+  « information hors cartes », que le placebo fait monter à 7,9 %). Définition au § 4. Script :
+  `scripts/kpi_avance.py` (local) ; rapport et tableaux par source, par secteur et courbe mensuelle :
+  `ukraine-recherche/analyses/kpi_avance/`.
+  - **Constats** :
+    - en comparaison directe, le consensus du jour bat toutes les sources, nous compris (ligne à 0,65 km contre
+      2,76 km). C'est un effet de construction : la vérité est ce même consensus, sur le même pavage, un mois plus tard.
+      D'où la définition par empilement ;
+    - **KPI net actuel ≈ 0** : −0,2 point [−1,5 ; +1,7] ;
+    - **gain réel sur les mailles qui changent** : +1,6 point à 1 mois, +3,4 [+1,7 ; +5,3] à 2 mois. Il vient du
+      nowcast (pool seul : 0) et se paie sur les mailles stables ;
+    - le placebo de bruit pur ne gagne rien (+0,0 %) ; le placebo « sens aléatoire » gagne autant que nous en brut
+      (+7,7 % contre +7,5 %), d'où le KPI net.
+  - **Qui avait raison** :
+    - DeepState est la carte la plus en avance (41 % des bascules du consensus vues avant, +12,6 jours en moyenne,
+      74 % de fausses détections) ;
+    - nous : 48 %, +11,5 jours, 81,5 % de fausses détections, contre 41 % et 84 % pour le placebo ;
+    - jugé sur les deux autres cartes, notre pool est plus près de la ligne constatée (2,25 km) que DeepState (6,5),
+      l'ISW (4,8) et Wikipédia (5,6).
+  - **Contributions** (ligne) : ISW +0,62 km et DeepState +0,26 km aident ; **Wikipédia −0,24 et enveloppes −0,41
+    nuisent** (piste) ; les autres composantes ≈ 0. Ligne « données seules » : aucun apport (−0,8 %).
+  - **Proposition** de tableau « Qui avait raison ? » pour la page méthode, rédigée dans le rapport. Non intégrée :
+    `site/` n'est pas touché.
 
 ---
 
@@ -565,6 +662,10 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 | Covariables de terrain (GLO-90, WorldCover, HydroRIVERS, OSM ; `terrain/ETAT_TERRAIN.md`) | P(mouvement) +0,008 walk-forward mais −0,017 en validation spatiale ; vitesse et sens : rien ; P(contact) +0,018 → −0,011 en spatial, +0,001 avec la mémoire de la maille ; crêtes et Dnipro freinent le front (cote 0,83 par 10 m), rivières moyennes non | NON retenues (gain = mémoire du lieu) ; relief affiché comme couche |
 | InSAR (cohérence 12 j, 2024-01 → 2026-06) | P(mouvement) 0,710 → 0,707 ; sens 0,68 → 0,64 | non retenu |
 | Asymétrie des combats | voir §4 | couche + garde-fou ; moteur v4 à tester |
+| **19/10/2026, build réel** : P(mouvement) sans février-avril 2022, + liste rejouée, + Ookla | AUC 0,804 → 0,822 → 0,839 → 0,842 (n = 5 239) | **retenu** (Ookla : licence acceptée le 19/10) |
+| **19/10/2026, build réel** : P(contact) + mouvement récent, + KAB, + bâti radar | à distance égale 0,8006 → 0,808 ; contributions mouvement +0,006, KAB +0,002, bâti +0,0008 | mouvement et KAB **retenus** ; bâti non |
+| **19/10/2026, build réel** : bande locale × exp(γ·P(mouvement)) | largeur 22,74 → 23,30 km, médiane 95,3 → 95,3 %, P10 90,1 → 90,7 %, < 90 % 9,8 → 8,2 % ; le −12 % du banc = artefact de codage (échelle mensuelle commune) | **non retenu** (code désactivé) |
+| **19/10/2026, blocs spatiaux de 100 km** (P(contact), leave-block-out) : Sentinel-2 refait ; terrain | S2 +0,012 sans blocs → **+0,018 ± 0,005** avec ; terrain +0,015 → **−0,005 ± 0,006** | S2 : gain réel, à intégrer quand la chaîne S2 sera en CI ; terrain : mémoire du lieu, non |
 
 **Banc d'essai unique et matrice SIGNAL × RÔLE (19/10/2026)** — consigne : « in fine on doit TOUT tester dans les calculs
 de proba, de détection et de prévision ». Code et résultats : `ukraine-recherche/analyses/banc/` (`README.md` : ajouter
@@ -613,8 +714,16 @@ UNOSAT) ; missiles et drones à deux sens ; annonces officielles en couche dédi
 de fiabilité des sources ; densité des feux lissée ; comparaison 2021 retirée ; signaux Telegram (figés) ; KPI interne
 de dépendance aux cartes (3,87 % d'information hors cartes).
 
-**Prochaines intégrations recommandées par le banc d'essai** (19/10/2026, `ukraine-recherche/analyses/banc/MATRICE.md`,
-gains walk-forward ; rien n'est intégré, pipeline inchangé) :
+**Bilan de l'intégration du 19/10/2026** (§ 6) : (ii) fait et retenu (0,804 → 0,842 avec Ookla) ; (iii) mouvement
+récent et KAB retenus (0,801 → 0,808), bâti radar non ; (i) non retenu (artefact). Blocs spatiaux : Sentinel-2 tient
+(+0,018), terrain non (−0,005). **Étape CI à ajouter par l'utilisateur** (`.github/` non touché) : avant
+`build_front.py`, `python -m pip install pyarrow` puis `python scripts/fetch_ookla.py` (S3 public anonyme, aucun
+secret ; ~3 s par trimestre ; ne fait rien tant qu'aucun nouveau trimestre n'est publié ; 2026-Q4 attendu vers le
+10/01/2027), et versionner `data/ookla_blocs_trimestre.csv`. Sans cette étape, le dernier trimestre est reporté.
+Prochain : Sentinel-2 dans P(contact) (chaîne S2 en CI), facteur d'échelle mensuel explicite pour la bande.
+
+**Recommandations du banc d'essai telles que formulées** (19/10/2026, `ukraine-recherche/analyses/banc/MATRICE.md`,
+gains walk-forward ; voir le bilan ci-dessus) :
 - (i) **Bande locale modulée par P(mouvement)** (`conformal.py`) : échelle du secteur × exp(γ·a), a = P(mouvement)
   standardisée sur le passé, γ choisi chaque mois (score de Winkler) : largeur 22,7 → 20,0 km (−12 %), couverture
   inchangée (médiane 95,3 %, P10 90,1 → 90,2 %, secteurs < 90 % 9,8 %). Aucune donnée nouvelle.
@@ -627,9 +736,20 @@ gains walk-forward ; rien n'est intégré, pipeline inchangé) :
   négative pour tous les signaux).
 
 **Reste à faire, dans l'ordre proposé** :
-1. **« Qui avait raison »** : pour DeepState, ISW, Wikipédia et notre ligne, distance moyenne à la vérité retardée
-   (consensus à t+2), par mois et par secteur ; au survol d'un tronçon (« sur 12 mois, la source la plus proche de la
-   réalité constatée ensuite est X ») et en tableau sur la page méthode, notre ligne comprise (mesure de valeur ajoutée).
+1. **« Qui avait raison »** : **MESURÉ le 19/10/2026**, c'est le nouveau KPI principal « avance sur les cartes »
+   (§ 4, § 6 ; `scripts/kpi_avance.py`, `ukraine-recherche/analyses/kpi_avance/RAPPORT.md`).
+   - **Valeur de référence** (site du 18/10, pas mensuel, h = 1 mois, 2023-01 → 2026-08) :
+     - KPI net à ≤ 30 km **−0,2 point [−1,5 ; +1,7]** ; sur les mailles qui changent **+1,6 [−0,0 ; +3,3]** ;
+     - sur 12 mois : −1,5 [−3,6 ; +1,0] et +1,7 [+0,5 ; +2,5] ;
+     - à h = 2 mois, sur les mailles qui changent : +3,4 [+1,7 ; +5,3] ;
+     - détection : 48 % des bascules vues avant le consensus (placebo 41 %), 81,5 % de fausses détections (placebo 84 %).
+   - **Reste** :
+     - intégrer le tableau « Qui avait raison ? » proposé dans le rapport (page méthode, par l'utilisateur) ;
+     - PAS de classement au survol par tronçon (effectifs trop faibles, classement direct faussé par la géométrie du
+       consensus) ;
+     - pistes tirées du KPI : retirer ou réduire les enveloppes et Wikipédia dans le pool (lignes −0,4 et −0,2 km),
+       et un nowcast qui n'élargit pas l'incertitude sur les mailles stables ;
+     - relancer le KPI après la mise à jour du consensus de novembre (Vivaldi).
 2. **Telegram en CI** : **FAIT le 19/10/2026** (§ 6). Modules portés dans `scripts/` (`tglib.py` = collecte, lieux,
    maille et tronçon ; `tg_sens.py` = copie de `signals3/sens.py` ; `fetch_telegram.py` ; `build_telegram_layer.py`),
    dictionnaire `data/ru_border.tsv`. Étapes ajoutées dans `update.yml` (collecte avec budget de 45 min, construction
