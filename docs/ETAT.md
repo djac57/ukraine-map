@@ -633,6 +633,27 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
     nuisent** (piste) ; les autres composantes ≈ 0. Ligne « données seules » : aucun apport (−0,8 %).
   - **Proposition** de tableau « Qui avait raison ? » pour la page méthode, rédigée dans le rapport. Non intégrée :
     `site/` n'est pas touché.
+- 19/10 (vision de l'utilisateur : « chaque signal doit avoir un traitement particulier […] faut tout mettre
+  ensemble ») : **MOTEUR DE FUSION UNIQUE testé, il ne dégrade rien et apporte un peu ; NON intégré** (plan prêt,
+  `ukraine-recherche/analyses/fusion/RAPPORT.md`). État latent = décalage δ de la vraie ligne par rapport aux cartes,
+  par tronçon de 24 km, grille bayésienne 1D filtrée dans le temps ; un modèle d'observation par signal : densités
+  d'événements selon la distance signée (Laplace asymétrique + plancher, appris en walk-forward), Telegram en points
+  avec taux de faux positifs appris, cartes SÉPARÉES comme témoins avec biais et retard appris (DeepState poids 0,79,
+  ISW 0,10, Wikipédia 0,07), état dynamique (vitesse, asymétrie, impacts S2, Telegram orienté, liste en pression,
+  intensité) dans un a priori en mélange « stable / mouvement », terrain dur ; poids appris chaque mois ; champ avec
+  vitesse locale, flou par secteur (conformal adaptatif), paramètres choisis par la règle « ne rien dégrader ».
+  AVANT (production) → APRÈS (moteur), 2023-01 → 2026-07 : Brier ≤ 30 km 0,03291 → 0,03200 (± 0,0005) ; mailles qui
+  changent 0,3585 → 0,3452 (± 0,017, dans le bruit), à t+1 0,3562 → 0,3349 ; couverture par secteur médiane 95,7 →
+  98,6 %, P10 81,0 → 94,2 %, secteurs < 90 % 23,7 → 1,7 % (14 → 1 sur 59 ; bande désormais un peu trop large) ;
+  KPI avance NET (empilement, placebo « sens aléatoire » retranché, réimplémenté sur la même grille ; production
+  −0,4 / +2,1 pt) : **+2,0 pt [−2,6 ; +5,1] à ≤ 30 km et +2,6 pt [+0,7 ; +4,5] sur les mailles qui changent** (h = 1 ;
+  h = 2 : +1,8 et +5,4) ; 12 derniers mois −2,7 / +4,7 (encore payé sur les mailles stables). Ablations : les cartes
+  séparées, la vitesse locale, les menaces d'artillerie, l'intensité des combats et la liste (revue en PRESSION :
+  en modèle de position elle dégradait les mailles qui changent) portent le gain ; feux, UCDP, pertes, MoD RF au niveau
+  du bruit ; Telegram, KAB, frappes, terrain : poids appris nuls (gardés, sans effet ; les forcer à 0,1 coûte +0,002
+  sur les mailles qui changent) ; assauts et S2 dégradent un peu (modèles à revoir). Événements : Pokrovsk 2024 vu
+  (+4 km en mai, vrai +4,5 ; artillerie, Telegram orienté, liste) ; Kharkiv, Robotyne simultanés (cartes séparées) ;
+  Kherson, Vivaldi non anticipés ; Koursk non mesurable.
 
 ---
 
@@ -696,6 +717,7 @@ distance égale ; D AUC 0,830 ; E sens 0,632, 1,99 km contre 2,02 pour la persis
 | **19/10/2026 : détecteur de contre-offensives / percées** (asymétrie + Telegram + impacts S2 + P(mouvement), tronçon de 24 km × mois, walk-forward strict, cibles ≥ 1, 2 et 5 km à 1-3 mois, 11 événements ; `ukraine-recherche/analyses/contre_offensives/RAPPORT.md`) | « va bouger » : rien ne bat P(mouvement) (ANY ≥ 2 km 0,835 ; modèles enrichis 0,78-0,81). Sens parmi les tronçons qui bougent : Telegram est le meilleur indice (AUC 0,56 → 0,67 à 2 km, 0,58 → 0,71 à 5 km), asymétrie seule 0,55. Poussées russes : deux étages P(mvt) × P(sens) avec Telegram, AUC 0,876 → 0,889, rappel à 2 % de fausses alertes 0,25 → 0,31. Contre-offensives ukrainiennes : aucun détecteur fiable (AUC orientées 0,48-0,63) ; la règle « poussée possible » reste la plus précise (18-29 %, rappel 2-14 %). Événements : Kharkiv et Kherson 2022 non anticipés ; Koursk vu 1 mois avant par Telegram (2 tronçons sur 3, hasard 5 %) ; Pokrovsk et Vouhledar 2-4 mois avant par P(mvt) ; Vivaldi : alertes en avril-mai (asymétrie, Telegram) puis en août-septembre (S2 côté russe), non chiffrable (absent du consensus du 17/10). S2 : utile pour le sens (0,67), 13 % des tronçons-mois seulement | proposition : sens probable (second étage) sur P(mouvement) quand Telegram sera en CI ; règle « poussée possible » inchangée ; rien d'intégré |
 | **19/10/2026 : « dans quel sens », au pas de 10 jours** (vérité : consensus des cartes à la décade ; entrées publiées du site + Telegram 30/10 j + impacts S2 30/10 j ; walk-forward strict ; `ukraine-recherche/analyses/sens/RAPPORT.md`) | AUC du sens (2023+, ≥ 1 / ≥ 2 km) : asymétrie publiée 0,62 / 0,63 ; Telegram seul 0,60 / 0,64 ; S2 seul 0,62 / 0,67 (cas mesurables) ; additif 0,65 / 0,70 ; second étage en fenêtre glissante de 12 mois **0,78 / 0,85** (production), contre 0,64 / 0,69 en fenêtre croissante (2022 fausse l'apprentissage). Sans Telegram complet : 0,73 / 0,78 ; 2025-26 ≈ 0,5. S2 dans le sens : 0,854 → 0,847 (sans gain). Flèche RU (P(bouge) ≥ 97e c. ET P(RU) ≥ 0,8) : précision 0,43 / rappel 0,16 contre 0,28 / 0,11 pour P(bouge) seule (RU ≥ 2 km), 2,6 alertes par mois. « Poussée possible » : ancienne règle 0,06 / 0,03 de précision (≥ 1 / ≥ 2 km), règle améliorée 0,11 / 0,08 ; Kharkiv, Kherson, Robotyne et Koursk manqués, Vivaldi vu 102 jours avant. Pas de 10 jours : même précision, 10 à 20 jours d'avance sur S2 et Telegram | **retenu** : `scripts/build_direction.py` → `site/front_sens.js` (non branché) |
 | **19/10/2026 : AMPLEUR de l'avancée** (km signés par tronçon de 24 km à t+1 / t+2, 39 quantiles, conformal local par tronçon × classe de risque P(mouvement) ; persistance, tendance, Kalman, v4 + seuil, deux étages, régression quantile, boosting ; `ukraine-recherche/analyses/ampleur/RAPPORT.md`) | CRPS t+2 (toutes / bougent) : persistance 0,218 / 1,70 ; tendance 0,231 / 1,67 ; Kalman 0,219 / 1,68 ; v4 0,218 / 1,69 ; **deux étages 0,203 / 1,63** ; entrées CI 0,207 / 1,69 ; QR 0,215 / 1,53 ; boosting 0,209 / 1,58 (95 % raté : 88 %). t+1 : 0,131 → 0,125. MAE : jeu égal. Ablations t+2 : sans nowcast ni zone grise 0,213 ; sans Telegram 0,204 ; sans S2, terrain dur ou voisins : 0,202-0,203 (rien). Couverture t+2 par classe de risque, 80 % : 95,9 / 83,4 / 82,3 % ; 95 % : 98,1 / 95,5 / 95,3 %. Par secteur : 80,6-96,9 % et 92,3-98,7 %. Tronçons en mouvement dans l'intervalle 80 % : ≈ 50 % (Vovtchansk 7 %, Koursk 8 %, Robotyne 78 %, Pokrovsk 2025 66 %). km² agrégés : MAE t+2 360 (tendance) à 415 (persistance), aucune couverture calibrée. Décades non faites (vérité mensuelle) | t+2 par tronçon : `scripts/build_advance.py` → `site/front_advance.js` (non branché, `show` intégré) ; t+1 et km² : non affichables |
+| **19/10/2026 : MOTEUR DE FUSION UNIQUE** (un modèle d'observation par signal, position latente de la ligne par tronçon, grille bayésienne 1D filtrée, poids appris en walk-forward ; `ukraine-recherche/analyses/fusion/RAPPORT.md`) | contre le champ publié : Brier ≤ 30 km 0,03291 → 0,03200, mailles qui changent 0,3585 → 0,3452 (t+2) et 0,3562 → 0,3349 (t+1), couverture par secteur médiane 95,7 → 98,6 %, P10 81,0 → 94,2 %, secteurs < 90 % 23,7 → 1,7 % ; KPI avance net +2,0 pt (≤ 30 km) et +2,6 pt (mailles qui changent), production −0,4 / +2,1. Apports (ablation, mailles qui changent) : vitesse locale −0,043, intensité des combats −0,014, artillerie −0,011, cartes séparées −0,007 (et Brier ≤ 30 km −0,0023), liste en pression −0,004 ; Telegram, KAB, frappes, terrain : poids nuls ; assauts, S2 : légère dégradation | **validé, non intégré** : plan d'intégration dans `build_front.py` (vue parallèle `front_fusion.js`) et format d'info-bulle dans le rapport |
 
 Rapports détaillés : `ukraine-recherche/signals/`, `signals2/` (faisceau, VERDICT.txt, `replay/` pour la liste
 officielle), `signals3/`, `sar/` (rapport_SAR_V2.md), `backtest/`, `front/` (journaux de build et de contrôle),
@@ -736,6 +758,15 @@ gains walk-forward ; voir le bilan ci-dessus) :
   négative pour tous les signaux).
 
 **Reste à faire, dans l'ordre proposé** :
+0. **Moteur de fusion** (19/10, `ukraine-recherche/analyses/fusion/RAPPORT.md`, section « Plan d'intégration ») :
+   le porter dans `scripts/fusion/`, l'appeler dans `build_front.py` juste après la bande locale, écrire une vue
+   PARALLÈLE `site/front_fusion.js` (case de test décochée), ajouter la vue à `map_dependence.py` et `kpi_avance.py`,
+   contrôles bloquants (couverture P10 ≥ 90 %, Brier ≤ nowcast sur 12 mois) ; remplacer le nowcast publié après un
+   mois de CI sans régression. Caches CI : profils par mois, loi du mois précédent, table de choix du champ. Info-bulle
+   proposée : « cartes x % → moteur y % ; pourquoi : DeepState en avance +1,5 km · secteur qui avance +0,8 ·
+   artillerie +0,6 ». Avant : revoir les modèles des assauts (en pression) et de S2 (sens seulement), resserrer la
+   bande (couverture 98,6 % au lieu de 95 %), tester un décalage par demi-tronçon (12 km : le moteur perd là où la ligne
+   avance dans une partie seulement de la tuile).
 1. **« Qui avait raison »** : **MESURÉ le 19/10/2026**, c'est le nouveau KPI principal « avance sur les cartes »
    (§ 4, § 6 ; `scripts/kpi_avance.py`, `ukraine-recherche/analyses/kpi_avance/RAPPORT.md`).
    - **Valeur de référence** (site du 18/10, pas mensuel, h = 1 mois, 2023-01 → 2026-08) :
