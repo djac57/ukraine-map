@@ -2287,9 +2287,10 @@ function updateArea(){
       const KE = window.KMCHANGE && window.KMCHANGE.errorRecent, KM = window.KMCHANGE && window.KMCHANGE.months && window.KMCHANGE.months[fi];
       const E12 = KE && KE.m12 && KE.m12.p50 ? Math.round(KE.m12.p50 / 10) * 10 : 440, E1 = KE && KE.m1 && KE.m1.p50 ? Math.round(KE.m1.p50 / 10) * 10 : 220, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
       const hab = (e, x) => _t("écart habituel ± {e} km²", {e: fmt(e)}) + (Math.abs(x) < e ? " " + _t("(dans l'écart habituel)") : "");
+      const vw1 = (a, b) => a != null && b != null && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r10b(a), u: (b >= 0 ? "+" : "−") + r10b(b)}) : "";
       const vw = (a, b) => a != null && b != null && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r100(a), u: (b >= 0 ? "+" : "−") + r100(b)}) : "";
       big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), (d12 >= 0 ? "+" : "−") + r100(d12) + "\u00a0km²", who(d12) + " · " + hab(E12, d12) + (KM ? vw(KM.m12_ru, KM.m12_ua) : "")) : "") +
-        (d1 !== null ? line(_t("30 derniers jours"), (d1 >= 0 ? "+" : "−") + r10b(d1) + "\u00a0km²", who(d1) + " · " + hab(E1, d1)) : "") +
+        (d1 !== null ? line(_t("30 derniers jours"), (d1 >= 0 ? "+" : "−") + r10b(d1) + "\u00a0km²", who(d1) + " · " + hab(E1, d1) + (KM ? vw1(KM.m1_ru, KM.m1_ua) : "")) : "") +
         line(_t("total occupé"), "≈\u00a0" + fmt(Math.round(v / 1000) * 1000) + "\u00a0km²", _t("{s} % de l'Ukraine · {f}", {s: share, f: frameLabel(fi)})) +
         (ru >= 50 ? line(document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien", fmt(Math.round(ru/10)*10) + "\u00a0km²", "") : ""); }
   }
