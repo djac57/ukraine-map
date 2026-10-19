@@ -92,7 +92,7 @@
     <div class="seg" role="group" aria-label="Vue"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true" data-t="mEq">équilibrée</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">UA</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">RU</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false" data-t="mTiers">tiers</button></div>
   </fieldset>
   <fieldset><legend data-t="gSrc">Sources du calcul</legend>
-    <label class="selrow"><span data-t="model">Modèle</span> <select id="varSel">
+    <select id="varSel" hidden>
       <option value="" data-t="vFull">complet</option>
       <option value="sans_dsm" data-t="vDsm">sans DeepStateMap</option>
       <option value="sans_isw" data-t="vIsw">sans ISW</option>
@@ -103,8 +103,17 @@
       <option value="sans_enveloppes" data-t="vEnv">sans enveloppes</option>
       <option value="sans_presence" data-t="vPres">sans présence documentée</option>
       <option value="sans_indices" data-t="vInd">sans indices de combats</option>
-    </select></label>
-    <p class="hint" data-t="hintVar">Retirer une source montre ce qu'elle apporte au calcul : hachures là où la probabilité change de plus de 0,1.</p>
+    </select>
+    <label class="chk"><input type="checkbox" data-var="sans_dsm" checked> <span data-t="cvDsm">DeepStateMap</span></label>
+    <label class="chk"><input type="checkbox" data-var="sans_isw" checked> <span data-t="cvIsw">ISW</span></label>
+    <label class="chk"><input type="checkbox" data-var="sans_wiki" checked> <span data-t="cvWiki">Wikipédia</span></label>
+    <label class="chk"><input type="checkbox" data-var="sans_modru" checked> <span data-t="cvModru">annonces MoD RF</span></label>
+    <label class="chk"><input type="checkbox" data-var="sans_gsua" checked> <span data-t="cvGsua">annonces état-major UA</span></label>
+    <label class="chk"><input type="checkbox" data-var="sans_medias" checked> <span data-t="cvMedias">annonces des médias</span></label>
+    <label class="chk"><input type="checkbox" data-var="sans_enveloppes" checked> <span data-t="cvEnv">enveloppes</span></label>
+    <label class="chk"><input type="checkbox" data-var="sans_presence" checked> <span data-t="cvPres">présence documentée</span></label>
+    <label class="chk"><input type="checkbox" data-var="sans_indices" checked> <span data-t="cvInd">indices de combats</span></label>
+    <p class="hint" data-t="hintVar">Décocher une source montre ce qu'elle apporte au calcul (une à la fois) : hachures là où la probabilité change de plus de 0,1.</p>
     <p class="hint varbanner" id="varNote"></p>
   </fieldset>
   <fieldset><legend data-t="gRaw">Tracés bruts</legend>
@@ -137,7 +146,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="i18n.js?v=beb4f08e9d"></script>
+<script src="i18n.js?v=bb5c3e7071"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
@@ -170,6 +179,6 @@
 </script>
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
-<script src="app.js?v=ef2dcd02b2"></script>
+<script src="app.js?v=03a201f249"></script>
 </body>
 </html>

@@ -1906,6 +1906,13 @@ function varNote(){
   const a = mo.v[fvar].tout[0], b = mo.a.equilibre.tout[0], d = a - b;
   el.textContent = `${VARLAB[fvar] || fvar} : ${fmt(Math.round(a / 10) * 10)} km² (${d >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(d / 10) * 10))} par rapport au modèle complet, cartes seules).`;
 }
+// cases « sources du calcul » : toutes cochées = modèle complet ; décocher une source montre la variante « sans X »
+// (variantes précalculées, une seule à la fois : décocher une autre source recoche la précédente)
+document.querySelectorAll("[data-var]").forEach(cb => cb.onchange = () => {
+  const v = cb.checked ? "" : cb.dataset.var;
+  document.querySelectorAll("[data-var]").forEach(o => { o.checked = o.dataset.var !== v; });
+  $("varSel").value = v; $("varSel").onchange();
+});
 $("varSel").onchange = () => {
   fvar = $("varSel").value || null;
   if (fvar && fmode !== "equilibre") document.querySelector('[data-mode="equilibre"]').click();
@@ -2445,7 +2452,7 @@ function drawAreaChart(){
 }
 document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
   fmode = b.dataset.mode;
-  if (fmode !== "equilibre" && fvar) { $("varSel").value = ""; fvar = null; varNote(); }
+  if (fmode !== "equilibre" && fvar) { $("varSel").value = ""; fvar = null; varNote(); document.querySelectorAll("[data-var]").forEach(o => o.checked = true); }
   document.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", x === b));
   ensureView(fmode, () => { frontFor = -2; draw(); });
   draw(); updateArea(); drawSky(); marks.forEach(f => f()); legend();
@@ -2740,6 +2747,8 @@ function full(){ layout(); setExtent(); tr = d3.zoomIdentity; sel.call(zoom.tran
 $("cutoff").textContent = monthLabel(cutIdx);
 $("frontLimit").textContent = lastFront >= 0 ? dateFr(FR.months[lastFront].date) : "—";
 if (window.innerWidth < 560) $("panel").open = false;
+// mobile : légende repliée au départ, sinon elle recouvre la carte et capte les gestes de déplacement
+if (window.innerWidth < 760 && $("mapLegend")) $("mapLegend").open = false;
 // langue de l'encadré de présentation (mémorisée)
 function setLang(code){
   document.querySelectorAll(".intro .i18n").forEach(d => d.hidden = d.dataset.lang !== code);
