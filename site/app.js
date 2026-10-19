@@ -432,7 +432,7 @@ function sensArrows(fi, view){
   // règle « poussée possible » choisie par la validation du build : la nouvelle (drapeau 2) si sa précision vaut au moins
   // deux fois le taux de base, sinon l'ancienne (drapeau 4) si elle passe ce seuil, sinon aucune flèche ukrainienne
   const V = SENS.validationBuild || {}, ok = q => q && q.base > 0 && q.precision >= 2 * q.base;
-  const uaBit = ok(V.poussee_possible_1km) ? 2 : ok(V.ancienne_regle_1km) ? 4 : 0, ruOk = ok(V.fleche_ru_2km);
+  const uaBit = ok(V.poussee_possible_1km) ? 2 : 0, ruOk = ok(V.fleche_ru_2km);
   const uaQ = uaBit === 2 ? V.poussee_possible_1km : uaBit === 4 ? V.ancienne_regle_1km : null;
   for (const r of rows) { const fl = r[4], isRu = ruOk && (fl & 1), isUa = !isRu && uaBit && (fl & uaBit); if (!isRu && !isUa) continue;
     const cx = r[0], cy = r[1], ru = !!isRu;
@@ -448,9 +448,15 @@ function sensArrows(fi, view){
 const possCache = {};
 function possibleArrows(fi, view){
   const key = (view || "") + ":" + fi; if (possCache[key]) return possCache[key];
-  if (window.FRONT_SENS) { SENS = window.FRONT_SENS; return possCache[key] = sensArrows(fi, view); }
+  // modèle de sens : flèches « poussée russe probable » (et « poussée possible » du modèle si sa précision tient) ; la
+  // poussée ukrainienne reprend sinon la règle fine par mailles ci-dessous (combats derrière la ligne russe deux mois de
+  // suite), qui voyait Vivaldi dès avril 2026 alors que la version par tronçon de 24 km ne le voit qu'à fin juin
+  let viaSens = null;
+  if (window.FRONT_SENS) { SENS = window.FRONT_SENS; viaSens = sensArrows(fi, view);
+    const V = SENS.validationBuild || {}, q = V.poussee_possible_1km;
+    if (q && q.base > 0 && q.precision >= 2 * q.base) return possCache[key] = viaSens; }
   const A1 = viewFields("asym") ? fullField("asym", fi) : null, fp = frameAt(fi, 30), A0 = A1 && fp >= 0 ? fullField("asym", fp) : null, g = fullField(view || fieldName(), fi);
-  if (!A1 || !A0 || !g) return [];
+  if (!A1 || !A0 || !g) return viaSens ? viaSens.filter(a => a.probable) : [];
   const km = FR.grid.size / 1000, hot = [];
   for (let c = 0; c < GX * GY; c++) if (cellPlace[c] !== -1 && A1[c] >= 0.4 && A0[c] >= 0.4 && g[c] > 0.5) hot.push(c);
   const cl = [];
@@ -461,7 +467,8 @@ function possibleArrows(fi, view){
     let bx = null, by = null, bd = 1e9; for (const run of runs) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; bx = x; by = y; } }
     if (bx === null || bd * km > 25 || bd < 1e-6) continue;
     out.push({gx: bx, gy: by, dx: (cx - bx) / bd, dy: (cy - by) / bd, v: 1, ru: false, L: 20, segKm: 20, vm: [], uncertain: true, possible: true, why: "combats derrière la ligne russe (2 mois)"}); }
-  return possCache[key] = out;
+  const Vq = SENS && SENS.validationBuild ? SENS.validationBuild.ancienne_regle_1km : null; if (Vq) for (const a of out) a.q = Vq;
+  return possCache[key] = viaSens ? viaSens.filter(a => a.probable).concat(out) : out;
 }
 function overviewArrows(fi, view){
   const kept = [], minD = 30 / (FR.grid.size / 1000), all = [20, 50, 100].flatMap(L => computeArrows(fi, L, view));
@@ -1972,7 +1979,7 @@ function hover(e){
       const fi = frontIdx(), camp = _t(best.a.ru ? "russe" : "ukrainienne");
       if (!full) {
         tip.innerHTML = (best.a.hard ? `<div style="color:var(--faint)">${_t("flèche arrêtée par une barrière naturelle (grand fleuve, plan d'eau ou escarpement)")}</div>` : "") + (best.a.ev ? (best.a.undirected ? _t("localités qui ont basculé ({c}), sens non établi", {c: camp}) : best.a.late ? _t("confirmé par annonce ({c}), pas un mouvement nouveau", {c: camp})
-          : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.probable ? _t("poussée russe probable : P(bouge) {b} %, sens russe {p} % (sur le passé, suivie d'une avancée russe d'au moins 2 km dans {q} % des cas, contre {m} % en moyenne ; signale surtout des poussées déjà engagées)", {b: best.a.pb, p: best.a.ps, q: Math.round(100 * best.a.q.precision), m: dec(Math.round(1000 * best.a.q.base) / 10)}) : best.a.possible ? (best.a.pb != null ? _t("poussée ukrainienne possible : P(bouge) {b} %, sens ukrainien {p} % (sur le passé, suivie d'une reprise ukrainienne d'au moins 1 km dans {q} % des cas, contre {m} % en moyenne ; peu de cas)", {b: best.a.pb, p: best.a.ps != null ? 100 - best.a.ps : "–", q: dec(Math.round(1000 * best.a.q.precision) / 10), m: dec(Math.round(1000 * best.a.q.base) / 10)}) : _t("poussée ukrainienne possible : on se bat anormalement derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 3, peu de cas)")) : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
+          : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.probable ? _t("poussée russe probable : P(bouge) {b} %, sens russe {p} % (sur le passé, suivie d'une avancée russe d'au moins 2 km dans {q} % des cas, contre {m} % en moyenne ; signale surtout des poussées déjà engagées)", {b: best.a.pb, p: best.a.ps, q: Math.round(100 * best.a.q.precision), m: dec(Math.round(1000 * best.a.q.base) / 10)}) : best.a.possible ? (best.a.q ? _t("poussée ukrainienne possible : P(bouge) {b} %, sens ukrainien {p} % (sur le passé, suivie d'une reprise ukrainienne d'au moins 1 km dans {q} % des cas, contre {m} % en moyenne ; peu de cas)", {b: best.a.pb != null ? best.a.pb : "–", p: best.a.ps != null ? 100 - best.a.ps : "–", q: dec(Math.round(1000 * best.a.q.precision) / 10), m: dec(Math.round(1000 * best.a.q.base) / 10)}) : _t("poussée ukrainienne possible : on se bat anormalement derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 3, peu de cas)")) : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
         tip.style.display = "block";
         const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
         return;
