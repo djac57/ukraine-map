@@ -1640,8 +1640,8 @@ function draw(){
   if (RELIEF_MODE === "under") drawRelief(k);
   bg = showBase ? baseProject() : null;
   // routes : plus épaisses et plus sombres sur le relief, pour ressortir nettement
-  if (bg) { const rl = showRelief && RLF === window.HYPSO; ctx.strokeStyle = rl ? "#5a4a35" : C.road; ctx.globalAlpha = rl ? 0.85 : 0.55; ctx.lineWidth = (rl ? 1.7 : 1.1) / k; ctx.stroke(bg.r1);
-    if (k >= 2) { ctx.lineWidth = (rl ? 0.9 : 0.6) / k; ctx.globalAlpha = rl ? 0.65 : 0.4; ctx.stroke(bg.r2); } ctx.globalAlpha = 1; }
+  if (bg) { const rl = showRelief && RLF === window.HYPSO; ctx.strokeStyle = rl ? "#6e604c" : C.road; ctx.globalAlpha = rl ? 0.6 : 0.45; ctx.lineWidth = (rl ? 1.2 : 1.0) / k; ctx.stroke(bg.r1);
+    if (k >= 2) { ctx.lineWidth = (rl ? 0.7 : 0.6) / k; ctx.globalAlpha = rl ? 0.45 : 0.35; ctx.stroke(bg.r2); } ctx.globalAlpha = 1; }
   drawFront(k);
   if (RELIEF_MODE === "over") drawRelief(k);
   ctx.lineWidth = 0.8/k; ctx.strokeStyle = C.water; ctx.stroke(paths.rivers);
