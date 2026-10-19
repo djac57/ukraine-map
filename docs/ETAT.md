@@ -47,7 +47,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `fetch_osint.py` | VIINA, UCDP, Oryx, missiles, WarSpotting (reprise incrémentale). |
 | `fetch_claims.py` | Aperçu public Telegram : MoD RF et état-major UA (annonces de prise, bilans quotidiens). Messages gardés en local, jamais publiés. |
 | `fetch_dsmlog.py` | Journal public de DeepStateMap (déclarations datées). |
-| `fetch_telegram.py`, `tglib.py`, `tg_sens.py`, `build_telegram_layer.py` | Signaux Telegram (15 canaux, aperçu public t.me/s sans compte) : relecture des 45 derniers jours (même pas d'échantillonnage que l'historique), messages de combat ou de présence gardés avec leur texte dans `raw/telegram/` (cache Actions, jamais versionné) ; construction : lieux (GeoNames UA + `data/ru_border.tsv`), « qui attaque » (`tg_sens.classify_strict`) et « présence signalée », comptes par tronçon de 24 km × mois et décade, fusion incrémentale (une période n'est remplacée que si elle est entièrement relue et pas plus pauvre), coupure J-7. Sorties `data/telegram_troncons.csv` et `site/telegram_troncons.js`. Historique reconstruit une fois avec `--seed ukraine-recherche/signals3/internal` (identique à `sens_troncons_month.csv`). |
+| `fetch_telegram.py`, `tglib.py`, `tg_sens.py`, `build_telegram_layer.py` | Signaux Telegram (15 canaux, aperçu public t.me/s sans compte) : relecture des 45 derniers jours (même pas d'échantillonnage que l'historique), messages de combat ou de présence gardés avec leur texte dans `raw/telegram/` (cache Actions, jamais versionné) ; construction : lieux À LA PHRASE (GeoNames UA + `data/ru_border.tsv`, `tglib.events`), « qui attaque » (`tg_sens.classify_strict`) et « présence signalée » sur la phrase, comptes par tronçon de 24 km × mois et décade et par maille de 2 km × mois et 30 derniers jours, fusion incrémentale (une période n'est remplacée que si elle est entièrement relue et pas plus pauvre), coupure J-7. Sorties `data/telegram_troncons.csv`, `data/telegram_cells.csv`, `site/telegram_troncons.js`, `site/telegram_cells.js`. Historique reconstruit avec `--seed ukraine-recherche/signals3/internal` (avec l'ancienne attribution au message entier, il reproduisait exactement `sens_troncons_month.csv`). |
 | `fetch_alerts_in_ua.py` | alerts.in.ua (menaces d'artillerie), sauté sans `ALERTS_IN_UA_TOKEN`. Identifiants d'oblast 3-31 à vérifier au premier passage. |
 | `fetch_infra.py`, `build_infra.py` | Couche infrastructures (Natural Earth, WRI, OurAirports, OSM/Overpass), toute l'Ukraine. À relancer à la main de loin en loin. |
 | `sar_update.py` | Radar Sentinel-1 (Planetary Computer, sans compte) : abandon agricole et bâti modifié, mensuel. |
@@ -57,6 +57,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `sectors.py` | Secteurs : z-scores, P(contact), asymétrie « combats derrière la ligne », radar, faits officiels. |
 | `nowcast.py` | Nowcast (les combats déplacent p), calibré en walk-forward. |
 | `conformal.py` | Bande d'incertitude locale (intervalles conformes par secteur). |
+| `build_advance.py` | Ampleur de l'avancée à t+1 / t+2 par tronçon de 24 km (deux étages + conformal par tronçon × classe de risque), validation walk-forward et drapeaux `show` intégrés → `site/front_advance.js` (non branché en CI ni sur la carte, § 8 point 2 quater). |
 | `check_arrows.py` | Tous les contrôles (bloquants et diagnostics), voir §5. |
 | `stamp.py` | Empreintes anti-cache des scripts dans les pages. |
 | `envkeys.py` | Lecture des secrets depuis l'environnement, jamais écrits ni affichés (le nom évite la règle `*secret*` du .gitignore). |
@@ -464,6 +465,25 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 - 18/10 : page méthode réduite à : but, algorithme pas à pas, validation (tableaux), décisions et limites, sources et
   licences. Carte et panneaux annexes (surfaces, désaccord, feux, ciel, Oryx, repères) masqués (`div.annexe hidden`) :
   app.js, partagé avec la carte, attend encore ces éléments (dette : séparer un `methode.js`).
+- 19/10/2026 : **signaux Telegram en CI** (point 2 du point de clôture). Collecte quotidienne des 15 canaux par l'aperçu
+  public t.me/s (sans compte ni clé, une requête à la fois, pause 0,8 s, User-Agent explicite), fenêtre de 45 jours, même
+  pas d'échantillonnage que l'historique ; reprise depuis la fin de la couverture précédente moins 3 jours ; budget de
+  45 min, canaux les moins à jour d'abord. Textes seulement dans `raw/telegram/` (cache Actions ; en local
+  `ukraine-recherche/signals3/internal/ci/`). Publiés : comptes par tronçon de 24 km (mois, décade) et par maille de 2 km
+  (mois, 30 derniers jours), coupure J-7, aucun texte, aucun nom de canal. Fusion : une période n'est remplacée que si
+  elle est entièrement relue et pas plus pauvre (95 %) ; garde-fou guard (code 3) sur les tronçons-mois.
+- 19/10/2026 : **attribution à la phrase** (bug signalé : un message comptait pour toutes les localités citées, bulletins
+  récapitulatifs étalés jusqu'à 760 km, losanges loin dans le camp adverse). Désormais une attaque ou une présence ne
+  compte que pour les localités de sa phrase ; une phrase étalée sur plus de 30 km ne garde que son tronçon le plus
+  cité (`TG_SPREAD=top` ; « drop » mesuré : 6 % de messages en moins, même part traversante) ; adjectifs de région ou
+  d'axe (« Брянской области », « Херсонском направлении ») écartés : ils tombaient sur des villages homonymes, souvent en
+  Crimée ; lieux reconnus aussi après « населенный пункт / село / н. п. » et dans les énumérations. Mesure sur tout
+  l'historique (sources russes et ukrainiennes) : messages attribués 55 611 → 26 077 ; étalement par message p90 593 →
+  128 km ; attributions message × tronçon : attaques UA 10 317 → 1 776, attaques RU 22 030 → 4 247, présence UA
+  6 077 → 706, présence RU 1 921 → 281 ; présences adverses « traversantes » à plus de 6 km de la ligne 43,7 % → 38,7 %
+  (le reste est surtout réel : raids et ДРГ en Russie, incursion de Koursk, infiltrations ; médiane 116 km avant le
+  correctif des adjectifs). Historique reconstruit avec ces règles : la couche n'est plus identique à
+  `signals3/sens_troncons_month.csv` (beaucoup moins de tronçons cités) ; les AUC de `bilan_sens.json` sont à refaire.
 - 19/10 (décisions de l'utilisateur sur l'étude contre-offensives) : (1) VALIDÉ, ajouter le « dans quel sens » à
   P(mouvement), modèle à deux étages P(bouge) × P(sens | bouge), Telegram en anomalie par tronçon (deux camps), impacts
   S2 par côté utilisés « si par chance c'est disponible », sans pénaliser leur absence ; flèche « poussée russe
@@ -488,6 +508,25 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
     l'indice de « poussée possible » et comme indice concordant ;
   - le gain du pas décadaire est de 10 à 20 jours d'avance sur S2 et Telegram (Vivaldi S2 : 61 jours contre 40), sans
     gain de précision.
+- 19/10/2026 : **modèle d'AMPLEUR de l'avancée** (décision de l'utilisateur du 19/10 : « de combien de km, avec
+  intervalle calibré par secteur ») ; étude `ukraine-recherche/analyses/ampleur/RAPPORT.md`, walk-forward strict
+  2023-2026, mêmes tronçons-mois pour tous les modèles. Résultat :
+  - le « combien » se prévoit un peu. Le modèle à deux étages (P(bouge) × P(sens | bouge) × ampleur | bouge) bat la
+    persistance de −5 % (t+1) et −7 % (t+2) en CRPS. En MAE de la médiane, il fait jeu égal (0,234 contre 0,236 km à
+    t+2), parce que 85 % des tronçons-mois ne bougent pas ;
+  - Kalman et la tendance ne battent pas la persistance, et v4 + seuil fait jeu égal ;
+  - l'apport vient du décalage du nowcast, de la zone grise et des signaux d'activité. Terrain dur, voisins et S2 :
+    rien ;
+  - les intervalles sont calibrés par classe de risque et par secteur. À t+2, ils couvrent de 80,6 à 96,9 % à 80 %, et
+    de 92,3 à 98,7 % à 95 %. Ils font 0,07 km de large sur un tronçon calme et 5,7 km sur un tronçon à risque ;
+  - les ouvertures de front surprises restent hors intervalle : Vovtchansk 7 %, Koursk 8 % des tronçons en mouvement ;
+  - les offensives durables sont sous-estimées : Pokrovsk 2025 prévu à 933 km² pour 2 400 réalisés, alors que la
+    tendance donnait 2 812 ;
+  - km² agrégés : aucun intervalle calibré (couverture 80 % de 53 à 71 %), donc pas de prévision sur la courbe.
+  **Proposition** : `scripts/build_advance.py` → `site/front_advance.js`, écrit localement et NON branché. Seul
+  l'horizon t+2 par tronçon passe la règle de publication intégrée, recalculée à chaque build : CRPS de production
+  0,2225 contre 0,2353, toutes les classes et tous les secteurs ≥ nominal − 5 pts. t+1 (CRPS 0,1361 contre 0,1357) et
+  les km² ont `show` à faux et ne s'affichent pas. Décision d'affichage à prendre par l'utilisateur (§ 8, point 2 quater).
 
 ---
 
@@ -546,6 +585,7 @@ distance égale ; D AUC 0,830 ; E sens 0,632, 1,99 km contre 2,02 pour la persis
   missiles, Meteosat (compte), fortifications, destruction intra-ville.
 | **19/10/2026 : détecteur de contre-offensives / percées** (asymétrie + Telegram + impacts S2 + P(mouvement), tronçon de 24 km × mois, walk-forward strict, cibles ≥ 1, 2 et 5 km à 1-3 mois, 11 événements ; `ukraine-recherche/analyses/contre_offensives/RAPPORT.md`) | « va bouger » : rien ne bat P(mouvement) (ANY ≥ 2 km 0,835 ; modèles enrichis 0,78-0,81). Sens parmi les tronçons qui bougent : Telegram est le meilleur indice (AUC 0,56 → 0,67 à 2 km, 0,58 → 0,71 à 5 km), asymétrie seule 0,55. Poussées russes : deux étages P(mvt) × P(sens) avec Telegram, AUC 0,876 → 0,889, rappel à 2 % de fausses alertes 0,25 → 0,31. Contre-offensives ukrainiennes : aucun détecteur fiable (AUC orientées 0,48-0,63) ; la règle « poussée possible » reste la plus précise (18-29 %, rappel 2-14 %). Événements : Kharkiv et Kherson 2022 non anticipés ; Koursk vu 1 mois avant par Telegram (2 tronçons sur 3, hasard 5 %) ; Pokrovsk et Vouhledar 2-4 mois avant par P(mvt) ; Vivaldi : alertes en avril-mai (asymétrie, Telegram) puis en août-septembre (S2 côté russe), non chiffrable (absent du consensus du 17/10). S2 : utile pour le sens (0,67), 13 % des tronçons-mois seulement | proposition : sens probable (second étage) sur P(mouvement) quand Telegram sera en CI ; règle « poussée possible » inchangée ; rien d'intégré |
 | **19/10/2026 : « dans quel sens », au pas de 10 jours** (vérité : consensus des cartes à la décade ; entrées publiées du site + Telegram 30/10 j + impacts S2 30/10 j ; walk-forward strict ; `ukraine-recherche/analyses/sens/RAPPORT.md`) | AUC du sens (2023+, ≥ 1 / ≥ 2 km) : asymétrie publiée 0,62 / 0,63 ; Telegram seul 0,60 / 0,64 ; S2 seul 0,62 / 0,67 (cas mesurables) ; additif 0,65 / 0,70 ; second étage en fenêtre glissante de 12 mois **0,78 / 0,85** (production), contre 0,64 / 0,69 en fenêtre croissante (2022 fausse l'apprentissage). Sans Telegram complet : 0,73 / 0,78 ; 2025-26 ≈ 0,5. S2 dans le sens : 0,854 → 0,847 (sans gain). Flèche RU (P(bouge) ≥ 97e c. ET P(RU) ≥ 0,8) : précision 0,43 / rappel 0,16 contre 0,28 / 0,11 pour P(bouge) seule (RU ≥ 2 km), 2,6 alertes par mois. « Poussée possible » : ancienne règle 0,06 / 0,03 de précision (≥ 1 / ≥ 2 km), règle améliorée 0,11 / 0,08 ; Kharkiv, Kherson, Robotyne et Koursk manqués, Vivaldi vu 102 jours avant. Pas de 10 jours : même précision, 10 à 20 jours d'avance sur S2 et Telegram | **retenu** : `scripts/build_direction.py` → `site/front_sens.js` (non branché) |
+| **19/10/2026 : AMPLEUR de l'avancée** (km signés par tronçon de 24 km à t+1 / t+2, 39 quantiles, conformal local par tronçon × classe de risque P(mouvement) ; persistance, tendance, Kalman, v4 + seuil, deux étages, régression quantile, boosting ; `ukraine-recherche/analyses/ampleur/RAPPORT.md`) | CRPS t+2 (toutes / bougent) : persistance 0,218 / 1,70 ; tendance 0,231 / 1,67 ; Kalman 0,219 / 1,68 ; v4 0,218 / 1,69 ; **deux étages 0,203 / 1,63** ; entrées CI 0,207 / 1,69 ; QR 0,215 / 1,53 ; boosting 0,209 / 1,58 (95 % raté : 88 %). t+1 : 0,131 → 0,125. MAE : jeu égal. Ablations t+2 : sans nowcast ni zone grise 0,213 ; sans Telegram 0,204 ; sans S2, terrain dur ou voisins : 0,202-0,203 (rien). Couverture t+2 par classe de risque, 80 % : 95,9 / 83,4 / 82,3 % ; 95 % : 98,1 / 95,5 / 95,3 %. Par secteur : 80,6-96,9 % et 92,3-98,7 %. Tronçons en mouvement dans l'intervalle 80 % : ≈ 50 % (Vovtchansk 7 %, Koursk 8 %, Robotyne 78 %, Pokrovsk 2025 66 %). km² agrégés : MAE t+2 360 (tendance) à 415 (persistance), aucune couverture calibrée. Décades non faites (vérité mensuelle) | t+2 par tronçon : `scripts/build_advance.py` → `site/front_advance.js` (non branché, `show` intégré) ; t+1 et km² : non affichables |
 
 Rapports détaillés : `ukraine-recherche/signals/`, `signals2/` (faisceau, VERDICT.txt, `replay/` pour la liste
 officielle), `signals3/`, `sar/` (rapport_SAR_V2.md), `backtest/`, `front/` (journaux de build et de contrôle),
@@ -581,12 +621,14 @@ gains walk-forward ; rien n'est intégré, pipeline inchangé) :
 1. **« Qui avait raison »** : pour DeepState, ISW, Wikipédia et notre ligne, distance moyenne à la vérité retardée
    (consensus à t+2), par mois et par secteur ; au survol d'un tronçon (« sur 12 mois, la source la plus proche de la
    réalité constatée ensuite est X ») et en tableau sur la page méthode, notre ligne comprise (mesure de valeur ajoutée).
-2. **Telegram en CI** : collecte des 15 canaux (agrégats seulement, ~2 h de travail) pour mettre à jour la couche
-   « signaux Telegram » au-delà de septembre 2026. Non fait le 19/10 (mode économe) : il faut porter dans `scripts/`
-   quatre modules de recherche (`signals3/crawl_sens.py`, `sens.py`, `analyse_sens.py` pour les tronçons, et
-   `signals2/telegram/tg_activity.py` avec son `extract.block_of`) et le dictionnaire de lieux russes
-   (`signals3/raw/ru_border.tsv`, 0,8 Mo) ; en CI, ne relire que les ~45 derniers jours et fusionner avec
-   `site/telegram_troncons.js` (même logique que `build_strikes_ru.py`).
+2. **Telegram en CI** : **FAIT le 19/10/2026** (§ 6). Modules portés dans `scripts/` (`tglib.py` = collecte, lieux,
+   maille et tronçon ; `tg_sens.py` = copie de `signals3/sens.py` ; `fetch_telegram.py` ; `build_telegram_layer.py`),
+   dictionnaire `data/ru_border.tsv`. Étapes ajoutées dans `update.yml` (collecte avec budget de 45 min, construction
+   après `build_strikes_ru.py`). Sorties : `site/telegram_troncons.js` (format inchangé + `upto`), `site/telegram_cells.js`
+   (par maille de 2 km, nouveau, pas encore chargé par app.js), `data/telegram_troncons.csv` (tronçon × mois et × décade)
+   et `data/telegram_cells.csv` (maille × mois et 30 derniers jours). Attribution À LA PHRASE (correctif du 19/10, voir
+   § 6). Reste côté affichage (app.js, i18n.js, autre chantier) : retirer « données arrêtées en septembre 2026 » de
+   `lgTgTip` (4 langues), charger `telegram_cells.js` pour placer les losanges à la maille.
    **Le « dans quel sens » en dépend** (19/10) : `build_direction.py` lit `data/telegram_troncons.csv` avec les
    5 comptes par camp de la source (`n_combat`, `n_ua`, `n_ru`, `n_presence_ua`, `n_presence_ru`). Il accepte `k`
    ou `troncon` + `i0`/`j0`, un temps en `date`, `jour`, `decade` ou `mois`, et `camp_source`. Le jour ou la décade
@@ -623,6 +665,36 @@ gains walk-forward ; rien n'est intégré, pipeline inchangé) :
      - ⓘ avec `validationEtude` : précision 0,43, rappel 0,16, 2,6 alertes par mois ; « signale surtout des
        poussées déjà engagées » ;
      - rien sur le drapeau 4.
+2 quater. **« De combien », à décider puis brancher** (19/10, `ukraine-recherche/analyses/ampleur/RAPPORT.md`).
+   - **Production prête, non branchée** :
+     - `python3 scripts/build_advance.py` tourne en ~6 s, numpy et scipy seulement ;
+     - il lit `front.js`, `front_equilibre.js` (indispensable), `front_nowcast.js` et `data/telegram_troncons.csv`
+       (facultatifs : il se dégrade proprement, testé sans les deux) ;
+     - il écrit `site/front_advance.js` (16 Ko) ;
+     - étape de workflow à ajouter après `build_front.py`, et après Telegram s'il tourne avant.
+   - **Format** : `window.FRONT_ADVANCE = {columns, horizons: {"1", "2"}}`. Pour chaque horizon :
+     - `base`, `cible` ;
+     - `show` = {troncons, km2} ;
+     - `tiles` : [col, row, médiane, lo80, hi80, lo95, hi95, P(mvt) %, espérance], en km de profondeur (× 24 = km²),
+       > 0 pour une avancée russe ; centre du tronçon au même repère que `months[].pm` ;
+     - `km2`, `km2_hist` ;
+     - `validation` : CRPS contre persistance, couvertures par classe et par secteur.
+   - **Règle de publication** :
+     - par tronçon : CRPS meilleur que la persistance, chaque classe ≥ nominal − 3 pts, chaque secteur ≥ nominal − 5 pts ;
+     - km² : couverture ≥ 70 / 88 % ET meilleur que la persistance et que la tendance ;
+     - aujourd'hui : t+2 par tronçon OUI ; t+1 NON ; km² NON.
+   - **Affichage proposé** (simple) :
+     - case décochée « avancée possible d'ici 2 mois », groupe Mouvements ;
+     - seulement les tronçons dont l'intervalle 80 % atteint au moins 1 km d'un côté (13 sur 148 aujourd'hui) ;
+     - barre fine perpendiculaire à la ligne : côté ukrainien, rouge pâle, longueur hi80 ; côté russe, bleu pâle,
+       longueur |lo80| ; sans tête de flèche, mêmes garde-fous et même troncature aux barrières dures ;
+     - au survol (k ≥ 4) : « d'ici fin novembre : entre a et b km (80 %), médiane m ; 95 % : c à d » ;
+     - ⓘ : couverture par secteur, surprises (Vovtchansk, Koursk) hors intervalle, offensives durables sous-estimées ;
+     - rien si `show.troncons` est faux, et aucune prévision km² sur la courbe.
+   - **Suites** :
+     - terme « tendance en régime établi » dans l'étage d'ampleur : Pokrovsk 2025 sous-estimé ;
+     - P(sens | bouge) de `build_direction.py` (AUC 0,85) à la place du deuxième étage ;
+     - pas de 10 jours sur la vérité décadaire de `analyses/sens/`.
 2 ter. **Telegram dans le champ p** (demande de l'utilisateur, 19/10) : que ces signaux PÈSENT dans la prédiction ET dans
    l'état des lieux : même côté = confirmation de contrôle (resserre la bande), traversant = présence adverse (élargit
    ou fait pencher). À tester en walk-forward dans v4 avec le KPI de dépendance et la précision.

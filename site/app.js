@@ -1276,6 +1276,34 @@ function drawImp(k){
     impHits.push({x: (gAff[0] + gx * gAff[2]) * k + tr.x, y: (gAff[1] + gy * gAff[2]) * k + tr.y, zr, zu});
 }
 // liseré P(mouvement) dessiné AU-DESSUS des feux et des hachures, avec un fin contour sombre pour le détacher
+// avancée possible d'ici 2 mois (front_advance.js, scripts/build_advance.py) : fourchette à 80 % par tronçon de 24 km,
+// barre fine perpendiculaire à la ligne (rouge pâle vers le côté ukrainien : avancée russe possible ; bleu pâle vers le
+// côté russe : reprise ukrainienne possible), sans tête de flèche. Seulement sur le dernier mois connu (base de la
+// prévision), si la validation du build l'autorise (show.troncons), et pour les tronçons dont la fourchette atteint 1 km.
+let showAdv = false, ADV = null, advHits = [];
+function loadAdv(then){ if (window.FRONT_ADVANCE) { ADV = window.FRONT_ADVANCE; return then && then(); }
+  const sc = document.createElement("script"); sc.src = "front_advance.js?v=" + (FRONT_V.advance || ""); sc.onload = () => { ADV = window.FRONT_ADVANCE; if (then) then(); }; document.head.appendChild(sc); }
+function drawAdv(k){
+  advHits = []; if (!ADV) return; const H2 = ADV.horizons && ADV.horizons["2"]; if (!H2 || !H2.show || !H2.show.troncons) return;
+  const fi = frontIdx(); if (fi < 0 || FR.months[fi].date.slice(0, 7) !== H2.base) return;
+  const g = fullField(fieldName(), fi); if (!g) return;
+  const km = FR.grid.size / 1000, runs = lines50(fieldName(), fi);
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.lineCap = "round";
+  for (const t of H2.tiles) { const [cx, cy, med, lo, hi] = t; if (!(hi >= 1 || lo <= -1)) continue;
+    let bx = null, by = null, bd = 1e9; for (const run of runs) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; bx = x; by = y; } }
+    if (bx === null || bd * km > 25) continue;
+    // normale vers le côté ukrainien : gradient de la probabilité de contrôle russe (dérivée sur ±2 mailles), inversé
+    const at = (x, y) => { const c = Math.floor(y) * GX + Math.floor(x); return c >= 0 && c < GX * GY ? g[c] : 0.5; };
+    let nx = -(at(bx + 2, by) - at(bx - 2, by)), ny = -(at(bx, by + 2) - at(bx, by - 2)); const nn = Math.hypot(nx, ny); if (nn < 1e-6) continue; nx /= nn; ny /= nn;
+    const sx = (gAff[0] + bx * gAff[2]) * k + tr.x, sy = (gAff[1] + by * gAff[2]) * k + tr.y; if (sx < -30 || sx > W + 30 || sy < -30 || sy > H + 30) continue;
+    const pxkm = gAff[2] * k / km, seg = (L, col, sg) => { if (L <= 0.05) return; const len = Math.max(7, L * pxkm);
+      ctx.strokeStyle = C.bg; ctx.globalAlpha = 0.9; ctx.lineWidth = 6.5; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + sg * nx * len, sy + sg * ny * len); ctx.stroke();   // liseré clair
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.9; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + sg * nx * len, sy + sg * ny * len); ctx.stroke(); };
+    seg(Math.max(0, hi), C.front, 1); seg(Math.max(0, -lo), C.uactl, -1);
+    ctx.globalAlpha = 1; ctx.fillStyle = C.bg; ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy, 2.4, 0, 7); ctx.fill(); ctx.stroke();
+    advHits.push({x: sx, y: sy, t}); }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 function drawPm(k){
   const fp = frontIdx(); if (fp < 0) return;
   buildPm(fp, k); if (!pmImg) return;
@@ -1633,7 +1661,8 @@ function draw(){
   if (showArcs) drawArcs(k);
   if (showTg) drawTg(k);
   if (showImp) drawImp(k);
-  if (showPm) drawPm(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
+  if (showPm) drawPm(k);
+  if (showAdv) drawAdv(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
   if (showArrows) { drawArrows(k); drawEventArrows(k); }
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
 
@@ -1840,6 +1869,7 @@ $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
 $("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); };
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
 if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };
+if ($("lyrAdv")) $("lyrAdv").onchange = e => { showAdv = e.target.checked; if (showAdv) loadAdv(() => { legend(); draw(); }); legend(); draw(); };
 if ($("lyrPm")) $("lyrPm").onchange = e => { showPm = e.target.checked; ensureView("pmove", () => { pmFor = -2; legend(); draw(); }); legend(); draw(); };
 if (showPm) ensureView("pmove", () => { pmFor = -2; draw(); });
 // légende de la carte : une entrée par case cochable (attribut data-lyr = id de la case ou raw:source), visible
@@ -1881,6 +1911,15 @@ function hover(e){
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
     }
+  }
+  if (showAdv && advHits.length) {
+    let best = null; for (const h of advHits) if (Math.hypot(h.x - mx, h.y - my) <= 7) { best = h; break; }
+    if (best) { const t = best.t, H2 = ADV.horizons["2"], ci = D.months.indexOf(H2.cible), f = v => dec(Math.round(Math.abs(v) * 10) / 10);
+      const side = v => v > 0 ? _t("{v} km d'avancée russe", {v: f(v)}) : v < 0 ? _t("{v} km de reprise ukrainienne", {v: f(v)}) : _t("statu quo");
+      tip.innerHTML = `<div>${_t("d'ici {m} (80 %) : entre {a} et {b}", {m: ci >= 0 ? monthLabel(ci) : H2.cible, a: side(t[3]), b: side(t[4])})}</div>` +
+        `<div style="color:var(--faint)">${_t("95 % : entre {a} et {b} ; médiane : {c} ; P(mouvement) {p} %", {a: side(t[5]), b: side(t[6]), c: side(t[2]), p: t[7]})}</div>`;
+      tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return; }
   }
   if (showTg && tgHits.length) {
     let best = null; for (const h of tgHits) if (Math.hypot(h.x - mx, h.y - my) <= h.r + 2) { best = h; break; }
