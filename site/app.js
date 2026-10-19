@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "76fed3e6c2", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "pmove": "39e8819790", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "76fed3e6c2", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "pmove": "39e8819790", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "strikes": "affd59ed8e", "tg": "7cd8927e31", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -1152,17 +1152,36 @@ function buildPm(fi, k){
 // présence ukrainiennes signalées par les sources russes (losange bleu, à gauche) et russes signalées par les sources
 // ukrainiennes (losange rouge, à droite) ; taille et opacité selon le nombre ; données figées (telegram_troncons.js)
 let showTg = false, TG = null, tgHits = [];
-// signaux gardés seulement près du front (ligne à ≤ 30 km du tronçon) ; « traversant » si le tronçon contient du terrain
-// tenu par le camp ADVERSE de celui dont on signale l'activité (activité ukrainienne là où la Russie tient, et inversement),
-// sinon « même côté » (confirmation de contrôle) ; renvoie null (loin du front), "cross" ou "same"
-function tgNearCross(fi, ij, key){
+// placement près de la ligne (le tronçon fait 24 km : son centre peut être loin derrière la ligne) :
+// - présence signalée (p > 0) : « traversant » si des mailles du tronçon tenues par le camp ADVERSE sont à ≤ 6 km de la
+//   ligne (losange posé sur ces mailles), sinon « même côté » si des mailles du camp signalé sont à ≤ 10 km ;
+// - attaques seules : elles visent par nature le terrain adverse (frappes, drones) et ne prouvent aucune présence ;
+//   gardées seulement à ≤ 6 km de la ligne (« atk », creux), au-delà ce sont des frappes et on ne les montre pas.
+// Renvoie null (rien à montrer) ou {kind, gx, gy} ; mis en cache par mois et par champ.
+let tgPlaceCache = new Map(), tgPlaceFor = "";
+function tgPlace(fi, ij, key, p){
   const g = fullField(fieldName(), fi); if (!g) return null;
-  let cross = false, ruSeen = false, uaSeen = false; const R = 15;   // 15 mailles = 30 km autour du tronçon
-  for (let j = ij[1] - R; j < ij[1] + TG.tileCells + R; j++) for (let i = ij[0] - R; i < ij[0] + TG.tileCells + R; i++) {
-    if (i < 0 || j < 0 || i >= GX || j >= GY) continue; const c = j * GX + i; if (cellPlace[c] === -1) continue;
-    const ru = g[c] > 0.5; if (ru) ruSeen = true; else uaSeen = true;
-    if (i >= ij[0] && i < ij[0] + TG.tileCells && j >= ij[1] && j < ij[1] + TG.tileCells && (key === "ru" ? ru : !ru)) cross = true; }
-  return ruSeen && uaSeen ? (cross ? "cross" : "same") : null;
+  const ck = fi + ":" + fieldName(); if (tgPlaceFor !== ck) { tgPlaceFor = ck; tgPlaceCache = new Map(); }
+  const kk = ij[0] + "," + ij[1] + ":" + key + ":" + (p > 0 ? 1 : 0); if (tgPlaceCache.has(kk)) return tgPlaceCache.get(kk);
+  const side = c => g[c] > 0.5;   // vrai = tenu par la Russie
+  const dLine = (i, j, R) => {   // distance (en mailles) à la plus proche maille de l'autre côté, plafonnée à R + 1
+    const c0 = j * GX + i, s0 = side(c0); let best = R + 1;
+    for (let dj = -R; dj <= R; dj++) for (let di = -R; di <= R; di++) { const ii = i + di, jj = j + dj;
+      if (ii < 0 || jj < 0 || ii >= GX || jj >= GY) continue; const c = jj * GX + ii; if (cellPlace[c] === -1 || side(c) === s0) continue;
+      const d = Math.hypot(di, dj); if (d < best) best = d; }
+    return best; };
+  const pick = (want, R) => { let sx = 0, sy = 0, n = 0;
+    for (let j = ij[1]; j < ij[1] + TG.tileCells; j++) for (let i = ij[0]; i < ij[0] + TG.tileCells; i++) {
+      if (i < 0 || j < 0 || i >= GX || j >= GY) continue; const c = j * GX + i; if (cellPlace[c] === -1) continue;
+      if (want !== null && side(c) !== want) continue; if (dLine(i, j, R) > R) continue; sx += i + 0.5; sy += j + 0.5; n++; }
+    return n ? [sx / n, sy / n] : null; };
+  const ruAct = key === "ru";   // activité ukrainienne signalée par les sources russes : le camp adverse est la Russie
+  let out = null, q;
+  if (p > 0) {
+    if ((q = pick(ruAct, 3))) out = {kind: "cross", gx: q[0], gy: q[1]};
+    else if ((q = pick(!ruAct, 5))) out = {kind: "same", gx: q[0], gy: q[1]};
+  } else if ((q = pick(null, 3))) out = {kind: "atk", gx: q[0], gy: q[1]};
+  tgPlaceCache.set(kk, out); return out;
 }
 function loadTg(then){ if (window.TG_TRONCONS) { TG = window.TG_TRONCONS; return then && then(); }
   const sc = document.createElement("script"); sc.src = "telegram_troncons.js?v=" + (FRONT_V.tg || ""); sc.onload = () => { TG = window.TG_TRONCONS; if (then) then(); }; document.head.appendChild(sc); }
@@ -1173,8 +1192,8 @@ function drawTg(k){
   for (const [key, col, side] of [["ru", C.uactl, -1], ["ua", C.front, 1]]) {
     for (const [mm, t, a, p] of TG[key]) { if (mm !== m) continue;
       const ij = TG.tiles[t]; if (!ij) continue;
-      const gx = ij[0] + TG.tileCells / 2, gy = ij[1] + TG.tileCells / 2, n = a + p;
-      const kind = tgNearCross(fi, ij, key); if (!kind) continue;
+      const pl = tgPlace(fi, ij, key, p); if (!pl) continue;
+      const gx = pl.gx, gy = pl.gy, kind = pl.kind, n = kind === "atk" ? a : a + p;
       const x = (gAff[0] + gx * gAff[2]) * k + tr.x + side * 5, y = (gAff[1] + gy * gAff[2]) * k + tr.y;
       if (x < -10 || x > W + 10 || y < -10 || y > H + 10) continue;
       const r = Math.min(9, 3 + 1.6 * Math.sqrt(n));
@@ -1836,7 +1855,7 @@ function hover(e){
     let best = null; for (const h of tgHits) if (Math.hypot(h.x - mx, h.y - my) <= h.r + 2) { best = h; break; }
     if (best) {
       tip.innerHTML = `<div>${_t(best.key === "ru" ? "sources russes, ce mois-ci : {a} mention(s) d'attaques ukrainiennes, {p} de présence ukrainienne" : "sources ukrainiennes, ce mois-ci : {a} mention(s) d'attaques russes, {p} de présence russe", {a: best.a, p: best.p})}</div>` +
-        `<div>${_t(best.kind === "cross" ? "signalée chez le camp adverse (traverse la ligne)" : "signalée de son propre côté (confirmation de contrôle)")}</div>` +
+        `<div>${_t(best.kind === "cross" ? "présence signalée chez le camp adverse, à moins de 6 km de la ligne (traverse la ligne)" : best.kind === "same" ? "signalée de son propre côté (confirmation de contrôle)" : "attaques signalées près de la ligne, sans présence signalée (les attaques visent le terrain adverse)")}</div>` +
         `<div style="color:var(--faint)">${_t("indique qu'un secteur va bouger, pas qui avance")}</div>`;
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
