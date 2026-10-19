@@ -1277,9 +1277,11 @@ function drawImp(k){
   const ox = impOff.getContext("2d"); ox.setTransform(1, 0, 0, 1, 0, 0); ox.globalCompositeOperation = "source-over"; ox.clearRect(0, 0, cw, ch);
   ox.setTransform(dpr, 0, 0, dpr, 0, 0); ox.translate(tr.x, tr.y); ox.scale(k, k); ox.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]);
   ox.save(); ox.clip(domainPath); ox.imageSmoothingEnabled = true; ox.drawImage(impImg, 0, 0, GX, GY); ox.restore();
-  const tile = document.createElement("canvas"), ts = Math.round(6 * dpr); tile.width = tile.height = ts;
-  const tc = tile.getContext("2d"); tc.fillStyle = C.dark ? "#f2efe6" : "#161616";
-  tc.beginPath(); tc.arc(ts * 0.25, ts * 0.25, 1.25 * dpr, 0, 7); tc.arc(ts * 0.75, ts * 0.75, 1.25 * dpr, 0, 7); tc.fill();
+  // points sombres cerclés d'un halo clair : lisibles sur le rouge comme sur les hachures sombres de la zone grise
+  const tile = document.createElement("canvas"), ts = Math.round(8 * dpr); tile.width = tile.height = ts;
+  const tc = tile.getContext("2d"), dot = (x, y) => { tc.fillStyle = C.dark ? "#161616" : "#fbf8f0"; tc.beginPath(); tc.arc(x, y, 2.5 * dpr, 0, 7); tc.fill();
+    tc.fillStyle = C.dark ? "#f2efe6" : "#161616"; tc.beginPath(); tc.arc(x, y, 1.5 * dpr, 0, 7); tc.fill(); };
+  dot(ts * 0.25, ts * 0.25); dot(ts * 0.75, ts * 0.75);
   ox.setTransform(1, 0, 0, 1, 0, 0); ox.globalCompositeOperation = "source-in"; ox.fillStyle = ox.createPattern(tile, "repeat"); ox.fillRect(0, 0, cw, ch);
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(impOff, 0, 0); ctx.restore();
   for (const [mm, gx, gy, zr, zu] of IMP.rows) if (mm === m && ((zr || 0) >= 1 || (zu || 0) >= 1))
