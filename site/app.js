@@ -2372,7 +2372,7 @@ function drawAreaChart(){
   drawDeltaChart(cm);
   const rrows = chartFrames().map((v, i) => v && v.a[amode()] && v.a[amode()].russie ? [i, v.a[amode()].russie[1]] : null).filter(Boolean);
   const ruEl = document.getElementById("ruChart");
-  if (ruEl && rrows.some(r => r[1] >= 50)) {
+  if (ruEl && !ruEl.hidden && rrows.some(r => r[1] >= 50)) {   // courbe « contrôle ukrainien en Russie » masquée (19/10/2026)
     lineChart(ruEl, rrows, {zero: true, color: C.cool, lines: [{i: 1, color: C.cool, w: 1.8}], h: 90,
       title: i => FR.months[i] && FR.months[i].a[amode()].russie ? _t("{m} — en Russie, sous contrôle ukrainien (p < 0,5) : {v} km²", {m: monthLabel(i), v: fmt(FR.months[i].a[amode()].russie[1])}) : ""});
   } else if (ruEl) ruEl.replaceChildren();
