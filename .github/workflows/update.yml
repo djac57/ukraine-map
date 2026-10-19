@@ -101,6 +101,10 @@ jobs:
         run: python scripts/build_direction.py
         timeout-minutes: 10
         continue-on-error: true
+      - name: "Moteur de fusion (vue de test parallèle) : un modèle d'observation par signal, poids réappris chaque mois"
+        run: python scripts/build_fusion.py
+        timeout-minutes: 20
+        continue-on-error: true
       - name: "Avancée possible d'ici 2 mois : fourchettes par tronçon (affichées seulement si la validation passe)"
         run: python scripts/build_advance.py
         timeout-minutes: 10

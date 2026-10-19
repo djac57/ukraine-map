@@ -64,7 +64,8 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `envkeys.py` | Lecture des secrets depuis l'environnement, jamais écrits ni affichés (le nom évite la règle `*secret*` du .gitignore). |
 | `build_toponyms.py` | `site/toponyms.js` (toponymes EN/UK/RU, GeoNames) à partir de `ukraine-recherche/i18n/places_i18n.json` ; à relancer seulement si le fond de carte change. |
 | `guard.py` | Garde-fous des fichiers d'entrée. |
-| `kpi_avance.py` | KPI interne « avance sur les cartes » (§ 4) : lancé en local, lit `site/front_*.js` et VIINA, écrit dans `ukraine-recherche/analyses/kpi_avance/`. |
+| `kpi_avance.py` | KPI interne « avance sur les cartes » (§ 4) : lancé en local, lit `site/front_*.js` et VIINA, écrit dans `ukraine-recherche/analyses/kpi_avance/`. `KPI_CHAMP=fusion` évalue `front_fusion.js` à la place du nowcast ; `KPI_CAD=mois` pour un passage rapide (≈ 9 min). |
+| `build_fusion.py`, `fusion/` | Moteur de fusion (19/10/2026), vue PARALLÈLE « fusion » : lancé APRÈS `build_front.py` et `build_direction.py`, lit seulement `site/` et `data/`, tout réappris en walk-forward à chaque build (≈ 2 min ; `--kpi` : + KPI empilé, ≈ 6 min). Écrit `site/front_fusion.js` (champ + aires) et `site/fusion_explain.js` (explication par tronçon). Pas encore en CI ni sur la carte (§ 8 point 0). |
 
 ### Données versionnées (`data/`)
 
@@ -656,6 +657,38 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   sur les mailles qui changent) ; assauts et S2 dégradent un peu (modèles à revoir). Événements : Pokrovsk 2024 vu
   (+4 km en mai, vrai +4,5 ; artillerie, Telegram orienté, liste) ; Kharkiv, Robotyne simultanés (cartes séparées) ;
   Kherson, Vivaldi non anticipés ; Koursk non mesurable.
+- 19/10/2026 (après-midi) : **MOTEUR DE FUSION PORTÉ EN PRODUCTION, en VUE PARALLÈLE** (`scripts/build_fusion.py`,
+  `scripts/fusion/`, `site/front_fusion.js`, `site/fusion_explain.js` ; `build_front.py` NON modifié, pas encore en CI ni
+  affiché). Le socle est relu dans les fichiers PUBLIÉS : consensus et états par carte reconstruits depuis
+  `FRONT.months[].d` (99,996 % d'accord avec le consensus de recherche ; une localité absente des différences est
+  ukrainienne), ISW tenue pour arrêtée quand son âge publié dépasse 45 jours jusqu'au dernier mois (= 2026-07), asymétrie
+  recopiée de `sectors.asym`. Trois changements par rapport à la recherche, validés en walk-forward 2023-01 → 2026-07 :
+  (1) **bande recalibrée par secteur** : le conformal adaptatif de recherche (c_k sur le flou seul, +0,95 après une
+  rafale d'échecs, −0,05 par mois ensuite) restait trop large (98,6 %). Remplacé par un **conformal LOCAL** : pour chaque
+  point de la ligne vraie passée (q ≤ t − 2), plus petit facteur λ (appliqué au flou ET à l'étalement de la loi de δ
+  autour de sa médiane) qui l'aurait couvert ; λ_k = quantile 95 % pondéré (secteur + 8 voisins à 0,3, 36 mois, demi-vie
+  9 mois, rétréci vers tous les secteurs, n₀ = 10), niveau adapté par secteur (α_k ← α_k + 0,1·(0,05 − échec), deux
+  mois de retard), λ ≤ 2. Sans plafond, les quelques secteurs à grand mouvement deviennent tout gris (Brier ≤ 30 km
+  0,047) ; le choix est un compromis explicite couverture / Brier, retenu parmi 48 réglages (léger biais de sélection).
+  (2) **assauts de l'état-major revus en PRESSION** (log des assauts côté UA à ≤ 10 km et hausse sur un mois, dans μ et
+  π ; retirés des modèles de position) : mailles qui changent 0,3559 → 0,3515 ; (3) **Sentinel-2 en SENS seulement**
+  (z_RU − z_UA dans μ, plus rien dans π) : 0,3559 → 0,3545 ; les deux ensemble 0,3500 (bande de l'essai). Pas de
+  plancher de poids. **Chiffres de production** (même bande de mailles, vérité consensus à t+2, contre le nowcast
+  publié) : Brier ≤ 30 km **0,03291 → 0,03056** (−0,0024 ± 0,0005), mailles qui changent **0,3585 → 0,3527** (t+2,
+  ± 0,017 : dans le bruit), 0,3562 → 0,3439 (t+1) ; couverture 95 % par secteur **médiane 95,7 → 96,1 %, P10 81,0 →
+  91,2 %, secteurs < 90 % : 14 → 1 sur 59** ; 12 derniers mois : Brier 0,02989 → 0,02718, mailles qui changent 0,3542 →
+  0,3152, mais P10 84,9 → 86,6 % et 8 secteurs < 90 % sur 42 dans les deux cas (la bande récente reste à surveiller).
+  Le gain sur les mailles qui changent de la recherche (−0,013) venait en partie de la bande trop large : à couverture
+  honnête il tombe à −0,006. **KPI avance NET** (empilement, placebo « sens aléatoire » retranché) : réimplémentation de
+  `fusion/mesures.py` (5 graines) h = 1 : ≤ 30 km +1,7 pt [−2,5 ; +4,5], changent +1,3 [−0,9 ; +3,6] (production −0,4 /
+  +2,1) ; h = 2 : +0,8 [−1,9 ; +2,7] / +4,1 [+0,7 ; +8,0] (production +0,2 / +4,1) ; 12 mois h = 1 : −3,4 / +5,1
+  (production −1,4 / +1,6). `kpi_avance.py` (KPI_CHAMP=fusion, pas mensuel, 5 graines) : h = 1 **+2,9 pt [−1,5 ; +6,4]
+  ≤ 30 km, +2,2 [+0,1 ; +4,4] changent**, 12 mois +0,2 / +4,1 ; h = 2 +2,6 [+0,1 ; +4,0] / +5,6 [+2,1 ; +8,9]
+  (même passage pour le nowcast : h = 1 −0,2 [−1,5 ; +1,6] / +1,6 [−0,0 ; +3,3], 12 mois −1,5 / +1,7 ; h = 2 +0,4 /
+  +3,4). Pour la première fois, le KPI net ≤ 30 km est positif à h = 2 avec un IC au-dessus de 0.
+  Poids appris (moyenne depuis 2023 / part des mois non nuls) : MoD RF 0,55/62 %, filtre 0,16/89 %, radar bâti
+  0,14/27 %, artillerie 0,09/64 %, Telegram (points) 0,08/58 %, UCDP 0,06/40 %, frappes 0,06/16 %, KAB 0,05/27 %, pertes
+  0,04/44 %, feux 0,02/11 %, terrain 0. Durée locale : 2 min (6 min avec `--kpi`). `check_arrows.py` : 0 échec.
 
 ---
 
@@ -761,15 +794,24 @@ gains walk-forward ; voir le bilan ci-dessus) :
   négative pour tous les signaux).
 
 **Reste à faire, dans l'ordre proposé** :
-0. **Moteur de fusion** (19/10, `ukraine-recherche/analyses/fusion/RAPPORT.md`, section « Plan d'intégration ») :
-   le porter dans `scripts/fusion/`, l'appeler dans `build_front.py` juste après la bande locale, écrire une vue
-   PARALLÈLE `site/front_fusion.js` (case de test décochée), ajouter la vue à `map_dependence.py` et `kpi_avance.py`,
-   contrôles bloquants (couverture P10 ≥ 90 %, Brier ≤ nowcast sur 12 mois) ; remplacer le nowcast publié après un
-   mois de CI sans régression. Caches CI : profils par mois, loi du mois précédent, table de choix du champ. Info-bulle
-   proposée : « cartes x % → moteur y % ; pourquoi : DeepState en avance +1,5 km · secteur qui avance +0,8 ·
-   artillerie +0,6 ». Avant : revoir les modèles des assauts (en pression) et de S2 (sens seulement), resserrer la
-   bande (couverture 98,6 % au lieu de 95 %), tester un décalage par demi-tronçon (12 km : le moteur perd là où la ligne
-   avance dans une partie seulement de la tuile).
+0. **Moteur de fusion** : **PORTÉ le 19/10/2026 en vue parallèle** (§ 6 : `scripts/build_fusion.py`, `scripts/fusion/`,
+   bande recalibrée par secteur, assauts en pression, S2 en sens). Reste, à faire par l'utilisateur :
+   - **CI** (`update.yml`) : une étape `python scripts/build_fusion.py` APRÈS `build_direction.py` (et avant
+     `build_advance.py` / `stamp.py` / `check_arrows.py`), sans secret, ≈ 2 min, aucun cache nécessaire (tout est
+     réappris à chaque build, walk-forward) ; versionner `site/front_fusion.js` et `site/fusion_explain.js`.
+     `stamp.py` ajoute tout seul `fusion` à `FRONT_V` (glob `front_*.js`).
+   - **Affichage** (`app.js`, `i18n.js`, `index.html`) : case « moteur de fusion (test) » décochée → `ensureView("fusion")`
+     puis `fieldName()` = "fusion" ; aires : fusionner `FRONT_FUSION.months[i].a` dans `FR.months[i].a.fusion` et
+     `.mc` (même indice que `FR.months`) ; info-bulle : `fusion_explain.js` (format dans l'en-tête de
+     `build_fusion.py` ; libellés `codes` à traduire) ; p de la maille : `front_fusion.js` contre `front_equilibre.js`.
+   - **Contrôles** à ajouter dans `check_arrows.py` (bloquants) : schéma de `front_fusion.js` (longueur = FRONT.months),
+     `FRONT_FUSION.validation.fusion.cov_p10 ≥ 0,90`, Brier ≤ 30 km et mailles qui changent ≤ production
+     (`validation.fusion` contre `validation.production`).
+   - `map_dependence.py` : ajouter la vue `fusion`.
+   - Bascule (fusion à la place du nowcast) après un mois de CI sans régression.
+   - Pistes ouvertes : décalage par demi-tronçon (12 km) ; bande des 12 derniers mois (P10 86,6 %, 8 secteurs < 90 %
+     sur 42) ; ISW « présente / absente » apparaît dans l'explication après son arrêt (indicatrice du modèle des
+     cartes séparées).
 1. **« Qui avait raison »** : **MESURÉ le 19/10/2026**, c'est le nouveau KPI principal « avance sur les cartes »
    (§ 4, § 6 ; `scripts/kpi_avance.py`, `ukraine-recherche/analyses/kpi_avance/RAPPORT.md`).
    - **Valeur de référence** (site du 18/10, pas mensuel, h = 1 mois, 2023-01 → 2026-08) :

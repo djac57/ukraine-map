@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"advance": "500c569f61", "asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "3f6aa0738f", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "043fe02e46", "nowcast": "2c17b54478", "pmove": "00616af86d", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "sens": "42247d2638", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "3c75335233", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"advance": "500c569f61", "asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "3f6aa0738f", "destr": "6d2f393980", "equilibre": "98b088d2af", "fusion": "4840b6ec50", "mcsd": "043fe02e46", "nowcast": "2c17b54478", "pmove": "00616af86d", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "sens": "42247d2638", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "3c75335233", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -93,7 +93,7 @@ const cellPlace = new Int32Array(GX * GY);
 const pFlags = Uint8Array.from(atob(FR.flags), c => c.charCodeAt(0));
 const SRCN = {dsm:"DeepStateMap", isw:"ISW / CTP", wiki:"Wikipédia", boost:"Wikipédia + VIINA"};
 const SRCCAMP = {dsm:"ukrainien", isw:"tiers", wiki:"tiers", boost:"tiers"};
-const MODEN_FR = {equilibre:"tous (équilibré), cartes seules", nowcast:"tous (équilibré), avec signaux de combat", ua:"vue ukrainienne seule", ru:"vue russe seule", tiers:"sources tierces seules"};
+const MODEN_FR = {equilibre:"tous (équilibré), cartes seules", nowcast:"tous (équilibré), avec signaux de combat", fusion:"moteur de fusion (test)", ua:"vue ukrainienne seule", ru:"vue russe seule", tiers:"sources tierces seules"};
 const MODEN = new Proxy(MODEN_FR, {get: (o, k) => o[k] === undefined ? undefined : _t(o[k])});
 const STN = new Proxy(["—", "ukrainien", "russe", "contesté"], {get: (o, k) => typeof o[k] === "string" && o[k] !== "—" ? _t(o[k]) : o[k]});
 // les navigateurs (mobiles surtout) restaurent l'état des cases au rechargement ou au retour arrière : la page
@@ -108,9 +108,11 @@ let showClaims = false, claimHits = [];
 let nowcastOn = !!(document.getElementById("lyrNowcast") && document.getElementById("lyrNowcast").checked), showCombat = false;
 // zone grise (contact) mesurée par nos signaux : cochée ; incertitude des cartes (lignes 5 et 95 %) : décochée
 let showContact = !!(document.getElementById("lyrContact") && document.getElementById("lyrContact").checked), showUnc = !!(document.getElementById("lyrUnc") && document.getElementById("lyrUnc").checked);
-const amode = () => fmode === "equilibre" && !fvar && nowcastOn && FR.nowcast ? "nowcast" : fmode;
+// vue « moteur de fusion (test) » (front_fusion.js, scripts/build_fusion.py) : prioritaire sur le nowcast quand elle est cochée
+let fusionOn = false, FUSX = null;
+const amode = () => fmode === "equilibre" && !fvar && fusionOn && window.FRONT_FUSION ? "fusion" : fmode === "equilibre" && !fvar && nowcastOn && FR.nowcast ? "nowcast" : fmode;
 const fieldName = () => fvar || amode();
-const mcOf = mo => amode() === "nowcast" && mo.mcNow ? mo.mcNow : mo.mc;
+const mcOf = mo => amode() === "fusion" && mo.mcFus ? mo.mcFus : amode() === "nowcast" && mo.mcNow ? mo.mcNow : mo.mc;
 const BASEMAP_V = "7934ff79a1";
 let showBase = !!(document.getElementById("lyrBase") && document.getElementById("lyrBase").checked), baseGeo = null;
 function loadBasemap(){
@@ -1883,6 +1885,11 @@ $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
 $("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); };
+if ($("lyrFusion")) $("lyrFusion").onchange = e => { fusionOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key];
+  const done = () => { const FF = window.FRONT_FUSION; if (FF && !FF._merged) { FF._merged = true; FF.months.forEach((m, i) => { if (m && FR.months[i]) { FR.months[i].a.fusion = m.a; FR.months[i].mcFus = m.mc; } }); }
+    frontFor = -2; legend(); draw(); updateReadout(); drawChart && drawChart(); };
+  if (!fusionOn) return done();
+  ensureView("fusion", () => { if (!window.FUSION_EXPLAIN) { const sc = document.createElement("script"); sc.src = "fusion_explain.js?v=" + (FRONT_V.fusion || ""); sc.onload = () => { FUSX = window.FUSION_EXPLAIN; draw(); }; document.head.appendChild(sc); } done(); }); };
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
 if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };
 if ($("lyrAdv")) $("lyrAdv").onchange = e => { showAdv = e.target.checked; if (showAdv) loadAdv(() => { legend(); draw(); }); legend(); draw(); };
@@ -2057,6 +2064,13 @@ function hover(e){
       const CUE = [[1, "Telegram : activité russe signalée en excès"], [2, "Telegram : activité ukrainienne signalée en excès"], [4, "impacts plus denses côté ukrainien"], [8, "impacts plus denses côté russe"], [16, "combats derrière la ligne ukrainienne"], [32, "combats derrière la ligne russe"], [64, "gain russe récent"], [128, "reprise ukrainienne récente"]];
       const cs = CUE.filter(([b]) => sb[5] & b).map(([, t]) => _t(t));
       if (cs.length) ctxt += `<div style="color:var(--faint)">${_t("indices : {l}", {l: cs.join(" · ")})}</div>`; }
+  }
+  if (amode() === "fusion" && FUSX && FUSX.months[fi]) {
+    const T = FUSX.tileCells || 12, row = FUSX.months[fi].find(r => i >= r[0] && i < r[0] + T && j >= r[1] && j < r[1] + T);
+    if (row) { const km = v => dec(Math.round(Math.abs(v)) / 10), dir = v => v > 0 ? _t("vers le côté ukrainien") : v < 0 ? _t("vers le côté russe") : "";
+      ctxt += `<div class="r"><span>${_t("moteur de fusion : ligne probable par rapport aux cartes")}</span><b>${row[2] ? km(row[2]) + " km " + dir(row[2]) : _t("identique")}</b></div>` +
+        `<div style="color:var(--faint)">${_t("90 % : {a} à {b} km ; P(le tronçon bouge ≥ 1 km) {p} %", {a: dec(row[3] / 10), b: dec(row[4] / 10), p: row[5]})}</div>`;
+      if (row[6] && row[6].length) ctxt += `<div style="color:var(--faint)">${_t("pourquoi : {l}", {l: row[6].map(([c, d]) => _t(FUSX.codes[c] || c) + " " + (d >= 0 ? "+" : "−") + dec(Math.abs(d) / 10)).join(" · ")})}</div>`; }
   }
   const inf = nearInfra(j, i);
   if (inf) ctxt += `<div style="color:var(--faint)">${_t("à {d} km : {l}", {d: inf.d, l: inf.label})}</div>`;

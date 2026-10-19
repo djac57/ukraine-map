@@ -39,7 +39,9 @@ Détection : délai (jours) entre le moment où une source passe du nouveau côt
     python3 scripts/kpi_avance.py              (≈ 5-10 min ; cache des états VIINA dans <sortie>/cache)
     KPI_REBUILD=1 python3 scripts/kpi_avance.py   (relit VIINA)
 Variables : KPI_RAW (dossier VIINA, défaut ukraine-recherche/front/raw), KPI_OUT (défaut
-ukraine-recherche/analyses/kpi_avance), KPI_SEEDS (placebos, défaut 20), KPI_BOOT (tirages, défaut 2000).
+ukraine-recherche/analyses/kpi_avance), KPI_SEEDS (placebos, défaut 20), KPI_BOOT (tirages, défaut 2000),
+KPI_CHAMP (champ évalué comme « nous : champ publié », défaut nowcast ; fusion = site/front_fusion.js),
+KPI_CAD (pas : mois,decade ; « mois » seul pour un passage rapide).
 Écrit : resultats.json, resultats.md (tableaux), mensuel.csv, secteurs.csv, tuiles.csv, detection.csv.
 """
 import contextlib
@@ -70,6 +72,8 @@ STACK = [("nowcast", "nous : champ publié (nowcast)"), ("pool", "nous : pool (c
          ("isw", "ISW"), ("wiki", "Wikipédia"), ("pers", "persistance (consensus t−1)"), ("dataonly", "données seules (v4)"),
          ("placebo_bruit", "PLACEBO bruit pur"), ("placebo_sens", "PLACEBO nowcast à sens tiré au hasard")]
 NBOOT = int(os.environ.get("KPI_BOOT", "2000"))
+# champ évalué à la place du nowcast publié (ex. KPI_CHAMP=fusion lit site/front_fusion.js ; libellés inchangés)
+CHAMP = os.environ.get("KPI_CHAMP", "nowcast")
 EVAL_FROM = "2023-01-01"
 EPS = 0.01
 CAP_KM = 30.0
@@ -122,10 +126,11 @@ class Site:
         self.fields = {}
         for view in ("nowcast", "equilibre", "ua", "ru", "tiers", "sans_dsm", "sans_isw", "sans_wiki", "sans_enveloppes", "sans_medias",
                      "sans_modru", "sans_gsua", "sans_presence", "sans_indices"):
-            path = os.path.join(SITE, f"front_{view}.js")
+            fv = CHAMP if view == "nowcast" else view
+            path = os.path.join(SITE, f"front_{fv}.js")
             if not os.path.exists(path):
                 continue
-            seq = decode_seq(load_seq(SITE, view), self.nU)
+            seq = decode_seq(load_seq(SITE, fv), self.nU)
             self.fields[view] = {d: (seq[k].astype(np.float32) / 63.0) for k, d in self.mdates if k < len(seq) and seq[k] is not None}
         self.generated = FR.get("generated")
         self.tile = (self.jj // TILE) * 1000 + self.ii // TILE
