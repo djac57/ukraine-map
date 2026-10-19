@@ -1041,12 +1041,14 @@ function loadInfra(then){
   const go = () => { const I = window.INFRA; if (!I) return;
     const g = (lon, lat) => { const q = proj([lon, lat]); return [(q[0] - gAff[0]) / gAff[2], (q[1] - gAff[1]) / gAff[2]]; };
     const pts = [];
-    for (const s of I.stations || []) pts.push({x: g(s[0], s[1]), label: "gare de " + s[2], k: "gare"});
-    for (const p of I.plants || []) pts.push({x: g(p[0], p[1]), label: `centrale ${({Nuclear: "nucléaire", Coal: "au charbon", Gas: "au gaz", Hydro: "hydraulique", Oil: "au fioul"})[p[3]] || ""} ${p[2]} (${p[4]} MW)`, k: "centrale"});
-    for (const h of I.heavy || []) pts.push({x: g(h[0], h[1]), label: `${h[2]} (${h[3]})`, k: "lourd"});
-    for (const a of I.airports || []) pts.push({x: g(a[0], a[1]), label: `${a[3]} ${a[2]}`, k: "air"});
+    // étiquette = type traduit (langue de la page) + nom propre tel que publié par la source (OSM, WRI, OurAirports)
+    const lourd = t => /mine|coal/.test(t) ? "mine" : /coke/.test(t) ? "cokerie" : /chemi/.test(t) ? "usine chimique" : /steel|metal/.test(t) ? "aciérie, métallurgie" : "site industriel lourd";
+    for (const s of I.stations || []) pts.push({x: g(s[0], s[1]), t: "gare", n: s[2], k: "gare"});
+    for (const p of I.plants || []) pts.push({x: g(p[0], p[1]), t: ({Nuclear: "centrale nucléaire", Coal: "centrale au charbon", Gas: "centrale au gaz", Hydro: "centrale hydraulique", Oil: "centrale au fioul", Solar: "centrale solaire"})[p[3]] || "centrale électrique", n: `${p[2]} (${p[4]} MW)`, k: "centrale"});
+    for (const h of I.heavy || []) pts.push({x: g(h[0], h[1]), t: lourd(h[3]), n: h[2], k: "lourd"});
+    for (const a of I.airports || []) pts.push({x: g(a[0], a[1]), t: "aéroport", n: a[2], k: "air"});
     for (const z of I.industrial || []) { const c = z[2]; let sx = 0, sy = 0; for (let n = 0; n < c.length; n += 2) { sx += c[n]; sy += c[n + 1]; } const m = c.length / 2;
-      pts.push({x: g(sx / m, sy / m), label: `zone industrielle${z[1] ? " " + z[1] : ""} (${String(z[0]).replace(".", ",")} km²)`, k: "zone"}); }
+      pts.push({x: g(sx / m, sy / m), t: "zone industrielle", n: `${z[1] ? z[1] + " " : ""}(${String(z[0]).replace(".", ",")} km²)`, k: "zone"}); }
     const rails = (I.rail || []).map(l => { const p = new Path2D(); for (let n = 0; n < l.length; n += 2) { const q = proj([l[n], l[n + 1]]); n ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1]); } return p; });
     const zones = (I.industrial || []).map(z => { const p = new Path2D(), c = z[2]; for (let n = 0; n < c.length; n += 2) { const q = proj([c[n], c[n + 1]]); n ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1]); } p.closePath(); return p; });
     INF = {pts, rails, zones, src: I.sources}; then(); };
@@ -1056,15 +1058,15 @@ function loadInfra(then){
 // infrastructures : dessinées seulement à partir d'un zoom sur une localité (INFRA_K) ; en vue d'ensemble, rien,
 // même case cochée ; trait léger, étiquettes au zoom fort seulement (INFRA_LABEL_K)
 // seuils exprimés en km par pixel (même rendu sur ordinateur et sur mobile, quel que soit le cadrage initial)
-const INFRA_KMPX = 0.8, INFRA_LABEL_KMPX = 0.3;
+const INFRA_KMPX = 0.8;
 const kmPerPx = k => (FR.grid.size / 1000) / (gAff[2] * k);
 function drawInfra(k){
   if (!showInfra || !INF || kmPerPx(k) > INFRA_KMPX) return;
   const u = 1 / k, ink = C.dark ? "rgba(225,225,215," : "rgba(35,35,35,";
   ctx.save();
-  // voies ferrées : trait gris foncé et traverses (hachures)
-  ctx.strokeStyle = ink + "0.75)"; ctx.lineWidth = 1.1 * u; for (const p of INF.rails) ctx.stroke(p);
-  ctx.lineWidth = 2.6 * u; ctx.setLineDash([0.8 * u, 3.2 * u]); for (const p of INF.rails) ctx.stroke(p); ctx.setLineDash([]);
+  // voies ferrées : trait gris fin et traverses espacées, discrètes
+  ctx.strokeStyle = ink + "0.4)"; ctx.lineWidth = 0.8 * u; for (const p of INF.rails) ctx.stroke(p);
+  ctx.lineWidth = 2 * u; ctx.setLineDash([0.6 * u, 5 * u]); for (const p of INF.rails) ctx.stroke(p); ctx.setLineDash([]);
   ctx.strokeStyle = ink + "0.45)"; ctx.lineWidth = 0.7 * u; ctx.setLineDash([2.5 * u, 2 * u]); for (const p of INF.zones) ctx.stroke(p); ctx.setLineDash([]);
   ctx.fillStyle = ink + "0.95)"; ctx.strokeStyle = ink + "0.95)"; ctx.lineWidth = 1.3 * u;
   for (const p of INF.pts) { if (p.k === "zone") continue;
@@ -1074,8 +1076,7 @@ function drawInfra(k){
     else if (p.k === "air") { ctx.beginPath(); ctx.moveTo(q[0], q[1] - r); ctx.lineTo(q[0], q[1] + r); ctx.moveTo(q[0] - r, q[1]); ctx.lineTo(q[0] + r, q[1]); ctx.moveTo(q[0] - r * 0.5, q[1] + r * 0.8); ctx.lineTo(q[0] + r * 0.5, q[1] + r * 0.8); ctx.stroke(); }   // avion
     else if (p.k === "gare") { ctx.fillRect(q[0] - r * 0.8, q[1] - r * 0.5, r * 1.6, r); ctx.beginPath(); ctx.arc(q[0] - r * 0.45, q[1] + r * 0.7, r * 0.25, 0, 7); ctx.arc(q[0] + r * 0.45, q[1] + r * 0.7, r * 0.25, 0, 7); ctx.fill(); }   // wagon
     else { ctx.fillRect(q[0] - r * 0.8, q[1] - r * 0.2, r * 1.6, r); ctx.fillRect(q[0] - r * 0.8, q[1] - r, r * 0.45, r * 0.8); ctx.fillRect(q[0] + r * 0.1, q[1] - r * 0.7, r * 0.45, r * 0.5); }   // usine
-    if (kmPerPx(k) <= INFRA_LABEL_KMPX && p.label) { ctx.font = `600 ${10.5 * u}px "JetBrains Mono",monospace`; ctx.lineWidth = 2.6 * u; ctx.strokeStyle = C.bg; const t = p.label.split(" (")[0].slice(0, 28);
-      ctx.strokeText(t, q[0] + 5 * u, q[1] - 3 * u); ctx.fillText(t, q[0] + 5 * u, q[1] - 3 * u); ctx.strokeStyle = ink + "0.95)"; ctx.lineWidth = 1.3 * u; }
+    // pas d'étiquette sur la carte : les noms des sources sont en langues mêlées et masquaient les localités ; nom au survol
   }
   ctx.restore();
 }
@@ -1084,7 +1085,7 @@ function nearInfra(j, i){
   if (!INF) return null;
   let best = null, bd = 6 / (FR.grid.size / 1000);
   for (const p of INF.pts) { const d = Math.hypot(p.x[0] - i - 0.5, p.x[1] - j - 0.5); if (d < bd) { bd = d; best = p; } }
-  return best ? {label: best.label, d: Math.max(1, Math.round(bd * FR.grid.size / 1000))} : null;
+  return best ? {label: _t(best.t) + " " + best.n, d: Math.max(1, Math.round(bd * FR.grid.size / 1000))} : null;
 }
 // « combats intenses (anomalie) » : score de combat au moins deux fois sa moyenne nationale près de la ligne, sans
 // direction ; hachures dessinées sur la grille (4 pixels par maille pour la finesse du trait)
@@ -1534,15 +1535,7 @@ function drawRelief(k){
   }
   for (const [im, x, y, w, h] of tiles) ctx.drawImage(im, x, y, w, h);
   window.__uafRelief = {kmpx: kmpx, level: z1 ? "z1" : "z0", tiles: tiles.length, contours: !!rlfCont};
-  // courbes de niveau (50 m, zone du front) : au zoom seulement, trait fin, chargées à la demande
-  if (kmpx < 0.6) {
-    if (!rlfCont && !rlfContLoading) { rlfContLoading = true; const sc = document.createElement("script"); sc.src = "relief/contours_50m.js";
-      sc.onload = () => { const C_ = window.RELIEF_CONTOURS; rlfCont = {p1: new Path2D(), p2: new Path2D()};
-        for (const [lev, c] of C_.lines) { const pth = lev % 100 === 0 ? rlfCont.p2 : rlfCont.p1; pth.moveTo(c[0], c[1]); for (let n = 2; n < c.length; n += 2) pth.lineTo(c[n], c[n + 1]); }
-        draw(); }; document.head.appendChild(sc); }
-    if (rlfCont) { ctx.globalCompositeOperation = "source-over"; ctx.strokeStyle = "rgb(70,55,35)"; ctx.globalAlpha = 0.35;
-      ctx.lineWidth = 0.7 / (k * gAff[2]); ctx.stroke(rlfCont.p1); ctx.globalAlpha = 0.5; ctx.lineWidth = 1.1 / (k * gAff[2]); ctx.stroke(rlfCont.p2); }
-  }
+  // pas de courbes de niveau : elles se lisaient comme des routes ou des limites (retour du 19/10)
   ctx.restore();
 }
 
