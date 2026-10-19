@@ -56,6 +56,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `build_official_signals.py` | Faits des bilans quotidiens (assauts et frappes de l'état-major UA, localités des bilans du MoD RF) par maille et par mois ; en CI, seuls les 3 derniers mois sont recalculés. |
 | `build_front.py` | Le modèle (voir §3) : champ p, nowcast, bande locale, P(contact), z, flèches d'annonces, couches. Écrit `site/front*.js` et `data/front_*.csv`. |
 | `barrier_tiling.py` | Pavage et statuts VIINA contraints par les barrières dures (fleuves ≥ 40 m³/s et plans d'eau de `site/barrieres_dures.js`) : aucune contagion d'une rive à l'autre (§ 6, 19/10/2026). Appelé par `build_front.py`. |
+| `source_consensus.py` | Poids dynamique par carte × secteur × mois (justesse passée contre la vérité retardée, test anti-fuite, placebo). Branché dans `build_front.py` mais **désactivé** (`WMULT_ON`) : non retenu le 19/10/2026 (§ 6). |
 | `sectors.py` | Secteurs : z-scores, P(contact), asymétrie « combats derrière la ligne », radar, faits officiels. |
 | `nowcast.py` | Nowcast (les combats déplacent p), calibré en walk-forward. |
 | `conformal.py` | Bande d'incertitude locale (intervalles conformes par secteur). |
@@ -781,6 +782,44 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   droite, jusqu'à 20 km du fleuve (Urozhaine, Tomaryne, Virivka, Lvove, Olhivka depuis 2023-12 ; Shilova Balka, Burhunka
   depuis 2022), contre DeepState et l'ISW. La règle « on ne force pas le fleuve comme ligne » interdit de les corriger
   ici ; piste : vieillissement / poids réduit d'une carte contredite durablement par les deux autres (à valider).
+- 19/10/2026 : **POIDS DYNAMIQUE PAR CARTE × SECTEUR × MOIS : NON RETENU** (demande de l'utilisateur : réduire le poids
+  d'une carte là où les deux autres la contredisent durablement, de façon dynamique et secteur par secteur, sans lire le
+  futur ni devenir « perroquet du consensus »). Module `scripts/source_consensus.py`, branché dans `build_front.py`
+  (pool et Monte Carlo apparié) mais **désactivé** (`WMULT_ON`, essais : `SC_ON=1 SC_ARGS=…`). Règle : au mois t, pour
+  chaque carte (DeepState, ISW, Wikipédia, Wikipédia + VIINA) et tuile de 24 km, erreur DURABLE passée = part des mailles
+  (≤ 10 km de la ligne vraie, ou en erreur) où la carte au mois q contredisait la vérité retardée (consensus des cartes
+  VIVANTES à q + 2, majorité stricte) et la contredisait encore à q + 2, sur q ≤ t − 2 seulement, sauf si la vérité l'a
+  rejointe depuis (au plus tard à t : « réhabilitée », protège une carte en avance) ; oubli 6 mois, voisines 0,3,
+  rétrécissement vers l'erreur moyenne (400 mailles-mois) ; multiplicateur m = clip((ē_autres + 0,01) / (e_s + 0,01),
+  0,15, 1) ; le camp pèse à proportion du multiplicateur moyen de ses sources. Désaccord récent (< 2 mois) : rien de
+  neuf, le poids appris sur le passé de la carte dans le secteur reste. ISW arrêté : ni juge ni jugé après son arrêt ; à
+  deux voix (DeepState / Wikipédia en désaccord), aucune nouvelle preuve, poids conservé. Test anti-fuite BLOQUANT dans
+  le build (`check_no_future` : poids de t identiques si l'historique s'arrête à t ; une fuite injectée est détectée).
+  Protocole : variante choisie sur 2023-2024, évaluée gelée sur 2025-2026 ; vérité commune (consensus à t + 2, statuts
+  corrigés barrières + journal DeepState) ; 4 variantes + 1 placebo, 6 builds complets. Nowcast, AVANT → A (retenue sur
+  2023-24 : réduction seulement) :
+  - 2023-24 : Brier ≤ 30 km 0,04705 → 0,04563, mailles qui changent 0,3690 → 0,3608, corrélation au consensus du jour
+    0,910 → 0,913 ;
+  - 2025-26 (gelé) : ≤ 30 km 0,03481 → 0,03233, Dnipro aval 0,0232 → 0,0185, Antonivka–Kozatske 0,0396 → 0,0346, mais
+    **mailles qui changent 0,3567 → 0,3613** et **Lyman (DeepState en avance) 0,314 → 0,378** ; corrélation 0,930 → 0,935
+    (monte sans gain sur ce qui bouge : signature « perroquet ») ; capture juin 2026 : la ligne recule à l'est de Lyman ;
+  - KPI avance net (h = 1 mois, période / 12 mois) : ≤ 30 km −0,31 → −0,45 / −1,59 → −1,79 pt ; mailles qui changent
+    +1,90 → +2,05 / **+1,86 → +1,45** ; h = 2 : +3,51 → +3,87 / +4,21 → +4,11 ; détection : bascules vues avant 48,0 →
+    48,3 %, délai 11,6 → 11,6 j ;
+  - couverture par secteur (nowcast) médiane 95,3 → 95,3 %, P10 90,7 → 90,5 %, < 90 % 10 → 10 % ; km² 2026-09 120 139 →
+    120 105 ; rive droite Antonivka–Kozatske, km² « russes » sur mailles ukrainiennes du consensus, 2026-09 : 108 → 84.
+  Autres variantes (non sélectionnées sur 2023-24, essayées APRÈS avoir vu 2025-26, donc non aveugles) : B (m jusqu'à 2) :
+  ≤ 30 km 0,0299 mais changent 0,3726, Lyman 0,458 ; C (sans poids de camp) : changent 0,3668 ; D (« les DEUX autres
+  d'accord entre elles, au mois q et à q + 3 », 90 jours) : ≤ 30 km 0,03214, changent 0,3584 (+0,5 %), Lyman 0,335, P10
+  90,7 → 89,9 %, KPI changent +1,90 → +1,96 / +1,86 → +1,94 mais délai 11,6 → 10,7 j et bascules vues avant 48,0 →
+  47,4 %. Placebo de A (mêmes multiplicateurs, tuiles permutées) : ≤ 30 km 0,03396 (gain divisé par 3), changent 0,3567 :
+  l'information par secteur est réelle sur les mailles stables, mais elle se paie sur les mailles qui bougent.
+  Multiplicateurs appris (A, 2026-09, médiane / part < 0,5) : DeepState 1,00 / 0 %, ISW 1,00 / 3 %, Wikipédia 0,74 /
+  31 % ; Wikipédia au plancher (0,15-0,25) le long du Dnipro et du réservoir (Nova Kakhovka 0,20, Kakhovka 0,24,
+  Antonivka 0,43) ; ISW 0,3-0,6 dans le Donbass (Tchassiv Iar 0,31, Myrnohrad 0,36, Lyman 0,58). Décision : **non
+  retenu** (règle « pas de dégradation » : mailles qui changent et avance de DeepState à Lyman dégradées sur la période
+  gelée) ; le résidu Antonivka–Kozatske reste. Piste : un poids réduit seulement là où AUCUNE carte n'a bougé depuis
+  longtemps (secteurs figés, Dnipro), qui ne toucherait pas les secteurs actifs — à tester sur 2023-24 puis geler.
 
 ---
 

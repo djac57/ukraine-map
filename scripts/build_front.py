@@ -42,6 +42,7 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guard  # noqa: E402
 import barrier_tiling  # noqa: E402
+import source_consensus  # noqa: E402
 
 SRC_DIR = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "viina"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -105,7 +106,7 @@ DEFAULT = {
 }
 RU_BAND_KM = 80.0       # bande côté russe (Koursk, Belgorod, Briansk…) : même champ p, sans découpage à la frontière
 RU_CLAIM_RADIUS = 2.5   # rayon des noyaux d'annonces sur des localités russes (pas de pavage) : km
-LAG_DAYS = 7
+LAG_DAYS = int(os.environ.get("LAG_DAYS", "1"))   # décalage de publication : J-1 depuis le 19/10/2026 (décision de l'utilisateur ; J-7 auparavant)
 PRE_DATE = "20220223"
 CRIMEA_ADM1 = {"11", "20"}
 RU_MEDIA = {"ria", "ntv", "kp", "ng"}
@@ -1187,7 +1188,8 @@ class Model:
                 lv[s] = [None if col[u] is None else max(-lmax, min(lmax, col[u] / ((max(1.0, b0 * loc[u]) + agep) * widen[u] + ex.get(u, 0.0))))
                          for u in range(self.nU)]
         return {"day": day, "ndays": ndays or 30, "base": base, "dist": dist, "sigma": sigma, "extra": extra, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
-                "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active, "band_ev": band_ev}
+                "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active, "band_ev": band_ev,
+                "wm": {s: v for s, v in (getattr(self, "wmult", None) or {}).get(m if len(m) == 7 else m[:7], {}).items() if s in dist}}
 
     def band_evidence(self, d, P, kstrength):
         """Bande russe : somme des preuves (logits) par maille.
@@ -1229,30 +1231,41 @@ class Model:
             srcs.append((s, c, W[s] * (pick[s] if pick else 1)))
         rng = cells if cells is not None else range(self.nU)
         out = [0.0] * self.nU if cells is None else {}
-        polys = [(inp["lv"][s], c, w, s) for s, c, w in srcs if s in inp["lv"]]
+        # poids dynamique par carte × secteur × mois (source_consensus.py) : w_s · m_s(x) dans le camp ; le camp pèse
+        # à proportion du multiplicateur moyen de ses sources (Σ w·m / Σ w) ; sans multiplicateur : pool inchangé
+        wm = inp.get("wm") or {}
+        polys = [(inp["lv"][s], c, w, s, wm.get(s)) for s, c, w in srcs if s in inp["lv"]]
         pts = [(inp["ker"][s], c, w) for s, c, w in srcs if s not in inp["lv"]]
         for u in rng:
             num = {}
             den = {}
-            for col, c, w, s in polys:
+            den0 = {}
+            for col, c, w, s, mm in polys:
                 v = col[u]
                 if v is None:
                     continue
                 if shift is not None:
                     d = inp["dist"][s][u] + shift[s].get(block[u], 0.0)
                     v = max(-lmax, min(lmax, d / (inp["sigma"][s] * inp["widen"][u] + inp.get("extra", {}).get(s, {}).get(u, 0.0))))
-                num[c] = num.get(c, 0.0) + w * v
-                den[c] = den.get(c, 0.0) + w
+                wu = w if mm is None else w * float(mm[u])
+                num[c] = num.get(c, 0.0) + wu * v
+                den[c] = den.get(c, 0.0) + wu
+                den0[c] = den0.get(c, 0.0) + w
             for ker, c, w in pts:
                 v = ker.get(u)
                 if v is None:
                     continue
                 num[c] = num.get(c, 0.0) + w * v
                 den[c] = den.get(c, 0.0) + w
+                den0[c] = den0.get(c, 0.0) + w
             if not self.isUA[u]:  # bande russe : a priori + preuves, identique pour toutes les vues
                 out[u] = P["band_prior"] + inp["band_ev"].get(u, 0.0)
             elif den:
-                out[u] = sum(num[c] / den[c] for c in den) / len(den)
+                if wm and WMULT_CAMP:
+                    om = {c: den[c] / den0[c] for c in den}
+                    out[u] = sum(om[c] * num[c] / den[c] for c in den) / sum(om.values())
+                else:
+                    out[u] = sum(num[c] / den[c] for c in den) / len(den)
         return out
 
     def filter(self, obs, prev, P, v_km, ndays=30):
@@ -1455,7 +1468,9 @@ class Model:
                 idx = np.minimum((np.where(e[1], e[2], e[3]) * len(lst)).astype(np.int64), len(lst) - 1)
                 for i, s in enumerate(lst):
                     pick[s] += idx == i
-        acc = {c: [np.zeros((D, nB)), np.zeros((D, nB)), np.zeros(nB), np.zeros(nB)] for c in CAMPS}
+        # [Σ w·m·v tirage, Σ w·m tirage, Σ w·m·v, Σ w·m, Σ w tirage, Σ w] ; m : poids dynamique (source_consensus.py)
+        acc = {c: [np.zeros((D, nB)), np.zeros((D, nB)), np.zeros(nB), np.zeros(nB), np.zeros((D, nB)), np.zeros(nB)] for c in CAMPS}
+        wmi = inp.get("wm") or {}
         widen = np.asarray(inp["widen"], np.float64)[B]
         ex = inp.get("extra", {})
         Bl = B.tolist()
@@ -1477,11 +1492,14 @@ class Model:
             v0 = np.where(valid, v0, 0.0)
             vd = np.where(valid[None, :], vd, 0.0)
             wd = (W[s] * pick[s])[:, None]
+            mB = np.asarray(wmi[s], np.float64)[B] if s in wmi else np.ones(nB)
             a = acc[CAMP[s]]
-            a[0] += wd * vd
-            a[1] += wd * valid[None, :]
-            a[2] += W[s] * v0
-            a[3] += W[s] * valid
+            a[0] += wd * mB[None, :] * vd
+            a[1] += wd * (mB * valid)[None, :]
+            a[2] += W[s] * mB * v0
+            a[3] += W[s] * mB * valid
+            a[4] += wd * valid[None, :]
+            a[5] += W[s] * valid
         out = {}
         sd = {}
         lo = hi = None
@@ -1489,13 +1507,20 @@ class Model:
             o, o0 = 0.0, 0.0
             n, n0 = 0, 0
             for c in VIEWS[v]:
+                # moyenne des camps pondérée par ω_c = Σ w·m / Σ w (= 1 sans poids dynamique) : ω_c · (Σ w·m·v / Σ w·m) = Σ w·m·v / Σ w
                 a = acc[c]
-                ok, ok0 = a[1] > 0, a[3] > 0
-                o = o + np.where(ok, a[0] / np.where(ok, a[1], 1.0), 0.0)
-                o0 = o0 + np.where(ok0, a[2] / np.where(ok0, a[3], 1.0), 0.0)
-                n, n0 = n + ok, n0 + ok0
-            o = np.where(n > 0, o / np.maximum(n, 1), 0.0)
-            o0 = np.where(n0 > 0, o0 / np.maximum(n0, 1), 0.0)
+                ok, ok0 = a[4] > 0, a[5] > 0
+                if WMULT_CAMP:
+                    o = o + np.where(ok, a[0] / np.where(ok, a[4], 1.0), 0.0)
+                    o0 = o0 + np.where(ok0, a[2] / np.where(ok0, a[5], 1.0), 0.0)
+                    n = n + np.where(ok, a[1] / np.where(ok, a[4], 1.0), 0.0)
+                    n0 = n0 + np.where(ok0, a[3] / np.where(ok0, a[5], 1.0), 0.0)
+                else:  # chaque camp garde son tiers ; le poids dynamique ne joue qu'à l'intérieur du camp
+                    o = o + np.where(ok, a[0] / np.where(ok, a[1], 1.0), 0.0)
+                    o0 = o0 + np.where(ok0, a[2] / np.where(ok0, a[3], 1.0), 0.0)
+                    n, n0 = n + ok, n0 + ok0
+            o = np.where(n > 0, o / np.where(n > 0, n, 1.0), 0.0)
+            o0 = np.where(n0 > 0, o0 / np.where(n0 > 0, n0, 1.0), 0.0)
             pos = np.searchsorted(B, bands[v])
             Lb = np.asarray([L[u] for u in bands[v].tolist()], np.float64)
             pv = 1 / (1 + np.exp(-(Lb[None, :] + b1 * (o[:, pos] - o0[None, pos]))))
@@ -1580,6 +1605,12 @@ class Model:
 
 # ---------- calibration ----------
 OFFSET_ON = True    # décalage signé par source et par secteur, retiré avant la mise en commun (voir compute_offsets)
+# poids dynamique par carte × secteur × mois (source_consensus.py) : codé, testé dans le build réel du 19/10/2026,
+# NON RETENU (mailles qui changent de camp dégradées sur 2025-2026, avance de DeepState au nord de Lyman cassée ; § 6).
+# Désactivé ; essais locaux : SC_ON=1 SC_ARGS="mmax=1.0,both=1,H=3" [SC_CAMP=0]
+WMULT_ON = os.environ.get("SC_ON") == "1"
+WMULT_CAMP = os.environ.get("SC_CAMP", "1") == "1"   # le camp pèse à proportion du multiplicateur moyen de ses sources
+WMULT_ARGS = {k: (v == "1") if k in ("durable", "both") else int(v) if k in ("H", "TS") else float(v) for k, v in (a.split("=") for a in os.environ.get("SC_ARGS", "").split(",") if a)}
 
 
 def compute_offsets(model, fm, P, H=2, HL=12.0, TS=12, shrink=60.0, cap=6.0, bar=None):
@@ -2245,6 +2276,9 @@ def main():
 
     if OFFSET_ON:
         model.offsets = compute_offsets(model, fm, P, bar=np.asarray(sect.barrier))
+    if WMULT_ON:  # poids dynamique par carte × secteur × mois, appris sur la vérité retardée (source_consensus.py, § 6)
+        model.wmult = source_consensus.compute(model, fm, NX, NY, CELL_KM, ended=ended, **WMULT_ARGS)
+        source_consensus.check_no_future(model, fm, model.wmult, NX, NY, CELL_KM, ended=ended, **WMULT_ARGS)
     v_km, speeds = estimate_speed(model, fm)
     print(f"vitesse typique du front : {v_km:.2f} km/mois", flush=True)
     sample = fm[::4] if not FAST else fm[::12]
