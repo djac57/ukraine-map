@@ -839,6 +839,8 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
 
 ### 8.2 Pistes d'amélioration pour plus tard (reprises telles quelles de REPRISE.md) (brainstorm du 18/10/2026, avec tout le contexte en tête)
 
+- **Géolocalisations de vidéos de combat** (catalogué le 19/10/2026, candidat fort pour le moteur de fusion) : comptes qui géolocalisent et datent les vidéos (ex. X @moklasen, contributeur de WarSpotting, GeoConfirmed, UAControlMap, lost_warinua, warunitobserver). Chaque fiche donne date, coordonnées et nature (« frappe sur position ukrainienne » = présence UA à ce point à cette date) : indice ponctuel, rare et fort, du type Telegram mais géolocalisé à la vidéo. Sources agrégées à privilégier : GeoConfirmed (carte publique, export à vérifier, licence à vérifier) et WarSpotting (déjà utilisé pour les pertes). Règles : on retire toute mention d'unité (pas de suivi d'unités), maille ≥ 2 km, J−7 minimum ; licences à vérifier avant usage.
+
 - **Couloirs de drones et missiles par raïon et par semaine** (décidé le 19/10/2026, pour plus tard) : archives publiques de l'armée de l'air ukrainienne et des chaînes de suivi aérien (ex. t.me/StrategicaviationT) ; source candidate cataloguée le 19/10/2026 : t.me/falconintel (trajectoires de drones reconstituées automatiquement par nuit d'attaque + points d'impact, « not 100% accurate » ; en images, licence à vérifier, à recouper avec l'armée de l'air), texte seulement, sans compte, J−7 minimum, agrégées ; jamais de suivi en temps réel. Affine la couche « missiles et drones » (aujourd'hui à l'oblast) ; contexte, pas dans le calcul de la ligne.
 
 **Modèle**
