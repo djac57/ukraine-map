@@ -1187,8 +1187,8 @@ function drawTg(k){
   ctx.restore(); ctx.globalAlpha = 1;
 }
 // impacts détectés par Sentinel-2 (indicateur affiché, données figées) : par tronçon de 20 km et par mois, z local des
-// impacts de chaque côté de la ligne (barre brune : côté russe, barre vert sombre : côté ukrainien), hauteur selon z ≥ 1
-let showImp = false, IMP = null, impHits = [];
+// impacts de chaque côté de la ligne (pointillé sombre, le côté se lit par la position ; détail par camp au survol), z ≥ 1
+let showImp = false, IMP = null, impHits = [], impOff = null;
 function loadImp(then){ if (window.IMPACTS) { IMP = window.IMPACTS; return then && then(); }
   const sc = document.createElement("script"); sc.src = "impacts_troncons.js?v=0"; sc.onload = () => { IMP = window.IMPACTS; if (then) then(); }; document.head.appendChild(sc); }
 let impFor = "", impImg = null;
@@ -1207,11 +1207,21 @@ function drawImp(k){
         const ii = i0 + di, jj = j0 + dj; if (ii < 0 || jj < 0 || ii >= GX || jj >= GY || di * di + dj * dj > r * r) continue;
         const c = jj * GX + ii, ru = g[c] > 0.5, v = ru ? zz[0] : zz[1]; if (v == null || v < 1 || cellPlace[c] === -1) continue;
         const a = Math.round(255 * Math.min(0.85, 0.2 + 0.1 * v)), o = c * 4;
-        if (d[o + 3] < a) { const [R, G, B] = ru ? [140, 81, 10] : [1, 102, 94]; d[o] = R; d[o + 1] = G; d[o + 2] = B; d[o + 3] = a; } } }
+        if (d[o + 3] < a) { d[o] = d[o + 1] = d[o + 2] = 0; d[o + 3] = a; } } }
     cx.putImageData(img, 0, 0);
   }
-  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(tr.x, tr.y); ctx.scale(k, k);
-  ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]); ctx.clip(domainPath); ctx.imageSmoothingEnabled = true; ctx.drawImage(impImg, 0, 0, GX, GY); ctx.restore();
+  // rendu en pointillé sombre (texture « cratères ») : le masque d'intensité découpe une trame de points en espace écran,
+  // pour ne pas confondre avec les feux (carrés brique), la zone grise (hachures) ni les secteurs qui bougent (ambre)
+  const cw = Math.round(W * dpr), ch = Math.round(H * dpr);
+  if (!impOff || impOff.width !== cw || impOff.height !== ch) { impOff = document.createElement("canvas"); impOff.width = cw; impOff.height = ch; }
+  const ox = impOff.getContext("2d"); ox.setTransform(1, 0, 0, 1, 0, 0); ox.globalCompositeOperation = "source-over"; ox.clearRect(0, 0, cw, ch);
+  ox.setTransform(dpr, 0, 0, dpr, 0, 0); ox.translate(tr.x, tr.y); ox.scale(k, k); ox.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]);
+  ox.save(); ox.clip(domainPath); ox.imageSmoothingEnabled = true; ox.drawImage(impImg, 0, 0, GX, GY); ox.restore();
+  const tile = document.createElement("canvas"), ts = Math.round(6 * dpr); tile.width = tile.height = ts;
+  const tc = tile.getContext("2d"); tc.fillStyle = C.dark ? "#f2efe6" : "#161616";
+  tc.beginPath(); tc.arc(ts * 0.25, ts * 0.25, 1.25 * dpr, 0, 7); tc.arc(ts * 0.75, ts * 0.75, 1.25 * dpr, 0, 7); tc.fill();
+  ox.setTransform(1, 0, 0, 1, 0, 0); ox.globalCompositeOperation = "source-in"; ox.fillStyle = ox.createPattern(tile, "repeat"); ox.fillRect(0, 0, cw, ch);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(impOff, 0, 0); ctx.restore();
   for (const [mm, gx, gy, zr, zu] of IMP.rows) if (mm === m && ((zr || 0) >= 1 || (zu || 0) >= 1))
     impHits.push({x: (gAff[0] + gx * gAff[2]) * k + tr.x, y: (gAff[1] + gy * gAff[2]) * k + tr.y, zr, zu});
 }
