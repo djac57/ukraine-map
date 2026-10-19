@@ -2328,11 +2328,12 @@ function lineChart(el, rows, opt){
   for (const ln of opt.lines) svg.append("path").attr("d", d3.line().defined(r => r[ln.i] != null).x(r => fx(r[0])).y(r => y(r[ln.i])).curve(d3.curveMonotoneX)(rows))
     .attr("fill","none").attr("stroke", ln.color).attr("stroke-width", ln.w || 1.6).attr("stroke-dasharray", ln.dash || null).attr("opacity", ln.op || 1);
   svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class","tick").attr("x", i => x(i)).attr("y", h-m.b+16).text(i => D.months[i].slice(0,4));
-  const mk = svg.append("line").attr("y1", m.t).attr("y2", h-m.b).attr("stroke", C.accent).attr("stroke-width", 1.5);
+  // repère du pas affiché : même boîte orange que le graphique des variations (cohérence)
+  const mk = svg.append("rect").attr("y", m.t).attr("height", h-m.b-m.t).attr("fill", "none").attr("stroke", C.accent).attr("stroke-width", 1.5);
   svg.append("g").selectAll("rect").data(d3.range(NM)).join("rect").attr("x", i => x(i) - x.step()*x.paddingInner()/2).attr("width", x.step())
     .attr("y", m.t).attr("height", h-m.b-m.t).attr("fill","transparent").style("cursor","pointer")
     .on("click", (e,i) => { stop(); setMonth(i); }).append("title").text(i => opt.title(i));
-  marks.push(() => { const fi = frontIdx(), xx = fi >= 0 && AX[stepIdx] && AX[stepIdx].f >= 0 ? fx(fi) : cx(cur); mk.attr("x1", xx).attr("x2", xx).attr("opacity", AX[stepIdx] && AX[stepIdx].f >= 0 ? 1 : .3); });
+  marks.push(() => { mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3).attr("opacity", 1); });
   el.replaceChildren(svg.node());
 }
 const chartFrames = () => FR.months.map((v, i) => v && !(i < NMF && firstDay && v.date >= firstDay) ? v : null);
@@ -2366,7 +2367,7 @@ function drawDeltaChart(cm){
     // valeur écrite dans la barre, à la verticale (pas de chevauchement entre barres voisines)
     const ym = (y(0) + (up ? y(top) : y(-top))) / 2;
     svg.append("text").attr("transform", `translate(${xb + bw / 2},${ym}) rotate(-90)`).attr("text-anchor", "middle").attr("dy", "0.35em")
-      .attr("fill", "#fff").style("font", `600 ${Math.min(11, Math.max(8, bw * 0.55))}px "JetBrains Mono",monospace`).text((up ? "+" : "−") + fmt(Math.round(Math.abs(r[1]) / 1000) * 1000)); }
+      .attr("fill", "#fff").style("font", `600 ${Math.min(10, Math.max(7, bw * 0.45))}px "JetBrains Mono",monospace`).text((up ? "+" : "−") + fmt(Math.round(Math.abs(r[1]) / 1000) * 1000)); }
   svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class", "tick").attr("x", i => x(i)).attr("y", h - m.b + 14).text(i => D.months[i].slice(0, 4));
   const mk = svg.append("rect").attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "none").attr("stroke", C.accent).attr("stroke-width", 1.5);
   marks.push(() => mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3));
