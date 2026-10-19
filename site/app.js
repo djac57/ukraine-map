@@ -1,6 +1,12 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
+// paramètres du THÉÂTRE (seul endroit à changer pour un autre conflit) : date de référence de l'invasion, nom de la
+// période d'avant (ex. « avant 2022 »), découpage de la surface d'avant (champs FR.months[].a.<vue>.*), repli des erreurs
+// empiriques si site/kmchange.js manque. Les graphiques et les échelles en déduisent tout le reste.
+const THEATRE = Object.assign({start: "2022-02-24", preKey: "depuis2022", preParts: [["Crimée", "horsCrimee"]], preRest: "Donbass",
+  errFallback: {m1: 300, m12: 820}}, window.THEATRE || {});
+const startLabel = () => new Date(THEATRE.start + "T12:00:00Z").toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
 const FRONT_V = {"advance": "792a2f7766", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "101b04de5a", "kmc": "f6e465f495", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
@@ -2287,7 +2293,7 @@ function updateArea(){
       const KE = window.KMCHANGE && window.KMCHANGE.errorRecent, KM = window.KMCHANGE && window.KMCHANGE.months && window.KMCHANGE.months[fi];
       // erreur de CETTE série (espérance de la vue active ; nowcast : views.nowcast_esperance), recalculée à chaque mise à jour
       const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (amode() === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
-      const E12 = KR && KR.m12 && KR.m12.p50 ? Math.round(KR.m12.p50 / 10) * 10 : 820, E1 = KR && KR.m1 && KR.m1.p50 ? Math.round(KR.m1.p50 / 10) * 10 : 300, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
+      const E12 = KR && KR.m12 && KR.m12.p50 ? Math.round(KR.m12.p50 / 10) * 10 : THEATRE.errFallback.m12, E1 = KR && KR.m1 && KR.m1.p50 ? Math.round(KR.m1.p50 / 10) * 10 : THEATRE.errFallback.m1, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
       const hab = (e, x) => _t("écart habituel ± {e} km²", {e: fmt(e)}) + (Math.abs(x) < e ? " " + _t("(dans l'écart habituel)") : "");
       const kmV = (v, j) => { const m = j >= 0 ? FR.months[j] : null; return m && m.a[v] ? m.a[v].tout[0] : NaN; };
       const vw1 = (a, b) => isFinite(a) && isFinite(b) && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r10b(a), u: (b >= 0 ? "+" : "−") + r10b(b)}) : "";
@@ -2345,10 +2351,10 @@ function drawDeltaChart(cm){
   for (let i = 0; i < NMF; i++) { const a = F[i], j = i > 0 ? frameAt(i, 30) : -1, b = j >= 0 ? F[j] : null;
     if (a && b && a.a[cm] && b.a[cm]) rows.push([i, a.a[cm].tout[0] - b.a[cm].tout[0]]); }
   // premier mois : saut de l'invasion depuis le niveau d'avant-guerre (barre tronquée, valeur écrite)
-  { const a0 = F[0] && F[0].a[cm]; if (a0 && a0.depuis2022) rows.unshift([0, a0.depuis2022[0]]); }
+  { const a0 = F[0] && F[0].a[cm]; if (a0 && a0[THEATRE.preKey]) rows.unshift([0, a0[THEATRE.preKey][0]]); }
   if (!rows.length) { el.replaceChildren(); return; }
   const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (cm === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
-  const E1 = KR && KR.m1 && KR.m1.p50 ? KR.m1.p50 : 300;
+  const E1 = KR && KR.m1 && KR.m1.p50 ? KR.m1.p50 : THEATRE.errFallback.m1;
   const w = el.clientWidth || 600, h = 130, m = {t: 18, r: 4, b: 20, l: 46};
   const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w - m.r]).paddingInner(0.2);
   const lim = Math.max(E1 * 1.5, d3.quantile(rows.slice(1).map(r => Math.abs(r[1])).sort(d3.ascending), 0.95) || 1);
@@ -2390,10 +2396,10 @@ function drawAreaChart(){
     v.a.ru[perim][0], v.a.ua[perim][0]] : null).filter(Boolean);
   const lean = document.body.classList.contains("lean");
   // axe depuis 0 et repère « occupé avant le 24/02/2022 » : la courbe commence fin février 2022, invasion déjà en cours
-  const f0 = FR.months[frontIdx()] || chartFrames().filter(Boolean).pop(), pre = f0 && f0.a[cm] && f0.a[cm][perim] && f0.a[cm].depuis2022 && perim === "tout" ? f0.a[cm].tout[0] - f0.a[cm].depuis2022[0] : null;
+  const f0 = FR.months[frontIdx()] || chartFrames().filter(Boolean).pop(), pre = f0 && f0.a[cm] && f0.a[cm][perim] && f0.a[cm][THEATRE.preKey] && perim === "tout" ? f0.a[cm].tout[0] - f0.a[cm][THEATRE.preKey][0] : null;
   // la courbe part du niveau d'avant-guerre (≈ 45 500 km² le 23/02/2022) : le saut de février-mars 2022 est visible
   if (pre && rows.length) rows.unshift([-1, pre, pre, null, null, pre, pre]);
-  lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], zero: true, ref: pre ? {v: pre, label: _t("occupé avant le 24 février 2022 : ≈ {v} km²", {v: fmt(Math.round(pre / 100) * 100)})} : null, lines: lean ? [{i: 1, color: C.front, w: 2.2}] : [
+  lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], zero: true, ref: pre ? {v: pre, label: _t("occupé avant le {d} : ≈ {v} km²", {d: startLabel(), v: fmt(Math.round(pre / 100) * 100)})} : null, lines: lean ? [{i: 1, color: C.front, w: 2.2}] : [
       {i: 5, color: C.ink, w: 1, dash: "2 3", op: .55}, {i: 6, color: C.cool, w: 1, dash: "2 3", op: .8},
       {i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.front, w: 2.2}],
     title: i => FR.months[i] ? _t("{m} — {mode} : {a} km² (95 % : {lo} – {hi}) ; vue russe {r}, vue ukrainienne {u}", {m: monthLabel(i), mode: MODEN[cm], a: fmt(FR.months[i].a[cm][perim][0]), lo: fmt(mcOf(FR.months[i])[perim][0]), hi: fmt(mcOf(FR.months[i])[perim][1]), r: fmt(FR.months[i].a.ru[perim][0]), u: fmt(FR.months[i].a.ua[perim][0])}) : _t("{m} — pas d'instantané", {m: monthLabel(i)})});
