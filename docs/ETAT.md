@@ -839,7 +839,7 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
 
 ### 8.2 Pistes d'amélioration pour plus tard (reprises telles quelles de REPRISE.md) (brainstorm du 18/10/2026, avec tout le contexte en tête)
 
-- **Couloirs de drones et missiles par raïon et par semaine** (décidé le 19/10/2026, pour plus tard) : archives publiques de l'armée de l'air ukrainienne et des chaînes de suivi aérien (ex. t.me/StrategicaviationT), texte seulement, sans compte, J−7 minimum, agrégées ; jamais de suivi en temps réel. Affine la couche « missiles et drones » (aujourd'hui à l'oblast) ; contexte, pas dans le calcul de la ligne.
+- **Couloirs de drones et missiles par raïon et par semaine** (décidé le 19/10/2026, pour plus tard) : archives publiques de l'armée de l'air ukrainienne et des chaînes de suivi aérien (ex. t.me/StrategicaviationT) ; source candidate cataloguée le 19/10/2026 : t.me/falconintel (trajectoires de drones reconstituées automatiquement par nuit d'attaque + points d'impact, « not 100% accurate » ; en images, licence à vérifier, à recouper avec l'armée de l'air), texte seulement, sans compte, J−7 minimum, agrégées ; jamais de suivi en temps réel. Affine la couche « missiles et drones » (aujourd'hui à l'oblast) ; contexte, pas dans le calcul de la ligne.
 
 **Modèle**
 - Ligne latente en vrai modèle espace-état (Kalman ou filtre particulaire le long du front, processus gaussien le long de la ligne) au lieu du pool de log-odds suivi d'un lissage.
