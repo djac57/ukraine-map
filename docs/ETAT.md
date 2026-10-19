@@ -730,6 +730,15 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   cartes lue 1 mois plus tard ; 2024-01 → 2026-08 : 30 j p80 621 km² (biais +28) pour une variation vraie médiane de
   181 → chiffre 30 j sous le bruit (consensus du jour p80 455) ; 12 mois p80 1 594 (607 sur les 12 derniers mois),
   biais −23, variation vraie ≈ 3 300. Proposé : « ± p80 » empirique, 30 j affiché seulement si |variation| > p80.
+- 19/10/2026 : **ESTIMATEUR DÉBRUITÉ de la variation de km²** (remarque de l'utilisateur : bruit des secteurs immobiles
+  additionné sur tout le front) — RAPPORT.md ci-dessus, § « estimateur débruité » ; `scripts/build_kmchange.py` →
+  `site/kmchange.js` (lit `site/front.js` et `data/kmchange_eval.json`, 0,1 s, à ajouter à la CI après
+  `build_front.py`). Vérité définitive = médiane par maille du consensus sur ]t + 1 ; t + 3 mois]. Les tronçons de 24 km
+  immobiles portent ~50 % de |erreur| (biais +150 à +180 : Σp « avance » là où rien ne bouge). Retenu : variation de la
+  surface p ≥ 0,5 (`tout[1]`, ligne 50 %), sans paramètre : 12 mois p80 1 670 → 1 189 km² (2024-01 → 2026-06), 1 520 →
+  723 depuis 2025, meilleur contre les 3 vérités testées ; 30 j inchangé (p80 ≈ 610) : aucun estimateur ne bat « zéro »,
+  les seuils par tronçon appris sur 2024 (τ = 100 km²) reviennent à afficher 0. Valeurs 2026-09-30 : 30 j +30 km² (non
+  mesurable), 12 mois +2 000 km² (ancien Σp +1 727).
 - 19/10/2026 : **BARRIÈRES DURES DANS LE PAVAGE** (bogue signalé par l'utilisateur : ligne 50 % au nord du Dnipro entre
   Kherson et Nova Kakhovka, Lvove, Antonivka, une partie de Kherson côté russe). Diagnostic : la contagion d'une rive à
   l'autre se fait surtout AU NIVEAU DES STATUTS VIINA, pas des mailles. VIINA classe une localité d'après son polygone de

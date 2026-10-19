@@ -2266,8 +2266,10 @@ function updateArea(){
       // incertitude sur la position exacte de la ligne) noie l'information ; intervalle sur le changement à venir
       // (tirages appariés entre deux instantanés dans build_front.py)
       // changement mesuré sur la vue des sources (fmode : équilibrée, UA, RU, tiers), pas sur le nowcast, plus bruité d'un mois à l'autre
+      // estimateur débruité (scripts/build_kmchange.py, data/kmchange_eval.json) : variation de la surface où p ≥ 0,5
+      // (tout[1]) plutôt que de l'espérance Σp (tout[0]), qui « avance » dans les secteurs immobiles par diffusion de la zone grise
       const kmAt = j => { const m = j >= 0 ? FR.months[j] : null; if (!m) return null; const aa = m.a[fmode] || m.a.equilibre;
-        return fvar && m.v && m.v[fvar] ? m.v[fvar].tout[0] : aa.tout[0]; };
+        return fvar && m.v && m.v[fvar] ? m.v[fvar].tout[0] : (aa.tout[1] != null ? aa.tout[1] : aa.tout[0]); };
       const v0 = kmAt(fi);
       const j12 = frameAt(fi, 365), j1 = frameAt(fi, 30), d12 = j12 >= 0 ? v0 - kmAt(j12) : null, d1 = j1 >= 0 ? v0 - kmAt(j1) : null;
       const r10s = x => fmt(Math.round(Math.abs(x) / 10) * 10), who = x => x >= 0 ? _t("gagnés par la Russie") : _t("repris par l'Ukraine");
@@ -2278,10 +2280,9 @@ function updateArea(){
       const dm = fvar ? null : fmode === "equilibre" ? mo.dmc : mo.dmcV && mo.dmcV[fmode];
       const ci = key => dm && dm[key] ? " · " + _t("95 % : {a} à {b} km²", {a: (dm[key][0] >= 0 ? "+" : "−") + r10s(dm[key][0]), b: (dm[key][1] >= 0 ? "+" : "−") + r10s(dm[key][1])}) : "";
       // intervalle du modèle (dm, ci) volontairement NON affiché : trop large au regard de l'erreur constatée (décision du 19/10/2026)
-      // erreur EMPIRIQUE (data/kmchange_error.json, 2024-01 → 2026-08, n = 32) : écart MÉDIAN entre notre variation et celle
-      // du consensus lue un mois plus tard : ≈ 300 km² sur 30 jours, ≈ 600 km² sur 12 mois. L'erreur porte sur les deux
-      // instantanés comparés (chacun estimé à part), elle ne s'additionne pas mois après mois (pas de facteur √12)
-      const E12 = 600, E1 = 300, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
+      // erreur empirique de cet estimateur (data/kmchange_eval.json, errorRecent, 2025-01 → 2026-06, vérité : consensus
+      // stabilisé sur ]t+1 ; t+3 mois]) : écart médian ≈ 220 km² sur 30 jours, ≈ 440 km² sur 12 mois
+      const E12 = 440, E1 = 220, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
       const hab = (e, x) => _t("écart habituel ± {e} km²", {e: fmt(e)}) + (Math.abs(x) < e ? " " + _t("(dans l'écart habituel)") : "");
       big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), (d12 >= 0 ? "+" : "−") + r100(d12) + "\u00a0km²", who(d12) + " · " + hab(E12, d12)) : "") +
         (d1 !== null ? line(_t("30 derniers jours"), (d1 >= 0 ? "+" : "−") + r10b(d1) + "\u00a0km²", who(d1) + " · " + hab(E1, d1)) : "") +
