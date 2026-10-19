@@ -15,6 +15,11 @@ window.METHODE_H = {
   "Nowcast : les signaux de combat déplacent la ligne": ["Nowcast: combat signals move the line", "Наукаст: сигнали боїв зсувають лінію", "Наукаст: сигналы боёв сдвигают линию"],
   "Flèches d'annonces": ["Claim arrows", "Стрілки заяв", "Стрелки заявлений"],
   "Cadence": ["Cadence", "Частота", "Частота"],
+  "Notre estimation : ce qui est publié, ce qui est en test": ["Our estimate: what is published, what is under test", "Наша оцінка: що опубліковано, що тестується", "Наша оценка: что опубликовано, что тестируется"],
+  "Moteur de fusion (en test)": ["Fusion engine (under test)", "Рушій злиття (тестується)", "Движок слияния (тестируется)"],
+  "Prévisions : où, dans quel sens, de combien": ["Forecasts: where, which way, how far", "Прогнози: де, в якому напрямку, наскільки", "Прогнозы: где, в каком направлении, насколько"],
+  "Chiffres clés : la variation des km²": ["Key figures: the change in km²", "Ключові цифри: зміна км²", "Ключевые цифры: изменение км²"],
+  "Banc d'essai : chaque signal dans chaque rôle": ["Test bench: every signal in every role", "Випробувальний стенд: кожен сигнал у кожній ролі", "Испытательный стенд: каждый сигнал в каждой роли"],
   "3. Indices de combats : plus d'incertitude dans le champ de base": ["3. Combat indicators: more uncertainty in the base field", "3. Ознаки боїв: більша невизначеність у базовому полі", "3. Признаки боёв: больше неопределённости в базовом поле"],
   "4. Le temps : un contrôle persistant": ["4. Time: persistent control", "4. Час: стійкий контроль", "4. Время: устойчивый контроль"],
   "5. Calibration par validation croisée": ["5. Calibration by cross-validation", "5. Калібрування перехресною перевіркою", "5. Калибровка перекрёстной проверкой"],
@@ -43,6 +48,6 @@ window.METHODE_H = {
   "DRONES": ["DRONES", "ДРОНИ", "ДРОНЫ"],
   "MISSILES": ["MISSILES", "РАКЕТИ", "РАКЕТЫ"],
 };
-window.METHODE_NOTE = ["The rest of this page is in French (full version); the algorithm section is also available in English.",
-  "Решта сторінки — французькою (повна версія); опис алгоритму є також англійською.",
-  "Остальная часть страницы — на французском (полная версия); описание алгоритма есть также на английском."];
+window.METHODE_NOTE = ["The rest of this page is in French (full version); the algorithm section and “Who was right?” are also available in English.",
+  "Решта сторінки — французькою (повна версія); опис алгоритму й розділ «Хто мав рацію?» є також англійською.",
+  "Остальная часть страницы — на французском (полная версия); описание алгоритма и раздел «Кто был прав?» есть также на английском."];
