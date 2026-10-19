@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"advance": "792a2f7766", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "101b04de5a", "kmc": "886ecdb93b", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"advance": "792a2f7766", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "101b04de5a", "kmc": "f6e465f495", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -2268,8 +2268,8 @@ function updateArea(){
       // changement mesuré sur la vue des sources (fmode : équilibrée, UA, RU, tiers), pas sur le nowcast, plus bruité d'un mois à l'autre
       // estimateur débruité (scripts/build_kmchange.py, data/kmchange_eval.json) : variation de la surface où p ≥ 0,5
       // (tout[1]) plutôt que de l'espérance Σp (tout[0]), qui « avance » dans les secteurs immobiles par diffusion de la zone grise
-      const kmAt = j => { const m = j >= 0 ? FR.months[j] : null; if (!m) return null; const aa = m.a[fmode] || m.a.equilibre;
-        return fvar && m.v && m.v[fvar] ? m.v[fvar].tout[0] : (aa.tout[1] != null ? aa.tout[1] : aa.tout[0]); };
+      const kmAt = j => { const m = j >= 0 ? FR.months[j] : null; if (!m) return null; const aa = m.a[amode()] || m.a[fmode] || m.a.equilibre;
+        return fvar && m.v && m.v[fvar] ? m.v[fvar].tout[0] : aa.tout[0]; };   // même série que la courbe des km² (décision du 19/10/2026)
       const v0 = kmAt(fi);
       const j12 = frameAt(fi, 365), j1 = frameAt(fi, 30), d12 = j12 >= 0 ? v0 - kmAt(j12) : null, d1 = j1 >= 0 ? v0 - kmAt(j1) : null;
       const r10s = x => fmt(Math.round(Math.abs(x) / 10) * 10), who = x => x >= 0 ? _t("gagnés par la Russie") : _t("repris par l'Ukraine");
@@ -2285,12 +2285,15 @@ function updateArea(){
       // erreur recalculée à chaque mise à jour (site/kmchange.js, errorRecent : 24 derniers mois évaluables) ; repli figé sinon
       if (!window.KMCHANGE && !window.__kmcLoading) { window.__kmcLoading = true; const sc = document.createElement("script"); sc.src = "kmchange.js?v=" + (FRONT_V.kmc || ""); sc.onload = () => updateArea(); document.head.appendChild(sc); }
       const KE = window.KMCHANGE && window.KMCHANGE.errorRecent, KM = window.KMCHANGE && window.KMCHANGE.months && window.KMCHANGE.months[fi];
-      const E12 = KE && KE.m12 && KE.m12.p50 ? Math.round(KE.m12.p50 / 10) * 10 : 440, E1 = KE && KE.m1 && KE.m1.p50 ? Math.round(KE.m1.p50 / 10) * 10 : 220, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
+      // erreur de CETTE série (espérance de la vue active ; nowcast : views.nowcast_esperance), recalculée à chaque mise à jour
+      const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (amode() === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
+      const E12 = KR && KR.m12 && KR.m12.p50 ? Math.round(KR.m12.p50 / 10) * 10 : 820, E1 = KR && KR.m1 && KR.m1.p50 ? Math.round(KR.m1.p50 / 10) * 10 : 300, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
       const hab = (e, x) => _t("écart habituel ± {e} km²", {e: fmt(e)}) + (Math.abs(x) < e ? " " + _t("(dans l'écart habituel)") : "");
-      const vw1 = (a, b) => a != null && b != null && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r10b(a), u: (b >= 0 ? "+" : "−") + r10b(b)}) : "";
-      const vw = (a, b) => a != null && b != null && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r100(a), u: (b >= 0 ? "+" : "−") + r100(b)}) : "";
-      big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), (d12 >= 0 ? "+" : "−") + r100(d12) + "\u00a0km²", who(d12) + " · " + hab(E12, d12) + (KM ? vw(KM.m12_ru, KM.m12_ua) : "")) : "") +
-        (d1 !== null ? line(_t("30 derniers jours"), (d1 >= 0 ? "+" : "−") + r10b(d1) + "\u00a0km²", who(d1) + " · " + hab(E1, d1) + (KM ? vw1(KM.m1_ru, KM.m1_ua) : "")) : "") +
+      const kmV = (v, j) => { const m = j >= 0 ? FR.months[j] : null; return m && m.a[v] ? m.a[v].tout[0] : NaN; };
+      const vw1 = (a, b) => isFinite(a) && isFinite(b) && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r10b(a), u: (b >= 0 ? "+" : "−") + r10b(b)}) : "";
+      const vw = (a, b) => isFinite(a) && isFinite(b) && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r100(a), u: (b >= 0 ? "+" : "−") + r100(b)}) : "";
+      big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), (d12 >= 0 ? "+" : "−") + r100(d12) + "\u00a0km²", who(d12) + " · " + hab(E12, d12) + (vw(kmV("ru", fi) - kmV("ru", j12), kmV("ua", fi) - kmV("ua", j12)))) : "") +
+        (d1 !== null ? line(_t("30 derniers jours"), (d1 >= 0 ? "+" : "−") + r10b(d1) + "\u00a0km²", who(d1) + " · " + hab(E1, d1) + (vw1(kmV("ru", fi) - kmV("ru", j1), kmV("ua", fi) - kmV("ua", j1)))) : "") +
         line(_t("total occupé"), "≈\u00a0" + fmt(Math.round(v / 1000) * 1000) + "\u00a0km²", _t("{s} % de l'Ukraine · {f}", {s: share, f: frameLabel(fi)})) +
         (ru >= 50 ? line(document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien", fmt(Math.round(ru/10)*10) + "\u00a0km²", "") : ""); }
   }
@@ -2331,13 +2334,14 @@ function lineChart(el, rows, opt){
 const chartFrames = () => FR.months.map((v, i) => v && !(i < NMF && firstDay && v.date >= firstDay) ? v : null);
 function drawAreaChart(){
   const eq = fmode === "equilibre";
-  const rows = chartFrames().map((v, i) => v ? [i, v.a[amode()][perim][0], v.a[amode()][perim][1], eq ? mcOf(v)[perim][0] : null, eq ? mcOf(v)[perim][1] : null,
+  const cm = amode();   // courbe : NOTRE estimation (vue active, nowcast par défaut), même série que les chiffres clés
+  const rows = chartFrames().map((v, i) => v && v.a[cm] ? [i, v.a[cm][perim][0], v.a[cm][perim][1], eq ? mcOf(v)[perim][0] : null, eq ? mcOf(v)[perim][1] : null,
     v.a.ru[perim][0], v.a.ua[perim][0]] : null).filter(Boolean);
   const lean = document.body.classList.contains("lean");
   lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], lines: lean ? [{i: 1, color: C.front, w: 2.2}] : [
       {i: 5, color: C.ink, w: 1, dash: "2 3", op: .55}, {i: 6, color: C.cool, w: 1, dash: "2 3", op: .8},
       {i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.front, w: 2.2}],
-    title: i => FR.months[i] ? _t("{m} — {mode} : {a} km² (95 % : {lo} – {hi}) ; vue russe {r}, vue ukrainienne {u}", {m: monthLabel(i), mode: MODEN[amode()], a: fmt(FR.months[i].a[amode()][perim][0]), lo: fmt(mcOf(FR.months[i])[perim][0]), hi: fmt(mcOf(FR.months[i])[perim][1]), r: fmt(FR.months[i].a.ru[perim][0]), u: fmt(FR.months[i].a.ua[perim][0])}) : _t("{m} — pas d'instantané", {m: monthLabel(i)})});
+    title: i => FR.months[i] ? _t("{m} — {mode} : {a} km² (95 % : {lo} – {hi}) ; vue russe {r}, vue ukrainienne {u}", {m: monthLabel(i), mode: MODEN[cm], a: fmt(FR.months[i].a[cm][perim][0]), lo: fmt(mcOf(FR.months[i])[perim][0]), hi: fmt(mcOf(FR.months[i])[perim][1]), r: fmt(FR.months[i].a.ru[perim][0]), u: fmt(FR.months[i].a.ua[perim][0])}) : _t("{m} — pas d'instantané", {m: monthLabel(i)})});
   const rrows = chartFrames().map((v, i) => v && v.a[amode()] && v.a[amode()].russie ? [i, v.a[amode()].russie[1]] : null).filter(Boolean);
   const ruEl = document.getElementById("ruChart");
   if (ruEl && rrows.some(r => r[1] >= 50)) {

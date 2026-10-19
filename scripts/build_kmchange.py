@@ -147,6 +147,10 @@ def main():
                 for v in VIEWS:
                     b1, b0 = area(by_date[t], 1, v), area(by_date[t0], 1, v)
                     dv[v] = None if b1 is None or b0 is None else b1 - b0
+                for v in ("nowcast",):   # NOTRE estimation (champ avec signaux de combat) : espérance et surface p ≥ 0,5
+                    for k_ in (0, 1):
+                        b1, b0 = area(by_date[t], k_, v), area(by_date[t0], k_, v)
+                        dv[f"{v}{k_}"] = None if b1 is None or b0 is None else b1 - b0
                 R.append((t, ours - truth, esp - truth, None if c0 is None else c0 - truth, dv, truth))
             if not R:
                 continue
@@ -158,6 +162,8 @@ def main():
             views["equilibre"][w] = stats([r[1] for r in R])
             for v in VIEWS:
                 views[v][w] = stats([r[4][v] - r[5] for r in R if r[4][v] is not None])
+            for k_, lab in ((0, "esperance"), (1, "p50")):
+                views.setdefault("nowcast_" + lab, {})[w] = stats([r[4][f"nowcast{k_}"] - r[5] for r in R if r[4].get(f"nowcast{k_}") is not None])
             dd = [r[4]["ru"] - r[4]["ua"] for r in R if r[4]["ru"] is not None and r[4]["ua"] is not None]
             st = stats(dd)
             views["desaccord"][w] = None if st is None else dict(st, signe=st.pop("bias"))
