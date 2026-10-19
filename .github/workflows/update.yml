@@ -97,6 +97,10 @@ jobs:
         env: { DAILY_DAYS: "90" }
         timeout-minutes: 90
         continue-on-error: true
+      - name: "Variation des km² (estimateur débruité, erreur empirique recalculée)"
+        run: python scripts/build_kmchange.py
+        timeout-minutes: 5
+        continue-on-error: true
       - name: "Modèle de sens à deux étages (poussée russe probable, poussée possible) : décades"
         run: python scripts/build_direction.py
         timeout-minutes: 10

@@ -739,6 +739,11 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   723 depuis 2025, meilleur contre les 3 vérités testées ; 30 j inchangé (p80 ≈ 610) : aucun estimateur ne bat « zéro »,
   les seuils par tronçon appris sur 2024 (τ = 100 km²) reviennent à afficher 0. Valeurs 2026-09-30 : 30 j +30 km² (non
   mesurable), 12 mois +2 000 km² (ancien Σp +1 727).
+  Suite (même jour) : erreur RECALCULÉE à chaque lancement depuis `site/front.js` (états des cartes reconstruits depuis
+  `months[].d`), vérité def3 MENSUELLE (médiane des fins de mois t+1..t+3 ; front.js n'a pas les décades) ;
+  `data/kmchange_eval.json` = repli. Publié : error (2024-01 → 2026-06) 30 j p50 226 / p80 578, 12 mois 556 / 1 184 ;
+  errorRecent (24 derniers mois) 226 / 608 et 486 / 1 134. Vues par camp + désaccord |Δru − Δua| (30 j 210 / 350, 12 mois
+  686 / 1 055) dans `KMCHANGE.views`. CI : `python scripts/build_kmchange.py` après `build_front.py` (0,3 s).
 - 19/10/2026 : **BARRIÈRES DURES DANS LE PAVAGE** (bogue signalé par l'utilisateur : ligne 50 % au nord du Dnipro entre
   Kherson et Nova Kakhovka, Lvove, Antonivka, une partie de Kherson côté russe). Diagnostic : la contagion d'une rive à
   l'autre se fait surtout AU NIVEAU DES STATUTS VIINA, pas des mailles. VIINA classe une localité d'après son polygone de
