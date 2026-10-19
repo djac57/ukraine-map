@@ -47,6 +47,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `fetch_osint.py` | VIINA, UCDP, Oryx, missiles, WarSpotting (reprise incrémentale). |
 | `fetch_claims.py` | Aperçu public Telegram : MoD RF et état-major UA (annonces de prise, bilans quotidiens). Messages gardés en local, jamais publiés. |
 | `fetch_dsmlog.py` | Journal public de DeepStateMap (déclarations datées). |
+| `fetch_telegram.py`, `tglib.py`, `tg_sens.py`, `build_telegram_layer.py` | Signaux Telegram (15 canaux, aperçu public t.me/s sans compte) : relecture des 45 derniers jours (même pas d'échantillonnage que l'historique), messages de combat ou de présence gardés avec leur texte dans `raw/telegram/` (cache Actions, jamais versionné) ; construction : lieux (GeoNames UA + `data/ru_border.tsv`), « qui attaque » (`tg_sens.classify_strict`) et « présence signalée », comptes par tronçon de 24 km × mois et décade, fusion incrémentale (une période n'est remplacée que si elle est entièrement relue et pas plus pauvre), coupure J-7. Sorties `data/telegram_troncons.csv` et `site/telegram_troncons.js`. Historique reconstruit une fois avec `--seed ukraine-recherche/signals3/internal` (identique à `sens_troncons_month.csv`). |
 | `fetch_alerts_in_ua.py` | alerts.in.ua (menaces d'artillerie), sauté sans `ALERTS_IN_UA_TOKEN`. Identifiants d'oblast 3-31 à vérifier au premier passage. |
 | `fetch_infra.py`, `build_infra.py` | Couche infrastructures (Natural Earth, WRI, OurAirports, OSM/Overpass), toute l'Ukraine. À relancer à la main de loin en loin. |
 | `sar_update.py` | Radar Sentinel-1 (Planetary Computer, sans compte) : abandon agricole et bâti modifié, mensuel. |
@@ -67,7 +68,10 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 `front_areas.csv`, `front_calibration.csv`, `front_sensibilite.csv` (sorties) ; `claims_*.csv`, `dsm_log.csv`
 (faits) ; `alertes_artillerie.csv` (menaces d'artillerie, mai 2022 - 7 sept. 2026) ;
 `liste_hostilites_hromada_month.csv` et `hromada_cells.json` (liste officielle rejouée, hromadas → mailles) ; `sar_cells.csv` (radar,
-≤ 15 km de la ligne) ; `officiels_cells_month.csv`, `officiels_couverture.csv` (bilans officiels).
+≤ 15 km de la ligne) ; `officiels_cells_month.csv`, `officiels_couverture.csv` (bilans officiels) ;
+`telegram_troncons.csv` (signaux Telegram par tronçon de 24 km × mois et × décade, comptes seulement : pas, debut,
+troncon, i0, j0, camp_source, n_localises, n_combat, n_att_ua, n_att_ru, n_sq, n_presence_ua, n_presence_ru, partiel) ;
+`ru_border.tsv` (localités GeoNames RU des oblasts de Koursk, Belgorod et Briansk, CC BY 4.0, entrée).
 
 ### Site (`site/`)
 
@@ -79,7 +83,7 @@ variantes `sans_*`), `data.js` (feux), `osint.js`, `geo.js`, `basemap.js`, `infr
 
 ### Workflows (`.github/workflows/`)
 
-- `update.yml` : quotidien. Collecte (FIRMS, OSINT, annonces, alerts.in.ua si secret, journal DeepState), construction,
+- `update.yml` : quotidien. Collecte (FIRMS, OSINT, annonces, alerts.in.ua si secret, journal DeepState, Telegram 45 j), construction,
   `stamp.py`, `check_arrows.py` ; les sorties ne sont versionnées que si les contrôles passent ; déploiement Pages.
 - `sar.yml` : le 9 de chaque mois à 02:00, `sar_update.py` (45-60 min), écrit `data/sar_cells.csv`.
 - **Tout YAML est validé** (`yaml.safe_load`) par `check_arrows.py` (bloquant). Un « : » non protégé dans un nom
@@ -460,6 +464,30 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 - 18/10 : page méthode réduite à : but, algorithme pas à pas, validation (tableaux), décisions et limites, sources et
   licences. Carte et panneaux annexes (surfaces, désaccord, feux, ciel, Oryx, repères) masqués (`div.annexe hidden`) :
   app.js, partagé avec la carte, attend encore ces éléments (dette : séparer un `methode.js`).
+- 19/10 (décisions de l'utilisateur sur l'étude contre-offensives) : (1) VALIDÉ, ajouter le « dans quel sens » à
+  P(mouvement), modèle à deux étages P(bouge) × P(sens | bouge), Telegram en anomalie par tronçon (deux camps), impacts
+  S2 par côté utilisés « si par chance c'est disponible », sans pénaliser leur absence ; flèche « poussée russe
+  probable » (ukrainienne seulement si le walk-forward le justifie) ; (2) « poussée possible » à AMÉLIORER (asymétrie +
+  Telegram + S2 + P(mouvement)), pas à garder telle quelle ; (3) étude refaite au pas de 10 jours. **Fait le 19/10**
+  (`ukraine-recherche/analyses/sens/RAPPORT.md`) :
+  - vérité au pas de 10 jours (consensus des cartes à la décade), entrées = fichiers publiés du site + Telegram + S2 ;
+  - `scripts/build_direction.py` → `site/front_sens.js`, lancé en local ; **non branché** : pas d'étape de workflow,
+    affichage à intégrer par l'utilisateur (format et consignes dans le rapport et au § 8) ;
+  - P(sens UA | bouge) : logistique ridge réapprise à chaque décade sur les 12 derniers mois de tronçons qui ont bougé
+    d'au moins 1 km (asymétrie publiée, mouvement récent signé, Telegram 30 et 10 jours). AUC du sens (vérité
+    décadaire, 2023-03 → 2026-06) : 0,78 à ≥ 1 km et 0,85 à ≥ 2 km, contre 0,67 hier (mensuel) ;
+  - flèche « poussée russe probable » = P(bouge) ≥ 97e centile des 12 mois précédents ET P(sens RU) ≥ 0,8 :
+    précision 0,43 (RU ≥ 2 km) contre 0,28 pour P(bouge) seule, rappel 0,16 contre 0,11, 2,6 alertes par mois dont
+    1,6 fausses. Le seuil proposé hier (produit > 98e centile) ne tient pas au pas décadaire (0,25 de précision,
+    6,4 alertes par mois) ;
+  - pas de flèche « poussée ukrainienne probable » (précision ≤ 0,10) ;
+  - « poussée possible » améliorée = P(UA | bouge) ≥ 0,3 ET [ancienne règle OU (indice additif D_UA ≥ 1,5 ET
+    P(bouge) ≥ 80e centile)]. Précision 0,11 contre 0,06 (UA ≥ 1 km) et 0,08 contre 0,03 (≥ 2 km), même volume
+    (1,1 alerte par mois), Vivaldi conservé (102 jours avant les cartes) ;
+  - S2 : présent sans pénalité, mais sans gain dans P(sens) (0,854 → 0,847, option désactivée). Il sert dans
+    l'indice de « poussée possible » et comme indice concordant ;
+  - le gain du pas décadaire est de 10 à 20 jours d'avance sur S2 et Telegram (Vivaldi S2 : 61 jours contre 40), sans
+    gain de précision.
 
 ---
 
@@ -489,7 +517,35 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
 | Covariables de terrain (GLO-90, WorldCover, HydroRIVERS, OSM ; `terrain/ETAT_TERRAIN.md`) | P(mouvement) +0,008 walk-forward mais −0,017 en validation spatiale ; vitesse et sens : rien ; P(contact) +0,018 → −0,011 en spatial, +0,001 avec la mémoire de la maille ; crêtes et Dnipro freinent le front (cote 0,83 par 10 m), rivières moyennes non | NON retenues (gain = mémoire du lieu) ; relief affiché comme couche |
 | InSAR (cohérence 12 j, 2024-01 → 2026-06) | P(mouvement) 0,710 → 0,707 ; sens 0,68 → 0,64 | non retenu |
 | Asymétrie des combats | voir §4 | couche + garde-fou ; moteur v4 à tester |
+
+**Banc d'essai unique et matrice SIGNAL × RÔLE (19/10/2026)** — consigne : « in fine on doit TOUT tester dans les calculs
+de proba, de détection et de prévision ». Code et résultats : `ukraine-recherche/analyses/banc/` (`README.md` : ajouter
+un signal = un module de `signaux/`) ; matrice complète : `ukraine-recherche/analyses/banc/MATRICE.md`. 36 signaux +
+2 placebos × 5 rôles (A champ p, B largeur de la bande locale, C contact, D va bouger, E sens / ampleur ; F repris de
+`analyses/contre_offensives/`), walk-forward strict (standardisations et poids appris sur le passé seulement), chaque
+signal mesuré sur sa période, avec erreur type et seuil de bruit (placebo par tronçon ; placebo STATIQUE pour la
+« mémoire du lieu », +0,0035 d'AUC à distance égale dans P(contact)). Références du banc : A Brier ≤ 30 km 0,03291,
+mailles changeantes 0,3585, KPI (a) 3,87 % ; B médiane 95,3 %, P10 90,1 %, largeur 22,7 km ; C AUC 0,923 / 0,786 à
+distance égale ; D AUC 0,830 ; E sens 0,632, 1,99 km contre 2,02 pour la persistance. Résumé :
+- **A champ p : aucun signal retenu.** Tous (liste, UCDP, IODA, OIM, Telegram…) baissent le Brier ≤ 30 km (jusqu'à −8 %)
+  mais montent celui des mailles qui changent de camp (+0,02 à +0,09) : le constat Telegram du 19/10 vaut pour TOUS les
+  signaux. Le KPI (a) monte avec n'importe quel terme (placebo : 7,9 %) : il ne vaut que joint à la précision.
+- **B largeur de bande : le rôle le plus prometteur.** À couverture égale, la bande rétrécit avec P(mouvement) (−12 %),
+  UCDP au sol (−13 %), terrain (−16 %), OIM (−14 %), VIINA (−8 %), IODA (−6 %) ; Telegram, liste, barrières, Ookla
+  relèvent le P10 de 1,2 à 1,9 pt. « Telegram élargit la bande » : l'erreur grandit peu avec l'activité Telegram, γ appris
+  ≤ 0 ; gain réel (P10 +1,7 pt, secteurs < 90 % 9,8 → 6,6 %) mais par recalibrage, pas par élargissement.
+- **C contact** : production confirmée (liste +0,032, radar +0,019, artillerie +0,016, assauts +0,008, UCDP au sol
+  +0,004) ; nouveaux : Sentinel-2 refait +0,019, terrain +0,016 (dont 0,0035 de mémoire du lieu), IODA +0,016, OIM
+  +0,010, KAB, mouvement récent, bâti radar, VIINA +0,003 à +0,006 ; asymétrie −0,005 (nuit).
+- **D va bouger** : contributions mouvement récent +0,016, assauts +0,016, pertes +0,005 ; ajouts liste +0,017 (dont
+  +0,005 seulement hors 2022 : l'indicatrice « liste pas encore publiée » isole février-avril 2022), Ookla +0,011, OIM
+  +0,008 ; Telegram ≤ 0. Apprendre sans février-avril 2022 : 0,830 → 0,848.
+- **E sens / ampleur** : assauts de l'état-major seuls forts (sens +0,084, −0,038 km) ; attributs FIRMS +0,017 ;
+  Telegram orienté +0,013 (non significatif au seuil de 0,5 km ; l'étude contre-offensives trouve +0,11 à 2 km).
+- Non testables : UNOSAT (vérité 2022), direction des KAB (38 blocs-mois), écoles, journal DeepState (carte), Oryx,
+  missiles, Meteosat (compte), fortifications, destruction intra-ville.
 | **19/10/2026 : détecteur de contre-offensives / percées** (asymétrie + Telegram + impacts S2 + P(mouvement), tronçon de 24 km × mois, walk-forward strict, cibles ≥ 1, 2 et 5 km à 1-3 mois, 11 événements ; `ukraine-recherche/analyses/contre_offensives/RAPPORT.md`) | « va bouger » : rien ne bat P(mouvement) (ANY ≥ 2 km 0,835 ; modèles enrichis 0,78-0,81). Sens parmi les tronçons qui bougent : Telegram est le meilleur indice (AUC 0,56 → 0,67 à 2 km, 0,58 → 0,71 à 5 km), asymétrie seule 0,55. Poussées russes : deux étages P(mvt) × P(sens) avec Telegram, AUC 0,876 → 0,889, rappel à 2 % de fausses alertes 0,25 → 0,31. Contre-offensives ukrainiennes : aucun détecteur fiable (AUC orientées 0,48-0,63) ; la règle « poussée possible » reste la plus précise (18-29 %, rappel 2-14 %). Événements : Kharkiv et Kherson 2022 non anticipés ; Koursk vu 1 mois avant par Telegram (2 tronçons sur 3, hasard 5 %) ; Pokrovsk et Vouhledar 2-4 mois avant par P(mvt) ; Vivaldi : alertes en avril-mai (asymétrie, Telegram) puis en août-septembre (S2 côté russe), non chiffrable (absent du consensus du 17/10). S2 : utile pour le sens (0,67), 13 % des tronçons-mois seulement | proposition : sens probable (second étage) sur P(mouvement) quand Telegram sera en CI ; règle « poussée possible » inchangée ; rien d'intégré |
+| **19/10/2026 : « dans quel sens », au pas de 10 jours** (vérité : consensus des cartes à la décade ; entrées publiées du site + Telegram 30/10 j + impacts S2 30/10 j ; walk-forward strict ; `ukraine-recherche/analyses/sens/RAPPORT.md`) | AUC du sens (2023+, ≥ 1 / ≥ 2 km) : asymétrie publiée 0,62 / 0,63 ; Telegram seul 0,60 / 0,64 ; S2 seul 0,62 / 0,67 (cas mesurables) ; additif 0,65 / 0,70 ; second étage en fenêtre glissante de 12 mois **0,78 / 0,85** (production), contre 0,64 / 0,69 en fenêtre croissante (2022 fausse l'apprentissage). Sans Telegram complet : 0,73 / 0,78 ; 2025-26 ≈ 0,5. S2 dans le sens : 0,854 → 0,847 (sans gain). Flèche RU (P(bouge) ≥ 97e c. ET P(RU) ≥ 0,8) : précision 0,43 / rappel 0,16 contre 0,28 / 0,11 pour P(bouge) seule (RU ≥ 2 km), 2,6 alertes par mois. « Poussée possible » : ancienne règle 0,06 / 0,03 de précision (≥ 1 / ≥ 2 km), règle améliorée 0,11 / 0,08 ; Kharkiv, Kherson, Robotyne et Koursk manqués, Vivaldi vu 102 jours avant. Pas de 10 jours : même précision, 10 à 20 jours d'avance sur S2 et Telegram | **retenu** : `scripts/build_direction.py` → `site/front_sens.js` (non branché) |
 
 Rapports détaillés : `ukraine-recherche/signals/`, `signals2/` (faisceau, VERDICT.txt, `replay/` pour la liste
 officielle), `signals3/`, `sar/` (rapport_SAR_V2.md), `backtest/`, `front/` (journaux de build et de contrôle),
@@ -508,6 +564,19 @@ UNOSAT) ; missiles et drones à deux sens ; annonces officielles en couche dédi
 de fiabilité des sources ; densité des feux lissée ; comparaison 2021 retirée ; signaux Telegram (figés) ; KPI interne
 de dépendance aux cartes (3,87 % d'information hors cartes).
 
+**Prochaines intégrations recommandées par le banc d'essai** (19/10/2026, `ukraine-recherche/analyses/banc/MATRICE.md`,
+gains walk-forward ; rien n'est intégré, pipeline inchangé) :
+- (i) **Bande locale modulée par P(mouvement)** (`conformal.py`) : échelle du secteur × exp(γ·a), a = P(mouvement)
+  standardisée sur le passé, γ choisi chaque mois (score de Winkler) : largeur 22,7 → 20,0 km (−12 %), couverture
+  inchangée (médiane 95,3 %, P10 90,1 → 90,2 %, secteurs < 90 % 9,8 %). Aucune donnée nouvelle.
+- (ii) **P(mouvement)** (`sectors.pmove`) : apprentissage sans février-avril 2022 (0,830 → 0,848), puis liste rejouée
+  (→ 0,853) ; Ookla en plus → 0,862 si sa licence CC BY-NC-SA est acceptée.
+- (iii) **P(contact)** (`sectors.pcontact`) : mouvement récent, bâti radar, KAB (déjà dans le dépôt) : 0,785 → 0,797 à
+  distance égale ; Sentinel-2 refait (+0,019) et terrain (+0,016) ensuite, après validation par blocs spatiaux.
+- Ensuite : sens des flèches (assauts + attributs FIRMS + Telegram orienté : 0,632 → 0,673), avec le second étage de
+  l'étude contre-offensives ; champ p : écrire un terme qui ne resserre jamais p avant de retester (forme actuelle
+  négative pour tous les signaux).
+
 **Reste à faire, dans l'ordre proposé** :
 1. **« Qui avait raison »** : pour DeepState, ISW, Wikipédia et notre ligne, distance moyenne à la vérité retardée
    (consensus à t+2), par mois et par secteur ; au survol d'un tronçon (« sur 12 mois, la source la plus proche de la
@@ -518,6 +587,42 @@ de dépendance aux cartes (3,87 % d'information hors cartes).
    `signals2/telegram/tg_activity.py` avec son `extract.block_of`) et le dictionnaire de lieux russes
    (`signals3/raw/ru_border.tsv`, 0,8 Mo) ; en CI, ne relire que les ~45 derniers jours et fusionner avec
    `site/telegram_troncons.js` (même logique que `build_strikes_ru.py`).
+   **Le « dans quel sens » en dépend** (19/10) : `build_direction.py` lit `data/telegram_troncons.csv` avec les
+   5 comptes par camp de la source (`n_combat`, `n_ua`, `n_ru`, `n_presence_ua`, `n_presence_ru`). Il accepte `k`
+   ou `troncon` + `i0`/`j0`, un temps en `date`, `jour`, `decade` ou `mois`, et `camp_source`. Le jour ou la décade
+   est préférable au mois.
+   - Sans ce fichier : agrégats figés de recherche en local, puis `site/telegram_troncons.js` en CI. Cette couche,
+     réduite, ne garde pas les attaques revendiquées par chaque camp : l'AUC du sens tombe de 0,85 à 0,77, et à
+     ≈ 0,5 en 2025-2026.
+2 bis-sens. **« Dans quel sens », à intégrer à l'affichage** (19/10, `ukraine-recherche/analyses/sens/RAPPORT.md`).
+   - **Production prête, non branchée** :
+     - `python3 scripts/build_direction.py` tourne en ~3 s après `build_front.py` (il lit `front.js`,
+       `front_equilibre.js`, `front_asym.js`, Telegram et `data/impacts_troncons_decades.csv`, copie figée de
+       `sar/out/`) ;
+     - il écrit `site/front_sens.js` (~216 Ko) ;
+     - étape de workflow à ajouter après `build_front.py`, avant `stamp.py` / `check_arrows.py`.
+   - **Format** : `window.FRONT_SENS = {steps, rows, flags, cues, rules, sources, validationEtude, validationBuild}`.
+     - `steps` : décades ISO (10, 20, fin de mois) jusqu'à la date J-7.
+     - `rows[i]` : liste des tronçons du pas i où P(bouge) ≥ 10 % ou qui portent un drapeau. Chaque tronçon est
+       `[colonne, ligne, P(bouge) %, P(sens RU | bouge) % ou null, drapeaux, indices]`. Le centre est au même repère
+       que `months[].pm` : tuile de 12 mailles, `k = (ligne // 12) * 1000 + colonne // 12`.
+     - Drapeaux : 1 = poussée russe probable ; 2 = poussée possible (UA, nouvelle règle) ; 4 = ancienne règle (pour
+       comparaison, à NE PAS dessiner).
+     - Indices (bits) : 1 = Telegram, activité russe en excès ; 2 = Telegram, activité ukrainienne en excès ;
+       4 = impacts S2 plus denses côté ukrainien ; 8 = impacts S2 plus denses côté russe ; 16 = combats derrière la
+       ligne ukrainienne ; 32 = combats derrière la ligne russe ; 64 = gain russe récent ; 128 = reprise ukrainienne
+       récente ; 256 = S2 disponible ; 512 = Telegram disponible.
+   - **Affichage proposé** :
+     - pas affiché → dernière décade ≤ la date du pas ;
+     - flèche « poussée russe probable » (rouge, pleine, même règle de longueur et mêmes garde-fous) partant de la
+       ligne 50 % la plus proche du centre du tronçon, vers le côté ukrainien (p < 0,5) ;
+     - « poussée possible » : la flèche bleue en pointillés actuelle, mais déclenchée par le drapeau 2 au lieu de
+       `possibleArrows`, qu'elle remplace ;
+     - au survol, quand P(bouge) ≥ 10 % : « sens probable : avancée russe (p %) » ou « reprise ukrainienne
+       (100 − p %) », plus les indices concordants en une ligne ;
+     - ⓘ avec `validationEtude` : précision 0,43, rappel 0,16, 2,6 alertes par mois ; « signale surtout des
+       poussées déjà engagées » ;
+     - rien sur le drapeau 4.
 2 ter. **Telegram dans le champ p** (demande de l'utilisateur, 19/10) : que ces signaux PÈSENT dans la prédiction ET dans
    l'état des lieux : même côté = confirmation de contrôle (resserre la bande), traversant = présence adverse (élargit
    ou fait pencher). À tester en walk-forward dans v4 avec le KPI de dépendance et la précision.

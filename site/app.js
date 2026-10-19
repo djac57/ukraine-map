@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "76fed3e6c2", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "pmove": "39e8819790", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "strikes": "affd59ed8e", "tg": "7cd8927e31", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"advance": "72b9b30bff", "asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "76fed3e6c2", "destr": "6d2f393980", "equilibre": "98b088d2af", "mcsd": "13c8fc7628", "nowcast": "2c17b54478", "pmove": "39e8819790", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "sens": "4a04d987be", "strikes": "affd59ed8e", "tg": "fc9f5fa78a", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -414,9 +414,36 @@ function computeArrows(fi, Lkm, view){
 // du côté russe) deux mois de suite au même endroit ; la flèche part du point de la ligne 50 % le plus proche vers ce
 // foyer. Bilan 2023-2026 (secteurs de 24 km) : reprise ukrainienne dans les deux mois dans 23 % des cas, contre 12 % en
 // moyenne ; gain russe 6 %.
+// modèle de sens à deux étages (front_sens.js, scripts/build_direction.py, décades) : P(bouge) × P(sens | bouge) par
+// tronçon de 24 km. Drapeau 1 : « poussée russe probable » (flèche rouge à tête creuse) ; drapeau 2 : « poussée possible »
+// améliorée (flèche bleue en pointillés). Validation walk-forward 2023-2026 dans FRONT_SENS.validationEtude.
+let SENS = null, sensLoading = false;
+function loadSens(then){ if (window.FRONT_SENS) { SENS = window.FRONT_SENS; return then && then(); } if (sensLoading) return; sensLoading = true;
+  const sc = document.createElement("script"); sc.src = "front_sens.js?v=" + (FRONT_V.sens || ""); sc.onload = () => { SENS = window.FRONT_SENS; arrowCache = {}; for (const k in possCache) delete possCache[k]; if (then) then(); }; document.head.appendChild(sc); }
+// dernière décade du modèle de sens antérieure ou égale à la date de l'instantané (null : rien)
+function sensRows(fi){
+  if (!SENS || !FR.months[fi]) return null; const d = FR.months[fi].date; let k = -1;
+  for (let n = 0; n < SENS.steps.length; n++) if (SENS.steps[n] <= d) k = n; else break;
+  return k >= 0 ? SENS.rows[k] : null;
+}
+function sensArrows(fi, view){
+  const rows = sensRows(fi), g = fullField(view || fieldName(), fi); if (!rows || !g) return [];
+  const km = FR.grid.size / 1000, runs = lines50(view || fieldName(), fi), out = [];
+  for (const r of rows) { const fl = r[4]; if (!(fl & 3)) continue;
+    const cx = r[0], cy = r[1], ru = !!(fl & 1);
+    let bx = null, by = null, bd = 1e9; for (const run of runs) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; bx = x; by = y; } }
+    if (bx === null || bd * km > 25) continue;
+    // sens : vers le terrain adverse du camp qui pousse (côté ukrainien pour une poussée russe, et inversement)
+    let dx, dy; if (bd > 1e-6) { dx = (cx - bx) / bd; dy = (cy - by) / bd; } else continue;
+    const c = Math.floor(cy) * GX + Math.floor(cx), cRu = g[c] > 0.5; if (ru === cRu) { dx = -dx; dy = -dy; }
+    out.push({gx: bx, gy: by, dx, dy, v: 1, ru, L: 24, segKm: 24, vm: [], uncertain: !ru, possible: !ru, probable: ru, pb: r[2], ps: r[3], cues: r[5],
+              why: ru ? "poussée russe probable (modèle de sens)" : "poussée possible (modèle de sens)"}); }
+  return out;
+}
 const possCache = {};
 function possibleArrows(fi, view){
   const key = (view || "") + ":" + fi; if (possCache[key]) return possCache[key];
+  if (window.FRONT_SENS) { SENS = window.FRONT_SENS; return possCache[key] = sensArrows(fi, view); }
   const A1 = viewFields("asym") ? fullField("asym", fi) : null, fp = frameAt(fi, 30), A0 = A1 && fp >= 0 ? fullField("asym", fp) : null, g = fullField(view || fieldName(), fi);
   if (!A1 || !A0 || !g) return [];
   const km = FR.grid.size / 1000, hot = [];
@@ -723,7 +750,7 @@ function drawnArrows(fi, k, view){
   const F = headFields(fi, view), km = FR.grid.size / 1000, out = [];
   for (const a of arrowsAt(fi, k, view)) { const P = arrowPx(a.v, k, a.uncertain), Lg = P.len / (gAff[2] * k), g = headGuard(F, a.gx, a.gy, a.dx, a.dy, Lg);
     const hb = g ? hardLen(a.gx, a.gy, g.ux, g.uy, P.len, k) : {len: P.len, code: 0};
-    out.push({type: a.possible ? "poussée possible" : a.uncertain ? "incertaine" : "gradient", a, ax: a.gx, ay: a.gy, ru: a.ru, g, Lg: hb.len / (gAff[2] * k), LgGuard: Lg, P: Object.assign({}, P, {len: hb.len, hs: Math.min(P.hs, hb.len * 0.28)}), hard: hb.code}); }
+    out.push({type: a.probable ? "poussée probable" : a.possible ? "poussée possible" : a.uncertain ? "incertaine" : "gradient", a, ax: a.gx, ay: a.gy, ru: a.ru, g, Lg: hb.len / (gAff[2] * k), LgGuard: Lg, P: Object.assign({}, P, {len: hb.len, hs: Math.min(P.hs, hb.len * 0.28)}), hard: hb.code}); }
   for (const a of eventArrows(fi)) { if (a.late) continue;
     const L0 = Math.hypot(a.cx - a.ax, a.cy - a.ay); if (L0 < 1e-6) continue;
     const P = arrowPx(L0 * km, k, a.uncertain, evWidth(a, k)), Lg = P.len / (gAff[2] * k), g = headGuard(F, a.ax, a.ay, (a.cx - a.ax) / L0, (a.cy - a.ay) / L0, Lg);
@@ -886,6 +913,7 @@ window.__uafArrowCheck = function(){
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
   if (!window.FRONTP || !window.FRONTP.mcsd) { loadMcsd(() => { arrowCache = {}; draw(); }); }
+  if (!window.FRONT_SENS) loadSens(() => draw());
   // vue d'ensemble : voir overviewArrows ; au zoom, tronçons de 20 puis 10 km (arrowsAt)
   const arr = arrowsAt(fi, k), HF = headFields(fi);
   arrowList = [];
@@ -907,6 +935,9 @@ function drawArrows(k){
       ctx.setLineDash([4, 3]); ctx.lineWidth = Math.max(2.4, w * 1.2); ctx.lineCap = "butt";
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs * 1.6, ey - dy * hs * 1.6); ctx.stroke();
       ctx.setLineDash([]); ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke();
+    } else if (a.probable) {   // poussée probable (prévision) : hampe pleine, tête creuse
+      ctx.lineWidth = Math.max(2.4, w * 1.2); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs * 1.6, ey - dy * hs * 1.6); ctx.stroke();
+      ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke();
     } else {
     ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * w * 1.6, ey - dy * w * 1.6); ctx.stroke();
     head(); ctx.fill();
@@ -1893,7 +1924,7 @@ function hover(e){
       const fi = frontIdx(), camp = _t(best.a.ru ? "russe" : "ukrainienne");
       if (!full) {
         tip.innerHTML = (best.a.hard ? `<div style="color:var(--faint)">${_t("flèche arrêtée par une barrière naturelle (grand fleuve, plan d'eau ou escarpement)")}</div>` : "") + (best.a.ev ? (best.a.undirected ? _t("localités qui ont basculé ({c}), sens non établi", {c: camp}) : best.a.late ? _t("confirmé par annonce ({c}), pas un mouvement nouveau", {c: camp})
-          : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.possible ? _t("poussée ukrainienne possible : on se bat anormalement derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 3, peu de cas)") : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
+          : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("localités qui ont basculé : avancée {c} · {n}", {c: camp, n: _t("{n} localité(s)", {n: best.a.ev})})) : best.a.probable ? _t("poussée russe probable : P(bouge) {b} %, sens russe {p} % (sur le passé, suivie d'une avancée russe d'au moins 2 km dans 43 % des cas ; signale surtout des poussées déjà engagées)", {b: best.a.pb, p: best.a.ps}) : best.a.possible ? (best.a.pb != null ? _t("poussée ukrainienne possible : P(bouge) {b} %, sens ukrainien {p} % (sur le passé, suivie d'une reprise ukrainienne d'au moins 1 km environ 1 fois sur 9, près de deux fois mieux que l'ancienne règle)", {b: best.a.pb, p: 100 - best.a.ps}) : _t("poussée ukrainienne possible : on se bat anormalement derrière la ligne russe (sur le passé, suivie d'une reprise ukrainienne environ 1 fois sur 3, peu de cas)")) : best.a.uncertain ? _t("sens incertain : on se bat derrière la ligne") : _t("avancée {c} · {v} km par 30 jours", {c: camp, v: dec(Math.round(best.a.v * 10) / 10)})) + more;
         tip.style.display = "block";
         const tw = tip.offsetWidth, th = tip.offsetHeight; tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
         return;
@@ -1962,6 +1993,14 @@ function hover(e){
     for (const t of pmt) { const dd = Math.hypot(t[0] - i, t[1] - j); if (dd < td) { td = dd; tb = t; } }
     if (tb && td * FR.grid.size / 1000 < 20) { pmLine = `<div class="r"><span>${_t("P(la ligne bouge d'ici 2 mois)")}</span><b>${tb[2]} %</b></div>`;
       ctxt += pmLine + `<div style="color:var(--faint)">${_t("tronçon de 24 km, ≥ 0,5 km dans un sens ou l'autre ; moyenne {b} %", {b: Math.round(((FR.pmove && FR.pmove.base) || 0) * 100)})}</div>`; }
+  }
+  { const sr = sensRows(fi); let sb = null, sd = 1e9;
+    if (sr) for (const r of sr) { const dd = Math.hypot(r[0] - i, r[1] - j); if (dd < sd) { sd = dd; sb = r; } }
+    if (sb && sb[3] != null && sb[2] >= 10 && sd * FR.grid.size / 1000 < 20) {
+      ctxt += `<div class="r"><span>${_t("sens probable s'il bouge")}</span><b>${sb[3] >= 50 ? _t("avancée russe ({p} %)", {p: sb[3]}) : _t("reprise ukrainienne ({p} %)", {p: 100 - sb[3]})}</b></div>`;
+      const CUE = [[1, "Telegram : activité russe signalée en excès"], [2, "Telegram : activité ukrainienne signalée en excès"], [4, "impacts plus denses côté ukrainien"], [8, "impacts plus denses côté russe"], [16, "combats derrière la ligne ukrainienne"], [32, "combats derrière la ligne russe"], [64, "gain russe récent"], [128, "reprise ukrainienne récente"]];
+      const cs = CUE.filter(([b]) => sb[5] & b).map(([, t]) => _t(t));
+      if (cs.length) ctxt += `<div style="color:var(--faint)">${_t("indices : {l}", {l: cs.join(" · ")})}</div>`; }
   }
   const inf = nearInfra(j, i);
   if (inf) ctxt += `<div style="color:var(--faint)">${_t("à {d} km : {l}", {d: inf.d, l: inf.label})}</div>`;
