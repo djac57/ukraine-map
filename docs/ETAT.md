@@ -55,6 +55,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `build.py`, `build_osint.py`, `build_claims.py` | Feux, couches OSINT, annonces géocodées. |
 | `build_official_signals.py` | Faits des bilans quotidiens (assauts et frappes de l'état-major UA, localités des bilans du MoD RF) par maille et par mois ; en CI, seuls les 3 derniers mois sont recalculés. |
 | `build_front.py` | Le modèle (voir §3) : champ p, nowcast, bande locale, P(contact), z, flèches d'annonces, couches. Écrit `site/front*.js` et `data/front_*.csv`. |
+| `barrier_tiling.py` | Pavage et statuts VIINA contraints par les barrières dures (fleuves ≥ 40 m³/s et plans d'eau de `site/barrieres_dures.js`) : aucune contagion d'une rive à l'autre (§ 6, 19/10/2026). Appelé par `build_front.py`. |
 | `sectors.py` | Secteurs : z-scores, P(contact), asymétrie « combats derrière la ligne », radar, faits officiels. |
 | `nowcast.py` | Nowcast (les combats déplacent p), calibré en walk-forward. |
 | `conformal.py` | Bande d'incertitude locale (intervalles conformes par secteur). |
@@ -117,8 +118,8 @@ probabilité de contrôle russe** partout (bande russe comprise) ; les distances
   2 km, NX × NY = 700 × 470 mailles (`build_front.py` : `laea`, `grid_index`, constantes `SIZE`, `X0`, `Y1`).
 - Domaine : l'Ukraine dans ses frontières internationales et une bande russe de 80 km (`RU_BAND_KM`).
 - Pour chaque source-carte s (DeepStateMap, ISW, Wikipédia, Wikipédia + VIINA, enveloppes) : signe par maille
-  (+1 russe, −1 ukrainien, 0 contesté) d'après le statut de la localité (pavage de Voronoï des localités VIINA),
-  puis distance signée d_s(x, t) au bord de la zone russe (chanfrein, plafonnée à 60 km)
+  (+1 russe, −1 ukrainien, 0 contesté) d'après le statut de la localité (pavage de Voronoï des localités VIINA,
+  contraint par les barrières dures depuis le 19/10/2026 : `barrier_tiling.py`, voir § 6), puis distance signée d_s(x, t) au bord de la zone russe (chanfrein, plafonnée à 60 km)
   (`poly_signs`, `signed_distance`).
 
 ### 3.2 Vraisemblance par source
@@ -729,6 +730,43 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   cartes lue 1 mois plus tard ; 2024-01 → 2026-08 : 30 j p80 621 km² (biais +28) pour une variation vraie médiane de
   181 → chiffre 30 j sous le bruit (consensus du jour p80 455) ; 12 mois p80 1 594 (607 sur les 12 derniers mois),
   biais −23, variation vraie ≈ 3 300. Proposé : « ± p80 » empirique, 30 j affiché seulement si |variation| > p80.
+- 19/10/2026 : **BARRIÈRES DURES DANS LE PAVAGE** (bogue signalé par l'utilisateur : ligne 50 % au nord du Dnipro entre
+  Kherson et Nova Kakhovka, Lvove, Antonivka, une partie de Kherson côté russe). Diagnostic : la contagion d'une rive à
+  l'autre se fait surtout AU NIVEAU DES STATUTS VIINA, pas des mailles. VIINA classe une localité d'après son polygone de
+  Voronoï ; quand ce polygone déborde sur le fleuve et l'autre rive, la localité prend le statut de l'autre rive. En
+  2026-09, rive droite du Dnipro aval : 913 localités au polygone « propre » toutes ukrainiennes dans DeepState, 16
+  russes sur 132 au polygone débordant (Kherson, Antonivka, Prydniprovske, Sadove, Kozatske…) ; Kherson est codée russe
+  côté DeepState sans interruption de 2022 à 2026, l'ISW jusqu'en 2023-03 ; Wikipédia fait l'inverse sur la rive gauche
+  (Krynky, Korsunka « ukrainiennes » de 2022-11 à 2023-10). Le pavage lui-même ne fait passer que 26 mailles d'une rive à
+  l'autre dans le secteur (738 en Ukraine). Correction (`scripts/barrier_tiling.py`, 4 lignes dans `build_front.py`) :
+  barrières = mailles « fleuve ≥ 40 m³/s ou plan d'eau » de `site/barrieres_dures.js` (7 430 mailles, interstices
+  diagonaux bouchés ; étanche entre les deux rives du Dnipro aval, l'estuaire étant hors domaine) ;
+  (1) STATUTS : une localité au polygone débordant prend le statut de sa rive, carte par carte, seulement si son statut
+  est celui de l'autre rive (majorité ≥ 75 % de ses voisines propres à ≤ 12 km) alors que ses voisines propres de la même
+  rive (≥ 3) disent l'inverse, que la situation dure depuis ≥ 65 jours (passé seulement, sans fuite), qu'elle n'a pas
+  pris ce statut en basculant seule contre sa rive (sauf bascule simultanée de l'autre rive = contagion) et qu'une autre
+  carte indépendante lui donne le statut de sa rive ; « contesté » jamais touché. 24 localités corrigées (DeepState 495
+  statuts × instantanés, ISW 22, Wikipédia 3, Wikipédia+VIINA 4), Dnipro aval surtout, quelques-unes sur l'Oskil ;
+  (2) MAILLES : une maille dont le segment vers sa localité traverse une barrière prend la localité la plus proche en
+  distance géodésique sans traverser (738 mailles) ; (3) NOYAUX D'ANNONCES arrêtés aux barrières. Tête de pont
+  préservée : Krynky (Wikipédia « contesté » 2023-12 → 2024-06) inchangée ; une localité qui bascule seule contre sa rive
+  garde son statut. Variantes écartées : sans condition de stabilité ni d'autre carte, corrections clignotantes sur l'Oskil
+  et `check_arrows` en échec (annonces à rebours 2025-10, fin de l'UCDP) ; retenue : 0 échec.
+  AVANT → APRÈS (build local, même brut ; AVANT = build de 15 h 08 avec l'intervalle apparié) : couverture par secteur
+  équilibrée médiane 95,5 → 95,3 %, P10 90,6 → 90,7 %, secteurs < 90 % 7 → 8 %, Dnipro 96,9 → 96,9 % ; nowcast médiane
+  95,3 → 95,3 %, P10 90,1 → 90,7 %, < 90 % 10 → 10 % ; secteurs du Dnipro aval : Kakhovka 96,9 → 98,4 %, Oleshky 98,0 →
+  99,7 %, Antonivka 96,8 → 96,2 %, Nova Kakhovka 99,1 → 99,3 %. Brier du nowcast (chacun contre sa vérité) : bande 0,0472 →
+  0,0470, mailles qui changent 0,3434 → 0,3447. Contre une MÊME vérité (consensus à t + 2, 2023-01 → 2026-07, diagnostic
+  hors journal DeepState) : vérité corrigée ≤ 30 km 0,04196 → 0,04136 (nowcast), Dnipro aval 0,0235 → 0,0220, mailles où
+  le champ bouge 0,189 → 0,137 ; vérité VIINA brute 0,04055 → 0,04058, mailles qui bougent 0,153 → 0,168 (attendu : elle
+  contient la contagion). km² russes (p ≥ 0,5) sur la rive droite Kherson – Nova Kakhovka : moyenne 148 → 120 (équilibrée),
+  158 → 129 (nowcast) ; 2026-09 : 132 → 92 ; km² ukrainiens sur la rive gauche : 2023-11 32 → 32, 2023-12 28 → 24. Total
+  2026-09 : 120 160 → 120 139 km² (espérance), zone grise 12 552 → 12 432. `check_arrows` : 0 échec ; alerte non bloquante
+  « Dnipro calme » 14 → 21 flèches (surtout 2024-09/10). **Résidu non traité (source, pas barrière)** : entre Antonivka et
+  Kozatske la ligne reste 2 à 4 km au nord du fleuve, car Wikipédia (VIINA) code russes des localités PROPRES de la rive
+  droite, jusqu'à 20 km du fleuve (Urozhaine, Tomaryne, Virivka, Lvove, Olhivka depuis 2023-12 ; Shilova Balka, Burhunka
+  depuis 2022), contre DeepState et l'ISW. La règle « on ne force pas le fleuve comme ligne » interdit de les corriger
+  ici ; piste : vieillissement / poids réduit d'une carte contredite durablement par les deux autres (à valider).
 
 ---
 
