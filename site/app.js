@@ -1816,7 +1816,7 @@ function drawLosses(k){
   for (let j = 0; j < NW; j++) {
     const m = WSP[j*5+2], g = WSP[j*5+3];
     if (m > last || !lossOn[g]) continue;
-    const now = m === cur, a = cur - m;
+    const now = m === arcM(), a = cur - m;   // mois en cours non publié : le dernier mois publié reste mis en avant
     ctx.globalAlpha = now ? 0.95 : Math.max(0.12, 0.4 * Math.exp(-a/6));
     ctx.fillStyle = ctx.strokeStyle = now ? C["loss-now"] : C["loss-old"];
     const sz = Math.min(13, (now ? 4 : 3) + 1.4 * Math.sqrt(WSP[j*5+4])) / k;
@@ -2228,7 +2228,8 @@ function layerNotes(){
     else if (cur === lastIdx && partial) n.push(_t("feux : mois en cours, jusqu'au {d}", {d: +D.lastDay.slice(8)}));
     else if (D.series[cur][3] < 1) n.push(_t("feux : {p} % des jours observés", {p: Math.round(D.series[cur][3]*100)}));
   } else if (cur === 0) n.push(_t("à partir du 24 février"));
-  if (showLoss && cur > cutIdx) n.push(_t("pertes : pas encore publiées (mois complet + 7 jours)"));
+  if (showLoss && cur > cutIdx && arcM() >= 0) n.push(_t("pertes : ce mois n'est pas encore publié, dernier mois publié mis en avant ({m})", {m: monthLabel(arcM())}));
+  else if (showLoss && cur > cutIdx) n.push(_t("pertes : pas encore publiées (mois complet + 7 jours)"));
   else if (showLoss && !O.ws.perMonth[cur].some(Boolean)) n.push(_t("pertes : aucune ce mois-ci"));
   if (showUcdp) { let any = false; for (let j = 0; j < NU; j++) if (UC[j*5+2] === cur) { any = true; break; }
     if (!any && ucdpMonth() !== cur) n.push(_t("combats UCDP : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(ucdpMonth())}));
