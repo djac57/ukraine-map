@@ -1668,7 +1668,6 @@ function draw(){
   if (showUcdp) drawUcdp(k);
   if (showLoss) drawLosses(k);
   if (showArcs) drawArcs(k);
-  if (showTg) drawTg(k);
   if (showImp) drawImp(k);
   if (showPm) drawPm(k);
   if (showAdv) drawAdv(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
@@ -1724,6 +1723,8 @@ function draw(){
       ctx.fillStyle = C.label; ctx.textAlign = "center"; ctx.fillText(l.n, x, y); ctx.textAlign = "start"; ctx.globalAlpha = 1;
     }
   }
+  // signaux Telegram en dernier : ponctuels et petits, ils passaient sous le liseré ambre, la zone grise et les noms de villes
+  if (showTg) drawTg(k);
 }
 function drawPoints(k){
   ctx.globalCompositeOperation = C.dark ? "lighter" : "source-over";
