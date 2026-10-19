@@ -839,6 +839,8 @@ Ordre décidé le 18/10/2026 (identique à `~/Desktop/perso/REPRISE.md`, section
 
 ### 8.2 Pistes d'amélioration pour plus tard (reprises telles quelles de REPRISE.md) (brainstorm du 18/10/2026, avec tout le contexte en tête)
 
+- **Couloirs de drones et missiles par raïon et par semaine** (décidé le 19/10/2026, pour plus tard) : archives publiques de l'armée de l'air ukrainienne et des chaînes de suivi aérien (ex. t.me/StrategicaviationT), texte seulement, sans compte, J−7 minimum, agrégées ; jamais de suivi en temps réel. Affine la couche « missiles et drones » (aujourd'hui à l'oblast) ; contexte, pas dans le calcul de la ligne.
+
 **Modèle**
 - Ligne latente en vrai modèle espace-état (Kalman ou filtre particulaire le long du front, processus gaussien le long de la ligne) au lieu du pool de log-odds suivi d'un lissage.
 - Poids des sources hiérarchiques et variables dans le temps, par source × secteur × période. On mesure ainsi la dérive de fiabilité (ISW prudente, DeepState rapide, MoD RF en avance sur le terrain).
