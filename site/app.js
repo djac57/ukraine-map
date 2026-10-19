@@ -1504,17 +1504,19 @@ let rlfCont = null, rlfContLoading = false;
 // ou avec ?relief=ombrage : ombrage seul, au-dessus de la densité en multiply léger (?relief=under : sous la densité)
 const RQ = new URLSearchParams(location.search).get("relief"), RELIEF_KIND = () => (C.dark || RQ === "ombrage" || RQ === "under") ? "shade" : "hypso";
 let RELIEF_MODE = "under";
+// version des images du relief : à incrémenter à chaque régénération (sinon le navigateur garde d'anciennes tuiles)
+const RLF_V = "3";
 function loadRelief(then){
   if (RLF) return then && then();
   if (rlfLoading) return; rlfLoading = true;
   const kind = RELIEF_KIND(); RELIEF_MODE = kind === "hypso" || RQ === "under" ? "under" : "over";
   const go = () => { RLF = (kind === "hypso" ? window.HYPSO : window.RELIEF) || null; rlfLoading = false; if (then) then(); };
   if (kind === "hypso" ? window.HYPSO : window.RELIEF) return go();
-  const sc = document.createElement("script"); sc.src = kind === "hypso" ? "relief/hypso.js" : "relief/relief.js"; sc.onload = go; document.head.appendChild(sc);
+  const sc = document.createElement("script"); sc.src = (kind === "hypso" ? "relief/hypso.js" : "relief/relief.js") + "?v=" + RLF_V; sc.onload = go; document.head.appendChild(sc);
 }
 function rlfImg(src){
   let im = rlfImgs[src];
-  if (!im) { im = new Image(); im.onload = () => draw(); im.src = "relief/" + src; rlfImgs[src] = im; }
+  if (!im) { im = new Image(); im.onload = () => draw(); im.src = "relief/" + src + "?v=" + RLF_V; rlfImgs[src] = im; }
   return im.complete && im.naturalWidth ? im : null;
 }
 function drawRelief(k){
