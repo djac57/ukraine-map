@@ -2345,7 +2345,7 @@ function lineChart(el, rows, opt){
   const nd = svg.append("text").attr("class", "tick").attr("text-anchor", "middle");
   marks.push(() => { const empty = cur > lastM, xc = x(cur) + x.bandwidth() / 2, yc = (m.t + h - m.b) / 2;
     mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3).attr("opacity", 1).attr("fill", empty ? C.accent : "none").attr("fill-opacity", empty ? .1 : 0);
-    nd.attr("transform", `translate(${xc},${yc}) rotate(-90)`).attr("dy", "0.35em").text(empty ? _t("en cours") : ""); });
+    nd.attr("transform", `translate(${xc},${yc}) rotate(-90)`).attr("dy", "0.35em").text(""); });
   el.replaceChildren(svg.node());
 }
 const chartFrames = () => FR.months.map((v, i) => v && !(i < NMF && firstDay && v.date >= firstDay) ? v : null);
@@ -2385,7 +2385,7 @@ function drawDeltaChart(cm){
   const lastB = rows.length ? rows[rows.length - 1][0] : -1, ndb = svg.append("text").attr("class", "tick").attr("text-anchor", "middle");
   marks.push(() => { const empty = cur > lastB, xc = x(cur) + x.bandwidth() / 2, yc = (m.t + h - m.b) / 2;
     mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3).attr("fill", empty ? C.accent : "none").attr("fill-opacity", empty ? .1 : 0);
-    ndb.attr("transform", `translate(${xc},${yc}) rotate(-90)`).attr("dy", "0.35em").text(empty ? _t("en cours") : ""); });
+    ndb.attr("transform", `translate(${xc},${yc}) rotate(-90)`).attr("dy", "0.35em").text(""); });
   // survol : valeur immédiate au-dessus de la barre (cible = toute la colonne du mois) ; clic : aller à ce mois
   const tipD = document.createElement("div"); tipD.className = "dtip"; tipD.hidden = true;
   const val = new Map(rows.map(r => [r[0], r[1]]));
