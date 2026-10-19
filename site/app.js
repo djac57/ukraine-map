@@ -1930,9 +1930,12 @@ function varNote(){
 }
 // cases « sources du calcul » : toutes cochées = modèle complet ; décocher une source montre la variante « sans X »
 // (variantes précalculées, une seule à la fois : décocher une autre source recoche la précédente)
+// une seule source retirée à la fois (variantes exactes) : la combinaison additive en logit (buildCombo, gardée pour
+// essais) produisait des artefacts quand on retirait deux sources majeures (ex. DeepStateMap + Wikipédia, 19/10/2026)
 document.querySelectorAll("[data-var]").forEach(cb => cb.onchange = () => {
-  const off = [...document.querySelectorAll("[data-var]")].filter(o => !o.checked).map(o => o.dataset.var).sort();
-  setVar(off.length === 0 ? null : off.length === 1 ? off[0] : "combo:" + off.join("+"));
+  const v = cb.checked ? null : cb.dataset.var;
+  document.querySelectorAll("[data-var]").forEach(o => { o.checked = o.dataset.var !== v; });
+  setVar(v);
 });
 $("varSel").onchange = () => setVar($("varSel").value || null);
 function setVar(v){
