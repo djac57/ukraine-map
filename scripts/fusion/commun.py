@@ -9,9 +9,10 @@ Copie de `ukraine-recherche/analyses/fusion/commun.py` (19/10/2026), socle lu da
 import numpy as np
 from scipy.special import ndtr
 
-from .socle import DATA, ROOT, SITE, lgt, socle  # noqa: F401
+from .socle import DATA, OFF, ROOT, SEC, SITE, TILE, TILE_N, lgt, socle  # noqa: F401
 
 S = socle()
+NMIN_SHIFT = max(6.0, 10.0 * TILE_N)              # mailles connues minimales pour un décalage de tronçon (10 à 24 km)
 
 DGRID = np.arange(-20.0, 20.0001, 0.5)          # 81 hypothèses
 ND = len(DGRID)

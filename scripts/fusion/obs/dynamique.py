@@ -26,8 +26,21 @@ import os
 
 import numpy as np
 
-from ..commun import DATA, DGRID, S
+from ..commun import DATA, DGRID, NMIN_SHIFT, OFF, S, TILE
 from .. import donnees as DN
+
+
+def tile_neighbours(r=None, w_nb=0.3):
+    """Tronçons voisins de chaque tronçon : rayon r tronçons (défaut : ±24 km, soit 1 tronçon de 24 km en v1, 2 de 12 km),
+    poids 1 pour le tronçon lui-même, w_nb pour les voisins."""
+    r = r or max(1, int(round(12 / TILE)))
+    code = {int(c): i for i, c in enumerate(S.tiles)}
+    nb = {}
+    for i, c in enumerate(S.tiles):
+        a, b = int(c) // 1000, int(c) % 1000
+        nb[i] = [(code[(a + x) * 1000 + b + y], 1.0 if (x, y) == (0, 0) else w_nb)
+                 for x in range(-r, r + 1) for y in range(-r, r + 1) if (a + x) * 1000 + b + y in code]
+    return nb
 
 
 class Dynamique:
@@ -37,6 +50,14 @@ class Dynamique:
         self.name, self.label = name, label
         self.F = {}
         self.params = {}
+        self.colm = {}          # {t: (masque μ, masque π)} : variables dont la source existe au mois t (sinon : cover[t])
+
+    def avail(self, t):
+        """(masque des variables μ, masque des variables π) disponibles au mois t : une source absente ne contribue pas."""
+        if t in self.colm:
+            return self.colm[t]
+        on = bool(self.cover[t]) if hasattr(self, "cover") else True
+        return np.full(len(self.mu_names), on), np.full(len(self.pi_names), on)
 
     def prepare(self, C):
         getattr(self, "_prep_" + self.name)(C)
@@ -72,7 +93,7 @@ class Dynamique:
             a, b = map(int, r["sec"].split("_"))
             zs.setdefault((t, a, b, r["side"]), []).append(float(r["s2_z"]))
         sec = (S.jj // 10) * 1000 + S.ii // 10
-        tl = (S.jj // 12) * 1000 + S.ii // 12
+        tl = ((S.jj + OFF) // TILE) * 1000 + (S.ii + OFF) // TILE
         pairs = {}
         for s_, k_ in zip(sec, tl):
             d = pairs.setdefault(int(k_), {})
@@ -138,6 +159,7 @@ class Dynamique:
         self.cover = np.array([t in C.rows for t in range(S.NM)])
         for t in C.months:
             cols = []
+            self.colm[t] = (np.zeros(0, bool), np.array([bool(arr[s][1][t]) for s in srcs]))
             for s in srcs:
                 A, cv = arr[s]
                 if cv[t]:
@@ -170,12 +192,7 @@ class Dynamique:
         """Biais et retard des cartes PAR SECTEUR : moyenne pondérée des δ vrais passés du tronçon (q ≤ t − 2,
         demi-vie 6 mois ; voisins à ≤ 36 km, poids 0,3), rétrécie × n/(n + 3) ; et moyenne de |δ| (mouvement passé)."""
         self.cover = np.array([t in C.rows for t in range(S.NM)])
-        code = {int(c): i for i, c in enumerate(S.tiles)}
-        nb = {}
-        for i, c in enumerate(S.tiles):
-            a, b = int(c) // 1000, int(c) % 1000
-            nb[i] = [(code[(a + x) * 1000 + b + y], 1.0 if (x, y) == (0, 0) else 0.3)
-                     for x in (-1, 0, 1) for y in (-1, 0, 1) if (a + x) * 1000 + b + y in code]
+        nb = tile_neighbours()
         for t in C.months:
             mu, pi = [], []
             past = [q for q in C.months if t - 24 <= q <= t - 2]
@@ -202,13 +219,17 @@ class Dynamique:
         cartes (a = 0,6 DeepState, 0,25 ISW, 0,15 Wikipédia), maille par maille, pour le champ."""
         cellZ = S.cellU[S.Zi]
         self.cover = np.array([t in C.rows for t in range(S.NM)])
-        AW = (0.6, 0.25, 0.15)
+        AW = self.AW = (0.6, 0.25, 0.15)
         self.off = {}
+        self.offm = {}       # {t: (3, nZ) avance locale lissée de chaque carte (NaN : carte absente)} (v2 : poids des cartes figées)
+        self.stm = {}        # {t: (3, nZ) état de chaque carte par maille (0 absente/inconnue, 1 ukrainienne, 2 russe, 3 contestée)}
         for t in C.months:
             sd = np.nan_to_num(S.SDe[t], nan=999)
             n = len(C.rows[t])
             dl = np.zeros((n, 3)); av = np.zeros((n, 3))
             onum = np.zeros(S.nZ, np.float32); oden = 0.0
+            offm = np.full((3, S.nZ), np.nan, np.float32)
+            stm = np.zeros((3, S.nZ), np.uint8)
             codes = S.codes.get(t)
             if codes is not None:
                 # localité absente des différences publiées (tous codes nuls) : ukrainienne pour toute carte présente
@@ -225,11 +246,13 @@ class Dynamique:
                     v = np.where(C.isUAz, v, np.nan_to_num(S.Peq[t], nan=1.0)).astype(np.float32)
                     dm = S.sd_of(S.full(v, fill=np.nan))[S.Zi]
                     o = np.clip(np.nan_to_num(dm - sd, nan=0.0), -15, 15) * (np.abs(sd) <= 20)
-                    onum += AW[mi] * S.smooth(S.full(o), 1.5)[S.Zi]; oden += AW[mi]
+                    om = S.smooth(S.full(o), 1.5)[S.Zi]
+                    offm[mi] = om; stm[mi] = np.where(C.isUAz, st, 0)
+                    onum += AW[mi] * om; oden += AW[mi]
                     for r, k in enumerate(C.rows[t]):
                         z = S.tile_cells[k]
                         mk = (np.abs(sd[z]) <= 30) & ((st[z] == 1) | (st[z] == 2))
-                        if mk.sum() < 10:
+                        if mk.sum() < NMIN_SHIFT:
                             continue
                         x = sd[z][mk][:, None] + DGRID[None, :]
                         ru = (st[z][mk] == 2)[:, None]
@@ -238,7 +261,10 @@ class Dynamique:
             with np.errstate(invalid="ignore"):
                 spread = np.where(av.sum(1) >= 2, np.nanmax(np.where(av > 0, dl, np.nan), 1) - np.nanmin(np.where(av > 0, dl, np.nan), 1), 0.0)
             spread = np.nan_to_num(spread)
+            on = [bool(av[:, mi].any()) for mi in range(3)]       # carte présente ce mois-là (ISW : tant qu'elle paraît)
+            self.colm[t] = (np.array(on + on), np.array(on + [sum(on) >= 2]))
             self.off[t] = (onum / oden if oden else onum).astype(np.float32)
+            self.offm[t], self.stm[t] = offm, stm
             self.F[t] = {"mu": np.c_[dl, av], "pi": np.c_[np.abs(dl), spread]}
         self.mu_names = ["δ DeepState", "δ ISW", "δ Wikipédia", "DeepState présent", "ISW présent", "Wikipédia présent"]
         self.pi_names = ["|δ DeepState|", "|δ ISW|", "|δ Wikipédia|", "désaccord des cartes"]

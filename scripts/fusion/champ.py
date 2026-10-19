@@ -16,12 +16,18 @@
 """
 import numpy as np
 
-from .commun import DGRID, H, S, lgt, norm_cdf
+from .commun import DGRID, H, OFF, S, TILE, lgt, norm_cdf
 
 ZG = np.arange(-60, 60.001, 0.25)
 FGRID = [(b, g, s0, sp) for b in (1.0, 1.5, 2.0, 2.5) for g in (0.35, 0.7, 1.0) for s0 in (1.0, 1.5) for sp in (4.0, 6.0, 10.0)]
 DEFAULT = (2.0, 0.7, 1.5, 6.0)
 TILEZ = S.tinv
+SECZ = S.sinv          # secteur de 24 km de chaque maille de Z (évaluation et calibration de la bande)
+# portée et largeur des poids des tronçons voisins dans le champ : 30 km et 10 km pour des tronçons de 24 km (v1),
+# au prorata de la taille du tronçon sinon (FUSION_OMEGA = facteur multiplicatif, choisi sur 2023-2024)
+import os as _os
+OMEGA = float(_os.environ.get("FUSION_OMEGA", "1.0"))
+R_NB, SIG_NB = 30.0 * TILE / 12 * OMEGA, 10.0 * TILE / 12 * OMEGA
 
 
 def quant(p):
@@ -51,9 +57,16 @@ def median_of(P):
 class Champ:
     """Champs du moteur pour un résultat R de `Moteur.run`."""
 
-    def __init__(self, M, R, R_=30.0, sig=10.0):
+    def __init__(self, M, R, R_=None, sig=None, figes=None, placebo=False, seed=0):
+        """figes : None ou `obs.PoidsCartesFiges` préparé (poids d'une carte durablement contredite réduit dans les
+        secteurs figés, κ choisi dans la table du champ) ; placebo : r permutés entre tronçons du même mois."""
         self.M, self.R, self.C = M, R, M.C
-        self.Rk, self.sig = R_, sig
+        self.figes = figes
+        self.kgrid = figes.KGRID if figes is not None else (0.0,)
+        rng = np.random.default_rng(seed)
+        self._perm = {t: rng.permutation(len(M.C.rows[t])) for t in M.C.months} if placebo else {}
+        self._off = {}
+        self.Rk, self.sig = (R_ or R_NB), (sig or SIG_NB)
         self._pairs = {}
 
     def pairs(self, t):
@@ -66,7 +79,7 @@ class Champ:
         rc = self.Rk / S.km
         pc, pr, pw = [], [], []
         for i, k in enumerate(self.C.rows[t]):
-            cj, ci = (S.tiles[k] // 1000 + 0.5) * 12, (S.tiles[k] % 1000 + 0.5) * 12
+            cj, ci = (S.tiles[k] // 1000 + 0.5) * TILE - OFF, (S.tiles[k] % 1000 + 0.5) * TILE - OFF
             m = (np.abs(jz - cj) <= rc) & (np.abs(iz - ci) <= rc)
             c = np.flatnonzero(m)
             r2 = ((jz[c] - cj) ** 2 + (iz[c] - ci) ** 2) * S.km ** 2
@@ -90,20 +103,38 @@ class Champ:
             arg = (ZG[None, :, None] + sh[:, None, :]) / (lam * s)[:, None, None]
         return np.einsum("izd,id->iz", norm_cdf(arg), P)
 
-    def sdp(self, t, beta, gamma):
+    def offset(self, t, kappa):
+        """Avance locale des cartes séparées o(x) ; κ > 0 : poids réduits des cartes durablement contredites dans les
+        secteurs figés (`obs/figes.PoidsCartesFiges`)."""
+        tm = self.M.models["temoins"]
+        if not kappa or self.figes is None:
+            return tm.off[t]
+        if (t, kappa) not in self._off:
+            Rr = self.figes.r(t, kappa, self._perm.get(t))                   # lignes × 3
+            rz = np.ones((3, S.nZ), np.float32)
+            rp = self.C.rpos[t][S.tinv]
+            okz = rp >= 0
+            rz[:, okz] = Rr[rp[okz]].T
+            om = tm.offm[t]
+            a = np.array(tm.AW, np.float32)[:, None] * rz * np.isfinite(om)
+            den = a.sum(0)
+            self._off[(t, kappa)] = np.where(den > 0, (a * np.nan_to_num(om)).sum(0) / np.maximum(den, 1e-9), 0.0).astype(np.float32)
+        return self._off[(t, kappa)]
+
+    def sdp(self, t, beta, gamma, kappa=0.0):
         sd = np.nan_to_num(S.SDe[t], nan=999).astype(np.float64)
         if beta:
             sd = sd + beta * self.M.vloc(t)
         if gamma:
-            sd = sd + gamma * self.M.models["temoins"].off[t]
+            sd = sd + gamma * self.offset(t, kappa)
         return sd
 
-    def field(self, t, F, beta, gamma, sel=None):
+    def field(self, t, F, beta, gamma, sel=None, kappa=0.0):
         """Champ sur Z (champ des cartes là où aucun tronçon n'est voisin) ; sel : masque des paires à calculer."""
         pc, pr, pw = self.pairs(t)
         if sel is not None:
             pc, pr, pw = pc[sel], pr[sel], pw[sel]
-        x = (np.clip(self.sdp(t, beta, gamma)[pc], ZG[0], ZG[-1]) - ZG[0]) / (ZG[1] - ZG[0])
+        x = (np.clip(self.sdp(t, beta, gamma, kappa)[pc], ZG[0], ZG[-1]) - ZG[0]) / (ZG[1] - ZG[0])
         i0 = np.minimum(np.floor(x).astype(np.int64), len(ZG) - 2)
         fr = x - i0
         v = F[pr, i0] * (1 - fr) + F[pr, i0 + 1] * fr
@@ -151,7 +182,7 @@ def covered(pZ, t):
     a, b = _pairs_truth(t + H)
     u = np.random.default_rng(t).uniform(0, 1, len(a))
     x = 1 / (1 + np.exp(-((1 - u) * lgt(pZ[a]) + u * lgt(pZ[b]))))
-    return TILEZ[a], (x >= 0.05) & (x <= 0.95)
+    return SECZ[a], (x >= 0.05) & (x <= 0.95)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -166,7 +197,7 @@ def table_choix(CH, fgrid=None):
     point de FGRID, et celles de la production (nowcast publié), sur les mailles évaluées. Pas de calibration ici."""
     use_g = "temoins" in CH.R["dyn"]
     use_b = "mouvement" in CH.R["dyn"]
-    grid = sorted({(b if use_b else 0.0, g if use_g else 0.0, s0, sp) for b, g, s0, sp in (fgrid or FGRID)})
+    grid = sorted({(b if use_b else 0.0, g if use_g else 0.0, s0, sp, kp) for b, g, s0, sp in (fgrid or FGRID) for kp in CH.kgrid})
     ll = {}
     for t in CH.C.months:
         if t + H not in S.built or not np.isfinite(S.Pnow[t]).any():
@@ -182,10 +213,10 @@ def table_choix(CH, fgrid=None):
         sel = inidx[pc]
         Ftab = {}
         row = []
-        for b, g, s0, sp in grid:
+        for b, g, s0, sp, kp in grid:
             if (s0, sp) not in Ftab:
                 Ftab[(s0, sp)] = CH.tables(t, CH.s_of(t, s0, sp))
-            p = quant(CH.field(t, Ftab[(s0, sp)], b, g, sel=sel)[idx])
+            p = quant(CH.field(t, Ftab[(s0, sp)], b, g, sel=sel, kappa=kp)[idx])
             row.append([((p[k] - y[k]) ** 2).sum(), k.sum(), ((p[ch] - y[ch]) ** 2).sum(), ch.sum()])
         ll[t] = (np.array(row, float), prod)
     return grid, ll
@@ -194,7 +225,7 @@ def table_choix(CH, fgrid=None):
 def choisir(grid, ll, t, use_b=True, use_g=True):
     past = [q for q in ll if t - 24 <= q <= t - H]
     if len(past) < 3:
-        return ((DEFAULT[0] if use_b else 0.0), (DEFAULT[1] if use_g else 0.0), DEFAULT[2], DEFAULT[3])
+        return ((DEFAULT[0] if use_b else 0.0), (DEFAULT[1] if use_g else 0.0), DEFAULT[2], DEFAULT[3], 0.0)
     dec = {q: 0.5 ** ((t - q) / 12) for q in past}
     A = sum(dec[q] * ll[q][0] for q in past)
     Pp = sum(dec[q] * ll[q][1] for q in past)
@@ -202,13 +233,22 @@ def choisir(grid, ll, t, use_b=True, use_g=True):
     rc = (A[:, 2] / np.maximum(A[:, 3], 1)) / (Pp[2] / max(Pp[3], 1))
     ok = rb <= 0.97
     sc = np.where(ok, rc, 10 + rb + rc) if ok.any() else rb + rc
-    return grid[int(np.argmin(sc))]
+    best = grid[int(np.argmin(sc))]
+    if len(grid[0]) < 5 or len({g[4] for g in grid}) == 1:
+        return best
+    # κ (poids des cartes contredites dans les secteurs figés) ne touche que des secteurs immobiles, donc presque pas les
+    # mailles qui changent : choisi APRÈS les autres paramètres, au meilleur Brier ≤ 30 km passé, à condition de ne pas
+    # dégrader le Brier passé des mailles qui changent par rapport à κ = 0 (règle « ne rien dégrader »)
+    same = [i for i, g in enumerate(grid) if g[:4] == best[:4]]
+    i0 = next(i for i in same if grid[i][4] == 0.0)
+    cand = [i for i in same if rc[i] <= rc[i0] + 1e-9]
+    return grid[min(cand, key=lambda i: (rb[i], grid[i][4]))]
 
 
 LGRID = np.exp(np.linspace(-1.6, 2.4, 21))     # facteurs d'échelle λ essayés pour la bande (0,20 à 11)
 
 
-def besoin(CH, t, s, b, g):
+def besoin(CH, t, s, b, g, kp=0.0):
     """Conformal LOCAL : pour chaque point de la ligne vraie à t+2 (mêmes points et même tirage que `covered`), le plus
     petit facteur λ de LGRID (appliqué à tous les tronçons) qui met le point dans la bande 5-95 % du champ du mois t.
     Renvoie (tuile, indice de λ ; len(LGRID) si aucun ne suffit)."""
@@ -220,11 +260,11 @@ def besoin(CH, t, s, b, g):
     first = np.full(len(a), len(LGRID), np.int64)
     n = len(CH.C.rows[t])
     for j, lam in enumerate(LGRID):
-        p = quant(CH.field(t, CH.tables(t, s, np.full(n, lam)), b, g, sel=sel))
+        p = quant(CH.field(t, CH.tables(t, s, np.full(n, lam)), b, g, sel=sel, kappa=kp))
         x = 1 / (1 + np.exp(-((1 - u) * lgt(p[a]) + u * lgt(p[bb]))))
         ok = (x >= 0.05) & (x <= 0.95) & (first == len(LGRID))
         first[ok] = j
-    return TILEZ[a], first
+    return SECZ[a], first
 
 
 def besoins(CH, grid, ll):
@@ -236,18 +276,19 @@ def besoins(CH, grid, ll):
     for q in CH.C.months:
         if (q + H) not in S.built:
             continue
-        b, g, s0, sp = choisir(grid, ll, q, use_b, use_g)
-        tk, j = besoin(CH, q, CH.s_of(q, s0, sp), b, g)
-        Hn = np.zeros((S.nT, len(LGRID) + 1))
+        b, g, s0, sp, kp = choisir(grid, ll, q, use_b, use_g)
+        tk, j = besoin(CH, q, CH.s_of(q, s0, sp), b, g, kp)
+        Hn = np.zeros((S.nS, len(LGRID) + 1))
         np.add.at(Hn, (tk, j), 1.0)
         out[q] = Hn
     return out
 
 
 def _neighbours():
-    code = {int(c): i for i, c in enumerate(S.tiles)}
+    """Secteurs de 24 km voisins (8-voisinage, poids 0,3) de chaque secteur."""
+    code = {int(c): i for i, c in enumerate(S.secs)}
     nb = {}
-    for i, c in enumerate(S.tiles):
+    for i, c in enumerate(S.secs):
         a, b = int(c) // 1000, int(c) % 1000
         nb[i] = [(code[(a + x) * 1000 + b + y], 1.0 if (x, y) == (0, 0) else 0.3)
                  for x in (-1, 0, 1) for y in (-1, 0, 1) if (a + x) * 1000 + b + y in code]
@@ -282,20 +323,13 @@ def champs(CH, grid, ll, calib="conformal", eta=1.0, target=0.05, clip=(-2.5, 2.
     lv = np.r_[np.log(LGRID), np.log(LGRID[-1]) + 0.25]       # valeur de la classe « aucun λ ne suffit »
     nb = _neighbours()
     alpha = {}
-    _cls = {}
-
-    def cls_of(q):
-        """Classe de risque de chaque tuile au mois q (π du tronçon : probabilité de mouvement ; 0 hors des lignes)."""
-        if q not in _cls:
-            v = np.zeros(S.nT, np.int64)
-            v[CH.C.rows[q]] = np.searchsorted(np.asarray(cls_bounds), CH.R["comp"][q][0])
-            _cls[q] = v
-        return _cls[q]
+    if cls_bounds:
+        raise NotImplementedError("classes de risque : retirées en v2 (non utilisées en production)")
     if calib == "conformal" and need is None:
         need = besoins(CH, grid, ll)                           # q -> (nT × (NL + 1)) comptes des λ nécessaires
     for t in CH.C.months:
-        b, g, s0, sp = choisir(grid, ll, t, use_b, use_g)
-        choice[t] = (b, g, s0, sp)
+        b, g, s0, sp, kp = choisir(grid, ll, t, use_b, use_g)
+        choice[t] = (b, g, s0, sp, kp)
         s = CH.s_of(t, s0, sp)
         if calib == "conformal":
             # niveau adaptatif par secteur (comme conformal.py) : α_k ← clip(α_k + γ·(0,05 − échec_k)), échec constaté
@@ -310,29 +344,24 @@ def champs(CH, grid, ll, calib="conformal", eta=1.0, target=0.05, clip=(-2.5, 2.
             past = [q for q in need if t - win <= q <= t - H]
             lam = np.ones(len(CH.C.rows[t]))
             if past:
-                Hq = sum(0.5 ** ((t - q) / hl) * need[q] for q in past)             # nT × (NL + 1)
+                # λ par SECTEUR de 24 km (le tronçon prend le λ de son secteur : calibration inchangée quand TILE < 12)
+                Hq = sum(0.5 ** ((t - q) / hl) * need[q] for q in past)             # nS × (NL + 1)
                 tot = Hq.sum(0)
-                if cls_bounds:
-                    Hc = [sum(0.5 ** ((t - q) / hl) * need[q][cls_of(q) == r].sum(0) for q in past) for r in range(len(cls_bounds) + 1)]
-                    crow = cls_of(t)[CH.C.rows[t]]
-                cv = []
-                for i, k in enumerate(CH.C.rows[t]):
-                    lev = 1 - alpha.get(int(k), 1 - level)
-                    ref = Hc[crow[i]] if cls_bounds else tot
-                    ref = ref if ref.sum() > 0 else tot
-                    glob = _wquant(lv, ref, lev) if ref.sum() > 0 else 0.0
-                    if cls_mode == "class":
-                        cv.append(glob)
-                        continue
-                    hk = sum(wn * Hq[kk] for kk, wn in nb[k])
+                lam_s = {}
+                for sk in np.unique(S.sec_of_tile[CH.C.rows[t]]):
+                    sk = int(sk)
+                    lev = 1 - alpha.get(sk, 1 - level)
+                    glob = _wquant(lv, tot, lev) if tot.sum() > 0 else 0.0
+                    hk = sum(wn * Hq[kk] for kk, wn in nb[sk])
                     ne = float(hk.sum())
                     loc = _wquant(lv, hk, lev) if ne > 0 else glob
-                    cv.append((ne * loc + n0 * glob) / (ne + n0))
-                lam = np.clip(np.exp(np.array(cv)), lam_min or 0.0, lam_max or np.inf)
+                    lam_s[sk] = (ne * loc + n0 * glob) / (ne + n0)
+                cv = np.array([lam_s[int(S.sec_of_tile[k])] for k in CH.C.rows[t]])
+                lam = np.clip(np.exp(cv), lam_min or 0.0, lam_max or np.inf)
                 c = {int(k): float(np.log(v)) for k, v in zip(CH.C.rows[t], lam)}
             F = CH.tables(t, s, lam)
             lams[t] = lam
-            out[t] = quant(CH.field(t, F, b, g))
+            out[t] = quant(CH.field(t, F, b, g, kappa=kp))
             if gamma_a and (t + H) in S.built:
                 hist[t] = covered(out[t], t)
             continue
@@ -358,7 +387,7 @@ def champs(CH, grid, ll, calib="conformal", eta=1.0, target=0.05, clip=(-2.5, 2.
             lam = np.ones(len(cv))
             F = CH.tables(t, s)
         lams[t] = lam
-        p = quant(CH.field(t, F, b, g))
+        p = quant(CH.field(t, F, b, g, kappa=kp))
         out[t] = p
         if calib and (t + H) in S.built:
             hist[t] = covered(p, t)

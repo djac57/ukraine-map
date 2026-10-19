@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 
-from .commun import DGRID, S, SITE
+from .commun import DGRID, OFF, S, SITE, TILE
 from .champ import median_of
 from .socle import decode_seq, encode_field, load_seq
 
@@ -20,9 +20,12 @@ CODES = {
     "Fa": "frappes aériennes de l'état-major", "M": "localités des bilans du MoD RF", "Ar": "menaces d'artillerie",
     "K": "alertes KAB", "R": "radar S1 (bâti modifié)", "T": "Telegram (points)", "Te": "terrain dur",
     "Mem": "mémoire du tronçon (mois précédent)",
+    "Fg": "secteur figé : biais durable des cartes appris dans le secteur",
+    "Vo": "tronçons voisins (couplage)",
 }
 POS_CODE = {"feux": "F", "ucdp": "U", "pertes": "P", "em_assauts": "A", "em_frappes": "Fa", "modru": "M", "artillerie": "Ar",
-            "kab": "K", "radar_bati": "R", "tg": "T", "terrain": "Te", "_filtre": "Mem"}
+            "kab": "K", "radar_bati": "R", "tg": "T", "terrain": "Te", "_filtre": "Mem", "_figes": "Fg",
+            "_couplage": "Vo"}
 DYN_CODE = {"memoire": "Me", "mouvement": "Vi", "asymetrie": "As", "impacts_s2": "S2", "s2_sens": "S2", "tg_oriente": "To",
             "liste_dyn": "Li", "activite": "Ac", "assauts_dyn": "Aa"}
 
@@ -44,15 +47,12 @@ def contributions(M, R, t):
     les cartes séparées sont détaillées par carte (DeepState, ISW, Wikipédia)."""
     rec, w = R["rec"][t], R["w"][t]
     n = len(M.C.rows[t])
-    L = rec["lp"] + w.get("_filtre", 0) * rec["lf"] + sum(w.get(k, 0) * rec["LL"][k] for k in R["pos"])
-    base = median_of(_norm(L))
+    base = median_of(_norm(M.logpost(rec, w, R["pos"])))
     out = [dict() for _ in range(n)]
-    for k in R["pos"] + ["_filtre"]:
-        wn = w.get(k, 0)
-        if not wn:
+    for k in R["pos"] + ["_filtre", "_figes", "_couplage"]:
+        if not w.get(k, 0):
             continue
-        term = rec["lf"] if k == "_filtre" else rec["LL"][k]
-        d = base - median_of(_norm(L - wn * term))
+        d = base - median_of(_norm(M.logpost(rec, w, R["pos"], drop=k)))
         for i in np.flatnonzero(np.abs(d) >= 0.05):
             out[i][POS_CODE.get(k, k)] = float(d[i])
     P = M.cartes.params.get(t)
@@ -60,17 +60,25 @@ def contributions(M, R, t):
         pi = R["comp"][t][0]
         coef = P["wm"][1:] / P["sd_m"]
         j = 0
+        cm = P.get("cm_mu")
         for m in R["dyn_models"]:
             X = m.features(t)["mu"]
-            nc = X.shape[1]
+            if not X.shape[1]:
+                continue
+            keep = np.asarray(m.avail(t)[0], bool) if cm is not None else np.ones(X.shape[1], bool)
+            src = np.flatnonzero(keep)                                  # colonnes du modèle gardées à t
+            nc = len(src)
             if not nc:
                 continue
-            part = coef[j:j + nc] * (X - P["mu_m"][j:j + nc])          # n × nc
+            part = coef[j:j + nc] * (X[:, src] - P["mu_m"][j:j + nc])  # n × nc (sources absentes : aucune colonne)
             if m.name == "temoins":
                 groups = (("Ds", [0, 3]), ("Is", [1, 4]), ("Wk", [2, 5]))
             else:
-                groups = ((DYN_CODE.get(m.name, m.name), list(range(nc))),)
-            for code, cols in groups:
+                groups = ((DYN_CODE.get(m.name, m.name), list(range(X.shape[1]))),)
+            for code, cols0 in groups:
+                cols = [i for i, c in enumerate(src) if c in cols0]
+                if not cols:
+                    continue
                 v = part[:, cols].sum(1) * pi
                 for i in np.flatnonzero(np.abs(v) >= 0.05):
                     out[i][code] = out[i].get(code, 0.0) + float(v[i])
@@ -90,7 +98,7 @@ def explain(M, R, top=6):
         for i, k in enumerate(M.C.rows[t]):
             code = int(S.tiles[k])
             cs = sorted(ctr[i].items(), key=lambda x: -abs(x[1]))[:top]
-            rows.append([(code % 1000) * 12, (code // 1000) * 12, int(round(10 * med[i])), int(round(10 * lo[i])),
+            rows.append([(code % 1000) * TILE - OFF, (code // 1000) * TILE - OFF, int(round(10 * med[i])), int(round(10 * lo[i])),
                          int(round(10 * hi[i])), int(round(100 * pi[i])),
                          [[c, int(round(10 * v))] for c, v in cs if abs(v) >= 0.05]])
         res[t] = rows
@@ -130,10 +138,11 @@ def areas(p):
     return out
 
 
-def mc_interval(M, R, t, a, ndraw=200, block=2, seed=0):
+def mc_interval(M, R, t, a, ndraw=200, block=None, seed=0):
     """Intervalle à 95 % de la surface attendue : tirages de δ par tronçon dans sa loi a posteriori, avec le même quantile
     pour les tronçons d'un même bloc de 48 km (2 × 2 tuiles, comme les blocs de 50 km du Monte Carlo publié) ; la surface
     varie de (δ − E δ) × longueur de ligne du tronçon (mailles à 0-2 km côté russe × 2 km)."""
+    block = block or max(1, int(round(2 * 12 / TILE)))      # blocs de 48 km quelle que soit la taille du tronçon
     P = R["post"][t]
     rows = M.C.rows[t]
     cdf = np.cumsum(P, 1)

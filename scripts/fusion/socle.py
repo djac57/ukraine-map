@@ -26,7 +26,11 @@ from scipy import ndimage
 ROOT = os.environ.get("FUSION_ROOT") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SITE = os.path.join(ROOT, "site")
 DATA = os.path.join(ROOT, "data")
-TILE = 12
+TILE = int(os.environ.get("FUSION_TILE", "12"))  # côté du tronçon du moteur, en mailles de 2 km (12 = 24 km ; 6 et 8 testés le
+                                                 # 19/10/2026 : mailles qui changent dégradées, non retenus)
+SEC = 12                                         # secteur d'ÉVALUATION et de calibration de la bande : 24 km, quel que soit TILE
+OFF = int(os.environ.get("FUSION_OFFSET", "0"))   # décalage du pavage des tronçons (mailles, sur les deux axes)
+TILE_N = TILE * TILE / 144.0                     # surface du tronçon rapportée à celle de 24 km (seuils d'effectifs)
 ZONE_KM = 62.0
 ISW_STALE_DAYS = 45     # ISW tenue pour arrêtée (témoin absent) quand son âge dépasse 45 jours
 
@@ -133,13 +137,22 @@ class Socle:
         self.nZ = len(self.Zi)
         self.zpos = np.full(self.nU, -1, np.int64)
         self.zpos[self.Zi] = np.arange(self.nZ)
-        self.tileU = (self.jj // TILE) * 1000 + self.ii // TILE
+        self.tileU = ((self.jj + OFF) // TILE) * 1000 + (self.ii + OFF) // TILE
         self.tileZ = self.tileU[self.Zi]
         self.tiles, self.tinv = np.unique(self.tileZ, return_inverse=True)
         self.nT = len(self.tiles)
         order = np.argsort(self.tinv, kind="stable")
         bounds = np.searchsorted(self.tinv[order], np.arange(self.nT + 1))
         self.tile_cells = [order[bounds[k]:bounds[k + 1]] for k in range(self.nT)]   # indices Z par tronçon
+        self.tile_km = TILE * self.km
+        # secteurs de 24 km (évaluation, calibration de la bande, placebo du KPI) ; secteur d'un tronçon = celui de son centre
+        secZ = (self.jj[self.Zi] // SEC) * 1000 + self.ii[self.Zi] // SEC
+        self.secs, self.sinv = np.unique(secZ, return_inverse=True)
+        self.nS = len(self.secs)
+        sidx = {int(c): i for i, c in enumerate(self.secs)}
+        cen = [((int(c) // 1000) * TILE + TILE // 2 - OFF, (int(c) % 1000) * TILE + TILE // 2 - OFF) for c in self.tiles]
+        self.sec_of_tile = np.array([sidx.get((a // SEC) * 1000 + b // SEC, int(self.sinv[self.tile_cells[k][0]]))
+                                     for k, (a, b) in enumerate(cen)], np.int64)
         self.built = [t for t in range(self.NM) if np.isfinite(self.Peq[t]).any() and (self.T[t] >= 0).any()]
         self._tiles_Y()
 
@@ -258,7 +271,8 @@ class Socle:
             cn = np.bincount(self.tinv, weights=nr, minlength=self.nT)
             ck = np.bincount(self.tinv, weights=known, minlength=self.nT)
             ry = np.bincount(self.tinv, weights=(self.T[t] == 1), minlength=self.nT)
-            ok = (cn >= 20) & (ck >= 20)
+            nmin = max(5.0, 20.0 * TILE_N)          # 20 mailles pour un tronçon de 24 km (v1), au prorata sinon
+            ok = (cn >= nmin) & (ck >= nmin)
             for j in np.flatnonzero(ok):
                 self.Y[(t, int(j))] = float(ry[j]) * self.km ** 2 / (TILE * self.km)
 

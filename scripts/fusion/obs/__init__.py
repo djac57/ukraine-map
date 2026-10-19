@@ -12,6 +12,7 @@ from .telegram import PointsTelegram  # noqa: F401
 from .dynamique import Dynamique  # noqa: F401
 from .terrain import Barrieres  # noqa: F401
 from .cartes import TemoinCartes  # noqa: F401
+from .figes import RGRID as FIGES_RGRID, PoidsCartesFiges, SecteursFiges  # noqa: F401
 
 
 def catalogue():

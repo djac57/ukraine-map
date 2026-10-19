@@ -865,6 +865,64 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   retenu** (règle « pas de dégradation » : mailles qui changent et avance de DeepState à Lyman dégradées sur la période
   gelée) ; le résidu Antonivka–Kozatske reste. Piste : un poids réduit seulement là où AUCUNE carte n'a bougé depuis
   longtemps (secteurs figés, Dnipro), qui ne toucherait pas les secteurs actifs — à tester sur 2023-24 puis geler.
+- 19-20/10/2026 : **MOTEUR DE FUSION v2** (`scripts/fusion/`, `scripts/build_fusion.py` seulement ; vue parallèle,
+  `build_front.py` et le site non touchés). Protocole : entrées figées (copie de `site/` et `data/` du build de 19 h 21,
+  `FUSION_ROOT`), réglages choisis sur 2023-01 → 2024-12 seulement, puis GELÉS et évalués sur 2025-01 → 2026-07 ; vérité
+  = consensus à t + 2 ; règle de choix fixée avant de lire 2025-26 : Brier ≤ 30 km ≤ v1, mailles qui changent ≤ v1 +
+  0,001, P10 ≥ v1 − 0,5 pt, puis meilleur Brier ≤ 30 km ; rejet si la corrélation au consensus du jour monte sans gain
+  sur ce qui bouge (signature « perroquet »). Banc : scratchpad `fv2/exp.py` (mêmes mesures que `fusion/mesures.py`,
+  plus boîtes Antonivka–Kozatske, Dnipro aval, Lyman, Toretsk, Kourakhove, Borova, corrélation, erreur des km² de
+  `build_kmchange.py`, KPI empilé par période).
+  (1) **Défaut 1 (δ uniforme par tuile de 24 km) : NON corrigé, toutes les variantes plus fines dégradent les mailles
+  qui changent** sur 2023-24 (v1 0,3683) : tronçons de 12 km 0,3930 (Brier ≤ 30 km 0,03417 → 0,03184, mais Toretsk
+  0,399 → 0,411, Kourakhove 0,360 → 0,430, Borova 0,328 → 0,341), noyau ω élargi 0,4078, couplage appris entre
+  voisins (mélange géométrique des lois de δ) : poids appris ≈ 0 (7 % des mois), 0,3931 ; 16 km 0,3909 ; double pavage
+  de 24 km décalé de 12 km (δ interpolé entre deux pavages) 0,3805 (le pavage décalé SEUL : 0,3965 : le résultat de v1
+  dépend du calage du pavage d'environ 0,03, autant que l'écart cherché). Code gardé (`FUSION_TILE`, `FUSION_OFFSET`,
+  couplage `Moteur.run(couplage=True)`), défaut 24 km.
+  (2) **Défaut 2 corrigé** : une source absente au mois t (ISW après son arrêt, Telegram ou S2 hors couverture, source
+  d'intensité manquante) voit ses variables RETIRÉES du modèle des cartes appris pour t (`TemoinCartes.colmask`,
+  `Dynamique.avail`), au lieu d'une indicatrice « absente » qui déplaçait μ. Contributions « Is » dans
+  `fusion_explain.js` en 2026-07/08/09 : 13 / 13 / 50 tronçons (v1) → 0. Identique à v1 jusqu'en 2026-06 ; 2025-26 :
+  mailles qui changent 0,3226 → 0,3215, P10 89,1 → 90,0 %.
+  (3) **Secteurs figés** : deux formes testées, poids appris dans le moteur en walk-forward (vérité à q + 2, q ≤ t − 2).
+  (a) biais durable dans δ (centre de la composante stable décalé de ρ·B_k, ρ appris) : NON retenu (2023-24 : Brier
+  0,03417 → 0,03408 mais mailles qui changent 0,3683 → 0,3688, corrélation 0,9310 → 0,9313 : signature perroquet ; le δ
+  vrai des tuiles d'Antonivka–Kozatske est ≈ 0 : la bosse de Lvove est LOCALE, le δ uniforme ne la voit pas ; placebo :
+  ρ appris 0). (b) **RETENU : poids réduit d'une carte durablement contredite dans l'avance locale des cartes du champ**
+  o(x) (`obs/figes.PoidsCartesFiges`) : r_m,k = 1 − min(1, κ·excès d'erreur de la carte m dans le tronçon k sur les mois
+  figés passés), SEULEMENT si le tronçon est figé (aucune maille à ≤ 30 km n'a changé d'état dans aucune carte ni dans
+  le consensus depuis 6 mois, à 2 mailles près) ; κ ∈ {0 ; 4 ; 12} choisi chaque mois APRÈS les autres paramètres du
+  champ, au meilleur Brier ≤ 30 km passé sans dégrader le Brier passé des mailles qui changent. Réglage (W = 6, 2
+  mailles, n₀ = 200) choisi sur 2023-24 : variantes W = 3 et W = 12 dégradaient les mailles qui changent (0,3718,
+  0,3725) ; seuil 6 mailles identique. κ choisi > 0 : 2023-01 puis 2026-05 → 2026-09 (κ = 12) ; 2026-09 : 86 tronçons
+  figés sur 123, Wikipédia réduite dans 22, DeepState dans 2.
+  **AVANT (v1) → APRÈS (v2)**, 2023-24 (réglage) puis 2025-26 (gelé) :
+  - Brier ≤ 30 km 0,03417 → 0,03417 ; 0,02515 → **0,02503** (production 0,03605 ; 0,02850) ;
+  - mailles qui changent (t + 2) 0,3683 → 0,3684 ; 0,3226 → 0,3215 ; (t + 1) 0,3479 → 0,3479 ; 0,3319 → 0,3304 ;
+  - couverture 95 % par secteur (médiane / P10 / % < 90 %) 98,8 / 92,4 / 6 % → identique ; 96,2 / 89,1 / 12 % → 96,4 /
+    90,0 / 10 % ; toute la période 96,6 / 91,3 % / 1 secteur → 96,9 / 91,3 % / 1 ;
+  - corrélation au consensus du jour 0,9310 → 0,9310 ; 0,9447 → 0,9450 (avec gain sur le Brier stable, sans perte sur
+    ce qui bouge) ;
+  - Antonivka–Kozatske (Brier ≤ 30 km) 0,0691 → 0,0691 ; 0,0277 → 0,0273 ; km² « russes » (p ≥ 0,5) sur mailles
+    ukrainiennes du consensus : 2026-06 24 → 12, 2026-09 32 → 8 (production 100 et 108) ; Dnipro aval 0,0164 → 0,0159 ;
+  - **Lyman (DeepState en avance) non cassé** : Brier 0,0544 → 0,0543, mailles qui changent 0,2350 → 0,2349 ; Toretsk
+    0,2434 → 0,2430, Borova 0,3602 → 0,3586 (2025-26) ;
+  - erreur des km² (estimateur p ≥ 0,5, vérité définitive de `build_kmchange.py`, p80 / biais) : 30 j 2024 828 → 828,
+    2025-26 701 → 701 ; 12 mois 2024 1 670 / +206 → 1 670 / +209, 2025-26 1 140 / +430 → 1 140 / +425 (le nowcast
+    publié fait mieux sur 12 mois : 1 332 / +38 et 766 / +65 : biais de la fusion à surveiller, inchangé par v2) ;
+  - KPI avance NET, banc (`fusion/mesures.py`, 5 graines), h = 1, ≤ 30 km / mailles qui changent : 2023-24 +4,21 /
+    −1,24 → +4,21 / −1,24 ; 2025-26 −3,22 / +6,04 → **−2,83 / +6,06** ; h = 2 2025-26 −0,83 / +12,11 → −0,44 / +12,12 ;
+    PLACEBO (r permutés entre tronçons du même mois) : −3,14 / +6,06, et 2023-24 +4,17 / −1,31 : le gain est propre au
+    secteur ;
+  - `kpi_avance.py` (KPI_CHAMP=fusion, pas mensuel, 5 graines, 500 tirages ; mêmes entrées) : h = 1 période +2,60 →
+    +2,71 pt ≤ 30 km, +2,54 → +2,53 changent ; 12 mois +0,20 → +0,71 / +4,00 → +3,95 ; h = 2 +2,39 → +2,50 / +6,22 →
+    +6,21 ; 12 mois +0,63 → +1,15 / +9,15 → +9,10 (mailles qui changent : −0,01 à −0,05 pt, très en deçà des IC).
+  Décision : **v2 gardée** (gain modeste et concentré sur les secteurs figés, rien de dégradé au-delà du bruit) ; la
+  bosse de Lvove est réduite (32 → 8 km² en 2026-09) mais le défaut 1 reste ouvert. Durée locale du build 92 s (v1
+  104 s : table du champ 216 points au lieu de 72, mais moteur plus rapide). `check_arrows.py` : 0 échec. Le poids des
+  cartes figées agit dans le champ (o(x)), pas dans δ : il n'a pas de code dans `fusion_explain.js` (méta
+  `FRONT_FUSION.figes` : réglage, κ par mois, tronçons figés et cartes réduites du dernier mois).
 
 ---
 
@@ -985,9 +1043,11 @@ gains walk-forward ; voir le bilan ci-dessus) :
      (`validation.fusion` contre `validation.production`).
    - `map_dependence.py` : ajouter la vue `fusion`.
    - Bascule (fusion à la place du nowcast) après un mois de CI sans régression.
-   - Pistes ouvertes : décalage par demi-tronçon (12 km) ; bande des 12 derniers mois (P10 86,6 %, 8 secteurs < 90 %
-     sur 42) ; ISW « présente / absente » apparaît dans l'explication après son arrêt (indicatrice du modèle des
-     cartes séparées).
+   - **v2 du 19-20/10/2026** (§ 6) : source absente retirée du modèle (ISW après son arrêt : corrigé), poids des cartes
+     contredites réduit dans les secteurs figés (retenu) ; tronçons de 12-16 km, couplage, double pavage : non retenus.
+   - Pistes ouvertes : forme LOCALE du décalage dans le tronçon (une bascule partielle, pas un δ uniforme ni plus
+     fin) ; bande des 12 derniers mois (P10 86,7 %, 7 secteurs < 90 % sur 42) ; biais de la variation de km² sur 12
+     mois (+425 km² contre +65 pour le nowcast, 2025-26).
 1. **« Qui avait raison »** : **MESURÉ le 19/10/2026**, c'est le nouveau KPI principal « avance sur les cartes »
    (§ 4, § 6 ; `scripts/kpi_avance.py`, `ukraine-recherche/analyses/kpi_avance/RAPPORT.md`).
    - **Valeur de référence** (site du 18/10, pas mensuel, h = 1 mois, 2023-01 → 2026-08) :

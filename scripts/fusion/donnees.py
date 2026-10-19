@@ -24,7 +24,7 @@ import os
 
 import numpy as np
 
-from .commun import DATA, DGRID, S, SITE
+from .commun import DATA, DGRID, NMIN_SHIFT, S, SITE, TILE
 
 NM, nZ = S.NM, S.nZ
 _MEM = {}
@@ -292,7 +292,7 @@ def delta_true():
             for k in ks:
                 z = S.tile_cells[k]
                 m = (np.abs(sd[z]) <= 30) & (y[z] >= 0)
-                if m.sum() < 10:
+                if m.sum() < NMIN_SHIFT:
                     continue
                 out[h][(t, k)] = _best_shift(sd[z][m], y[z][m] == 1)
     _MEM["dtrue"] = (out[2], out[1])
@@ -309,5 +309,5 @@ def map_shift():
         a = np.bincount(S.tinv, weights=(np.nan_to_num(S.Peq[t]) > 0.5), minlength=S.nT)
         b = np.bincount(S.tinv, weights=(np.nan_to_num(S.Peq[t - 1]) > 0.5), minlength=S.nT)
         for k in [k for (q, k) in S.Y if q == t]:
-            out[(t, k)] = float(a[k] - b[k]) * S.km ** 2 / (12 * S.km)
+            out[(t, k)] = float(a[k] - b[k]) * S.km ** 2 / (TILE * S.km)
     return out

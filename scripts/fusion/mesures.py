@@ -119,7 +119,7 @@ class KPI:
 
     @staticmethod
     def placebo(src, pool, t, seed):
-        r = np.where(np.random.default_rng(1000 * seed + 7 + t).random(S.nT) < 0.5, -1.0, 1.0)[S.tinv]
+        r = np.where(np.random.default_rng(1000 * seed + 7 + t).random(S.nS) < 0.5, -1.0, 1.0)[S.sinv]   # sens par secteur de 24 km
         return _sigm(_lg(pool) + r * (_lg(src) - _lg(pool)))
 
     def gains(self, fields, h, ts):

@@ -16,6 +16,11 @@ décalage de la vraie ligne par rapport à la ligne des cartes par tronçon de 2
 dans le temps ; un modèle d'observation par signal ; TOUT est réappris chaque mois en walk-forward (profils, a priori
 des cartes, poids des signaux, paramètres du champ, bande) sur les seuls mois q ≤ t − 2 dont la vérité (consensus à
 q + 2) est connue à t. Bande recalibrée PAR SECTEUR (conformal local, `fusion/champ.py`).
+v2 (19-20/10/2026, docs/ETAT.md § 6) : une source absente ne contribue plus (ses variables sont retirées du modèle des
+cartes du mois : plus d'« ISW présente » après son arrêt) ; poids d'une carte durablement contredite réduit dans
+l'avance locale des cartes du champ, SEULEMENT dans les secteurs figés (`fusion/obs/figes.py`, κ choisi chaque mois).
+Testés et non retenus : tronçons de 12 et 16 km, couplage entre voisins, double pavage décalé, biais δ des secteurs
+figés (FUSION_TILE / FUSION_OFFSET, FIGES_DELTA restent disponibles pour les essais).
 
 Sorties :
   site/front_fusion.js
@@ -49,6 +54,13 @@ SPREAD_MODE = "both"
 # position), Sentinel-2 en SENS seulement ; le reste = version retenue en recherche
 POS_PROD = ["feux", "ucdp", "pertes", "em_frappes", "modru", "artillerie", "kab", "radar_bati", "tg"]
 DYN_PROD = ["temoins", "memoire", "mouvement", "asymetrie", "s2_sens", "tg_oriente", "activite", "liste_dyn", "assauts_dyn"]
+# v2 (19-20/10/2026, docs/ETAT.md § 6) : réglages choisis sur 2023-2024, évalués gelés sur 2025-2026
+#  - source absente : ses variables sont retirées du modèle des cartes appris pour le mois (ISW après juin 2026…) ;
+#  - POIDS_FIGES : poids d'une carte durablement contredite réduit dans le champ, SEULEMENT dans les secteurs figés
+#    (`fusion/obs/figes.PoidsCartesFiges`, κ choisi chaque mois) ; None : désactivé ;
+#  - FIGES_DELTA : biais durable appris dans le décalage δ des secteurs figés (`figes.SecteursFiges`) ; None : désactivé.
+POIDS_FIGES = dict(W=6, nthr=2, n0=200.0)
+FIGES_DELTA = None
 
 
 def log(*a):
@@ -62,15 +74,17 @@ def main():
     args = ap.parse_args()
     T0 = time.time()
     import numpy as np
-    from fusion.commun import S, SITE
+    from fusion.commun import S, SITE, TILE
     from fusion.moteur import Moteur
     from fusion import champ as CHM, mesures as ME, sortie as SO
     log(f"socle : {S.NM} mois ({S.months[0]} → {S.months[-1]}), {len(S.built)} construits, zone {S.nZ} mailles, "
         f"{S.nT} tuiles ({time.time() - T0:.0f} s)")
     M = Moteur(set(POS_PROD) | set(DYN_PROD))
-    R = M.run(POS_PROD, DYN_PROD)
+    fgd = M.figes(**FIGES_DELTA) if FIGES_DELTA else None
+    R = M.run(POS_PROD, DYN_PROD, figes=fgd)
     log(f"moteur : loi a posteriori de δ, {len(M.C.months)} mois ({time.time() - T0:.0f} s)")
-    CH = CHM.Champ(M, R)
+    pk = M.poids_figes(**POIDS_FIGES) if POIDS_FIGES else None
+    CH = CHM.Champ(M, R, figes=pk)
     grid, ll = CHM.table_choix(CH)
     log(f"table de choix du champ ({len(grid)} points) ({time.time() - T0:.0f} s)")
     CHM.SPREAD["mode"] = SPREAD_MODE
@@ -130,16 +144,30 @@ def main():
         else:
             months_meta.append(None)
     gen = dt.date.today().isoformat()
-    meta = {"generated": gen, "version": "moteur de fusion v1 (19/10/2026)",
+    figes = None
+    if pk is not None:
+        tl = max(pk.frz)
+        figes = {"reglage": POIDS_FIGES, "kappa_grille": list(pk.KGRID),
+                 "dernier_mois": {"mois": S.months[tl], "troncons_figes": int(pk.frz[tl].sum()), "troncons": len(pk.frz[tl]),
+                                  "cartes_reduites": {nm: int((pk.frz[tl] & (pk.x[tl][:, mi] > 0.02)).sum())
+                                                      for mi, nm in enumerate(("deepstate", "isw", "wikipedia"))
+                                                      if np.isfinite(M.models["temoins"].offm[tl][mi]).any()},
+                                  "kappa": choice.get(tl, (0, 0, 0, 0, 0.0))[4]},
+                 "kappa_par_mois": {S.months[t]: v[4] for t, v in choice.items()}}
+        log(f"secteurs figés : {figes['dernier_mois']}")
+    meta = {"generated": gen, "version": "moteur de fusion v2 (20/10/2026)",
             "method": "décalage δ de la vraie ligne par tronçon de 24 km, loi a posteriori filtrée, un modèle d'observation "
-                      "par signal, poids et paramètres réappris chaque mois en walk-forward (ukraine-recherche/analyses/fusion)",
+                      "par signal, poids et paramètres réappris chaque mois en walk-forward (ukraine-recherche/analyses/fusion) ; "
+                      "v2 : une source absente ne contribue pas (variables retirées du modèle du mois) ; poids d'une carte "
+                      "durablement contredite réduit dans les secteurs figés seulement (κ choisi chaque mois)",
+            "figes": figes,
             "calibration": dict(CALIB, spread=SPREAD_MODE, lam_median_dernier_mois=round(float(np.median(lams[max(lams)])), 2)),
             "fieldParams": {S.months[t]: list(v) for t, v in choice.items()},
             "validation": val, "weights": weights}
     SO.write_front(os.path.join(SITE, "front_fusion.js"), Fu, months_meta, meta)
     ex = SO.explain(M, R)
     SO.write_explain(os.path.join(SITE, "fusion_explain.js"), ex, {
-        "generated": gen, "tileCells": 12,
+        "generated": gen, "tileCells": TILE,
         "sign": "δ et Δ > 0 : ligne probable plus avancée côté ukrainien que celle des cartes (gain russe) ; < 0 : côté russe",
         "columns": ["colonne (i0)", "ligne (j0)", "δ médian (km × 10)", "δ 5 % (km × 10)", "δ 95 % (km × 10)",
                     "P(le tronçon bouge ≥ 1 km) %", "contributions [[code, Δ km × 10], …]"],
