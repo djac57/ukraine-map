@@ -2294,7 +2294,8 @@ function updateArea(){
       const vw = (a, b) => isFinite(a) && isFinite(b) && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r100(a), u: (b >= 0 ? "+" : "−") + r100(b)}) : "";
       big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), (d12 >= 0 ? "+" : "−") + r100(d12) + "\u00a0km²", who(d12) + " · " + hab(E12, d12) + (vw(kmV("ru", fi) - kmV("ru", j12), kmV("ua", fi) - kmV("ua", j12)))) : "") +
         (d1 !== null ? line(_t("30 derniers jours"), (d1 >= 0 ? "+" : "−") + r10b(d1) + "\u00a0km²", who(d1) + " · " + hab(E1, d1) + (vw1(kmV("ru", fi) - kmV("ru", j1), kmV("ua", fi) - kmV("ua", j1)))) : "") +
-        line(_t("total occupé"), "≈\u00a0" + fmt(Math.round(v / 1000) * 1000) + "\u00a0km²", _t("{s} % de l'Ukraine · {f}", {s: share, f: frameLabel(fi)})) +
+        line(_t("total occupé"), "≈\u00a0" + fmt(Math.round(v / 1000) * 1000) + "\u00a0km²", _t("{s} % de l'Ukraine · {f}", {s: share, f: frameLabel(fi)}) +
+          (a.depuis2022 && a.horsCrimee ? " · " + _t("dont ≈ {p} km² avant 2022 (Crimée ≈ {c}, Donbass ≈ {d})", {p: fmt(Math.round((a.tout[0] - a.depuis2022[0]) / 100) * 100), c: fmt(Math.round((a.tout[0] - a.horsCrimee[0]) / 100) * 100), d: fmt(Math.round((a.horsCrimee[0] - a.depuis2022[0]) / 100) * 100)}) : "")) +
         (ru >= 50 ? line(document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien", fmt(Math.round(ru/10)*10) + "\u00a0km²", "") : ""); }
   }
   const fi = frontIdx(), el = $("areaBox");
