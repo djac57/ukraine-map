@@ -255,7 +255,23 @@ class Sectors:
     PC_NAMES = ["|distance|", "côté", "UCDP au sol", "part au sol", "pertes", "feux", "z feux", "urbain", "continuité", "urbain × distance",
                 "radar : abandon agricole (côté russe)", "radar : abandon agricole (côté ukrainien)", "radar : pas de cultures en 2021",
                 "état-major UA (faits) : assauts", "état-major UA (faits) : frappes aériennes", "MoD RF (faits) : localités des bilans",
-                "liste officielle des hostilités (rejouée)", "liste officielle : pas encore publiée"]
+                "liste officielle des hostilités (rejouée)", "liste officielle : pas encore publiée",
+                "mouvement récent : |Δp| sur un mois", "mouvement récent : tendance sur deux mois", "alertes KAB"]
+
+    def kab(self):
+        """Alertes de bombes planantes (KAB) par maille et par mois, même canal officiel que les menaces d'artillerie
+        (agrégé par hromada puis par maille ; data/alertes_kab.csv, sept. 2024 → 7 sept. 2026, canal arrêté ensuite :
+        rien n'est reporté)."""
+        self.KAB = np.zeros((len(self.months), len(self.U)), np.float32)
+        path = os.path.join(self.root, "data", "alertes_kab.csv")
+        if os.path.exists(path):
+            midx = {m: i for i, m in enumerate(self.months)}
+            with open(path, encoding="utf-8") as f:
+                for r in csv.DictReader(f):
+                    t, u = midx.get(r["mois"]), self.pos.get(int(r["maille"]))
+                    if t is not None and u is not None:
+                        self.KAB[t, u] += float(r["n_kab"])
+        return self.KAB
 
     def official_list(self):
         """Part des localités de la hromada en « hostilités actives » d'après la liste officielle ukrainienne, telle qu'elle
@@ -376,11 +392,20 @@ class Sectors:
         offc = [np.log1p(self.smooth(of[k][t], 2.5)) if k in of else np.zeros(len(sd), np.float32) for k in self.OFFICIAL]
         lst = getattr(self, "LIST", None)
         lf = np.c_[self.smooth(lst[t], 1.5), np.full(len(sd), self.LMISS[t], np.float32)] if lst is not None else np.zeros((len(sd), 2), np.float32)
-        return np.c_[X, self.sar_features(t, sd), np.stack(offc, axis=1), lf].astype(np.float32)
+        # mouvement récent (cartes seules, champ équilibré connu au mois t) : |Δp| sur un mois et tendance sur deux mois
+        # (> 0 : gain russe), lissés σ = 2 mailles ; banc d'essai du 19/10/2026 (rôle C)
+        PE = getattr(self, "PEQ", None) or {}
+        z0 = np.zeros(len(sd), np.float32)
+        mv1 = self.smooth(np.abs(PE[t] - PE[t - 1]), 2.0) if t in PE and t - 1 in PE else z0
+        mv2 = self.smooth((PE[t] - PE[t - 2]) / 2, 2.0) if t in PE and t - 2 in PE else z0
+        # (bâti modifié du radar, aussi recommandé par le banc : +0,0008 seulement dans le build du 19/10/2026, non retenu)
+        kb = np.log1p(self.smooth(self.KAB[t], 1.5)) if getattr(self, "KAB", None) is not None else z0
+        return np.c_[X, self.sar_features(t, sd), np.stack(offc, axis=1), lf, mv1, mv2, kb].astype(np.float32)
 
     PC_GROUPS = {"UCDP au sol": [2, 3], "pertes WarSpotting": [4], "feux VIIRS": [5, 6], "urbain et continuité": [7, 8, 9],
                  "radar (abandon agricole)": [10, 11, 12], "état-major UA (faits)": [13, 14], "MoD RF (faits)": [15],
-                 "liste officielle (rejouée)": [16, 17]}
+                 "liste officielle (rejouée)": [16, 17], "mouvement récent": [18, 19], "alertes KAB": [20]}
+    PC_NEW = ("mouvement récent", "alertes KAB")   # ajoutés le 19/10/2026 (banc d'essai, rôle C)
 
     def pcontact(self, ts, SD, ground, urb, Zf, truth, dis, art, start_wf="2023-06", drop=(), use_art=True):
         """P(contact au sol) par maille et par mois, régression logistique réentraînée chaque mois sur les seuls mois
@@ -545,14 +570,63 @@ class Sectors:
             flips[ok] += ch[self.cellU[ok]]
         return self.smooth(flips, 2.5)
 
-    def pmove(self, tsm, SD, truth, pnow, ind=None, tg=None, win=20, thr_km=0.5):
+    OOKLA_REF = "2021Q4"
+
+    def ookla(self):
+        """Ookla Open Data (Speedtest® by Ookla®, CC BY-NC-SA 4.0 ; data/ookla_blocs_trimestre.csv, fetch_ookla.py) :
+        BAISSE du nombre de tests (mobile + fixe) par bloc de 10 km, log(1 + tests 2021-Q4) − log(1 + tests du
+        trimestre), recentrée chaque trimestre sur la médiane des blocs témoins de l'ouest (tendance générale du volume
+        Speedtest) ; bloc sans test en 2021-Q4 : 0. Anti-fuite : au mois t, seul le trimestre qui contient le mois t − 3
+        est utilisé (publié ~10 jours après sa fin) ; s'il manque encore, le dernier trimestre publié est reporté.
+        self.OOK (mois, mailles), 0 avant le premier trimestre utilisable ; à masquer côté russe (réseaux non comparables,
+        Speedtest y disparaît en 2025-2026)."""
+        self.OOK = np.zeros((len(self.months), len(self.U)), np.float32)
+        path = os.path.join(self.root, "data", "ookla_blocs_trimestre.csv")
+        if not os.path.exists(path):
+            return self.OOK
+        tot, wit = {}, set()
+        with open(path, encoding="utf-8") as f:
+            for r in csv.DictReader(line for line in f if not line.startswith("#")):
+                b = int(r["bloc"])
+                tot.setdefault(r["trimestre"], {})[b] = int(r["tests_mobile"]) + int(r["tests_fixe"])
+                if r["temoin"] == "1":
+                    wit.add(b)
+        ref = {b: n for b, n in tot.get(self.OOKLA_REF, {}).items() if n > 0}
+        blk = (self.jj // 5) * (self.NX // 5) + self.ii // 5
+        BL = {}
+        for qq, d in tot.items():
+            if qq <= self.OOKLA_REF:
+                continue
+            v = {b: math.log1p(n0) - math.log1p(d.get(b, 0)) for b, n0 in ref.items()}
+            tw = sorted(x for b, x in v.items() if b in wit)
+            med = tw[len(tw) // 2] if tw else 0.0
+            arr = np.zeros(int(blk.max()) + 1, np.float32)
+            for b, x in v.items():
+                if b < len(arr):
+                    arr[b] = x - med
+            BL[qq] = arr[blk]
+        qs = sorted(BL)
+        for t, m in enumerate(self.months):
+            y, mo = int(m[:4]), int(m[5:7]) - 3
+            if mo <= 0:
+                y, mo = y - 1, mo + 12
+            want = f"{y}Q{(mo - 1) // 3 + 1}"
+            have = [q for q in qs if q <= want]
+            if have:
+                self.OOK[t] = BL[have[-1]]
+        return self.OOK
+
+    def pmove(self, tsm, SD, truth, pnow, ind=None, tg=None, win=20, thr_km=0.5, train_from="2022-05", use_list=True, use_ookla=True):
         """« Secteurs susceptibles de bouger » : par tronçon de 24 km traversé par la ligne, P(la ligne bougera d'au moins
         0,5 km de profondeur d'ici t+2), SANS sens. Position Y = surface russe du tronçon (consensus des cartes ; à défaut,
         champ du mois > 0,5) / 24 km. Variables à t, moyennes à ≤ 20 km de la ligne : assauts de l'état-major, asymétrie
         des combats côté russe et son z relatif, feux, UCDP, pertes (normalisés), mouvement récent |Y_t − Y_t−1| et
-        |Y_t − Y_t−3|. Régression logistique (ridge) réentraînée chaque mois sur les tronçons-mois q ≤ t−2 des 20 mois
-        précédents (vérité à q+2 connue à t) : walk-forward pour l'historique, même règle pour le dernier mois.
-        Telegram et la liste rejouée, testés hors ligne (+0,003 d'AUC), ne sont pas disponibles en CI : écartés.
+        |Y_t − Y_t−3| ; liste officielle rejouée (part en hostilités actives, écart côté russe − côté ukrainien, hausse
+        sur un mois, indicatrice « pas encore publiée ») ; Ookla (baisse des tests de débit, côté ukrainien seulement).
+        Régression logistique (ridge) réentraînée chaque mois sur les tronçons-mois q ≤ t−2 des 20 mois précédents
+        (vérité à q+2 connue à t), SANS les mois antérieurs à `train_from` (février-avril 2022 : invasion, mouvements sans
+        commune mesure ; décision du 19/10/2026, banc d'essai 0,830 → 0,848) ; walk-forward pour l'historique, même règle
+        pour le dernier mois. Telegram (+0,003 hors ligne) : paramètre `tg`, absent de la CI.
         Renvoie ({t: {tuile: P}}, AUC walk-forward 2023+, taux de base, n)."""
         T_ = TILE_ASYM
         tile = (self.jj // T_) * 1000 + self.ii // T_
@@ -576,6 +650,17 @@ class Sectors:
             for k, us in tid.items():
                 if (np.abs(sd[us]) <= 20).sum() >= 20 and known[us].sum() >= 20:
                     Y[(t, k)] = float(own[us].sum()) * self.km ** 2 / wkm
+        lst = getattr(self, "LIST", None) if use_list else None
+        ook = getattr(self, "OOK", None) if use_ookla else None
+        self.pm_names = ["assauts état-major", "asymétrie côté russe", "z relatif de l'asymétrie", "feux", "UCDP", "pertes",
+                         "mouvement récent 1 mois", "mouvement récent 3 mois"]
+        if lst is not None:
+            self.pm_names += ["liste officielle (rejouée) : part active", "liste : côté russe − côté ukrainien", "liste : hausse sur un mois",
+                              "liste : pas encore publiée"]
+        if ook is not None:
+            self.pm_names += ["Ookla : baisse des tests (côté ukrainien)"]
+        if tg is not None:
+            self.pm_names += ["Telegram"]
         for t in tsm:
             sd = SD[t]
             if t not in self._aw:
@@ -584,6 +669,11 @@ class Sectors:
             aw, az = self._aw[t], np.clip(self._az.get(t, np.zeros(len(self.U))), -5, 5)
             sig = [1 - np.exp(-self.smooth(RI[n, t], 2.0) / Hn[n]) for n in range(3)]
             ru = sd > 0
+            if lst is not None:
+                ls = self.smooth(lst[t], 1.5)
+                ls1 = self.smooth(lst[t - 1], 1.5) if t >= 1 else ls
+            if ook is not None:
+                ok_ = np.where(ru, 0.0, ook[t])
             for k, us in tid.items():
                 if (t, k) not in Y:
                     continue
@@ -591,6 +681,12 @@ class Sectors:
                 r1 = abs(Y[(t, k)] - Y[(t - 1, k)]) if (t - 1, k) in Y else 0.0
                 r3 = abs(Y[(t, k)] - Y[(t - 3, k)]) if (t - 3, k) in Y else 0.0
                 f = [gs[nr].mean(), (aw[nr] * ru[nr]).mean(), az[nr].mean(), sig[0][nr].mean(), sig[1][nr].mean(), sig[2][nr].mean(), r1, r3]
+                if lst is not None:   # liste officielle rejouée (versions publiées avant la fin du mois)
+                    nru, nua = nr[ru[nr]], nr[~ru[nr]]
+                    dif = ls[nru].mean() - ls[nua].mean() if len(nru) and len(nua) else 0.0
+                    f += [ls[nr].mean(), dif, (ls[nr] - ls1[nr]).mean(), float(self.LMISS[t])]
+                if ook is not None:   # Ookla : baisse des tests de débit, côté ukrainien (0 côté russe)
+                    f.append(ok_[nr].mean())
                 if tg is not None:   # Telegram : mentions de combat localisées dans le tronçon (signal de MOUVEMENT, pas de sens)
                     f.append(np.log1p(tg.get((self.months[t], k), 0.0)))
                 F[(t, k)] = np.array(f)
@@ -604,7 +700,7 @@ class Sectors:
             return w
         out, sc, ys = {}, [], []
         for t in tsm:
-            tr = [(q, k) for (q, k) in F if t - win <= q <= t - 2 and (q + 2, k) in Y]
+            tr = [(q, k) for (q, k) in F if t - win <= q <= t - 2 and (q + 2, k) in Y and self.months[q] >= train_from]
             te = [(q, k) for (q, k) in F if q == t]
             if len(tr) < 300 or not te:
                 continue

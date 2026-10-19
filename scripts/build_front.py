@@ -2073,11 +2073,21 @@ def main():
     sect.AG = sect.sar()
     sect.official()
     sect.official_list()
+    sect.kab()
+    sect.ookla()
+    # champ des CARTES (équilibré, avant la bande locale) : mouvement récent de P(contact)
+    sect.PEQ = {t: np.frombuffer(qstore["equilibre"][months[t]], np.uint8).astype(np.float32) / 63 for t in tsm if months[t] in qstore["equilibre"]}
     print(f"liste officielle rejouée : {int((sect.LIST > 0).sum()):,} mailles-mois en hostilités actives (connues à la date)", flush=True)
     print("faits officiels : " + ", ".join(f"{k} {int((v > 0).sum()):,} mailles-mois" for k, v in sect.OF.items()), flush=True)
     print(f"radar : abandon agricole renseigné sur {int(np.isfinite(sect.AG).sum()):,} mailles-mois", flush=True)
+    print(f"alertes KAB : {int((sect.KAB > 0).sum()):,} mailles-mois ; Ookla : {int((sect.OOK != 0).any(1).sum())} mois renseignés", flush=True)
     PC, PCwf = sect.pcontact(tsm, SDm, sect.G, urb, Zf_store, truth, dis_cell, ART)
     print(f"P(contact au sol) : AUC walk-forward {sect.pc_auc:.3f}, à distance égale {sect.pc_auc_eq:.3f} ; coefficients {sect.pc_coef}" if sect.pc_auc else "P(contact au sol) : pas de validation", flush=True)
+    pc_before = None
+    if sect.pc_auc:   # avant / après les ajouts du 19/10/2026 (mouvement récent, bâti radar, KAB), mêmes mois et mailles
+        a_, e_ = sect.pcontact(tsm, SDm, sect.G, urb, Zf_store, truth, dis_cell, ART, drop=sect.PC_NEW)
+        pc_before = {"auc": round(a_, 4), "aucEq": round(e_, 4), "without": list(sect.PC_NEW)}
+        print(f"  sans {', '.join(sect.PC_NEW)} : AUC {a_:.4f}, à distance égale {e_:.4f}", flush=True)
     # « combats derrière la ligne » : asymétrie de l'activité de part et d'autre de la ligne 50 %, par secteur de 24 km
     # (indicateur sans direction ; garde-fou des flèches de gradient dans app.js) ; bilan : mouvement réel t → t+2
     asym_tiles, asym_rows = {}, []
@@ -2107,7 +2117,18 @@ def main():
     # les instantanés intermédiaires reprennent le dernier mois calculé
     # distances à la ligne des CARTES (champ équilibré, pas le nowcast) : la cible est le mouvement du consensus des cartes
     SDe = {t: sect.signed_dist(("e", t), np.frombuffer(qstore["equilibre"][months[t]], np.uint8).astype(np.float32) / 63)[0] for t in tsm if months[t] in qstore["equilibre"]}
-    PMV, pm_auc, pm_base, pm_n = sect.pmove([t for t in tsm if t in SDe], SDe, truth, P_now, ind)
+    tsp = [t for t in tsm if t in SDe]
+    # étapes du 19/10/2026 (même code, mêmes tronçons-mois évalués) : modèle d'avant, apprentissage sans février-avril
+    # 2022, + liste officielle rejouée, + Ookla (modèle publié)
+    pm_steps = []
+    for lab, kw in (("avant (apprentissage dès février 2022, sans liste ni Ookla)", dict(train_from="", use_list=False, use_ookla=False)),
+                    ("apprentissage sans février-avril 2022", dict(use_list=False, use_ookla=False)),
+                    ("+ liste officielle rejouée", dict(use_ookla=False))):
+        _, a_, _, n_ = sect.pmove(tsp, SDe, truth, P_now, ind, **kw)
+        pm_steps.append([lab, round(a_, 4) if a_ else None, n_])
+    PMV, pm_auc, pm_base, pm_n = sect.pmove(tsp, SDe, truth, P_now, ind)
+    pm_steps.append(["+ Ookla (publié)", round(pm_auc, 4) if pm_auc else None, pm_n])
+    print("secteurs susceptibles de bouger, étapes : " + " ; ".join(f"{a} {b} (n={c})" for a, b, c in pm_steps), flush=True)
     print(f"secteurs susceptibles de bouger : AUC walk-forward {pm_auc:.3f} (2023+, n={pm_n}, taux de base {pm_base:.0%})" if pm_auc else "secteurs susceptibles de bouger : pas de validation", flush=True)
     pm_q, pm_t = {}, {}
     for t, ptile in PMV.items():
@@ -2179,10 +2200,14 @@ def main():
             st_t[int(k)] = ("dnipro" if np.median(bar[mm]) < 10 else "actif" if np.median(vol[mm]) >= 0.5 or np.median(zA[mm]) >= 1.0 else "stable")
         strata_lb[t] = st_t
     truth_lb = {t: np.asarray(ncast.T[t]) for t in ncast.T}
+    # modulation de la bande par P(mouvement) du tronçon (conformal.py, `act`) : testée dans ce build le 19/10/2026 et NON
+    # RETENUE (largeur 22,7 → 23,3 km, P10 +0,6 pt = bruit du placebo ; le −12 % du banc venait de tuiles codées 0, une
+    # échelle commune à tout le mois, voir docs/ETAT.md § 6). Pour la réactiver : act = standardize_activity(PMV …).
+    act_lb = None
     local_band = {}
     for f in list(VIEWS) + ["nowcast"]:
         Pf = {months.index(m): np.frombuffer(qstore[f][m], np.uint8).astype(np.float32) / 63 for m in frames if len(m) == 7 and m in qstore[f]}
-        lb = LocalBand(sect, months, truth_lb, TS=TS_LB, name=f).fit(Pf, strata_lb)
+        lb = LocalBand(sect, months, truth_lb, TS=TS_LB, name=f, act=act_lb).fit(Pf, strata_lb)
         if f in ("equilibre", "nowcast"):
             local_band[f] = lb.report(tile_ll)
             local_band[f]["rawCoverage"] = lb.raw_coverage(Pf)
@@ -2195,6 +2220,10 @@ def main():
             print(f"bande locale ({f}) : couverture par secteur médiane {r['local']['median']} (10e centile {r['local']['p10']}), secteurs dans [90 ; 99] % "
                   f"{r['local']['in90_99']} contre {r['global']['in90_99']} avec une bande unique ; bande publiée jusqu'ici : couverture {r['rawCoverage']} ; "
                   + " ; ".join(f"{st} {v['local']} (unique {v['global']}, {v['n']} points)" for st, v in r["strata"].items()), flush=True)
+            if r.get("modulation"):
+                md = r["modulation"]
+                print(f"  modulation par P(mouvement) ({f}) : sans {md['before']} → avec {md['after']} ; γ ≠ 0 {md['shareNonZero']}, "
+                      f"γ moyen {md['meanGamma']}, dernier {md['gammaLast']}", flush=True)
         for m in frames:
             if m not in qstore[f]:
                 continue
@@ -2328,15 +2357,16 @@ def main():
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
         "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30, "table": getattr(control_events, "table", {})},
         "contact": {"method": "P(contact au sol), régression logistique walk-forward", "auc": sect.pc_auc, "coef": sect.pc_coef,
-                    "features": sect.PC_NAMES, "aucEq": sect.pc_auc_eq, "contrib": pc_contrib, "artillery": {"source": "canal officiel des alertes « Повітряна тривога » (t.me/air_alert_ua), menaces d'artillerie agrégées par hromada (limites OCHA COD-AB, CC BY-IGO) puis par maille", "gain": "AUC à distance égale 0,681 → 0,731 en walk-forward (deux étapes : une alerte relève P, son absence ne le change pas)", "stopped": "2026-09-07"}, "bins": list(range(-58, 62, 4)),
+                    "features": sect.PC_NAMES, "aucEq": sect.pc_auc_eq, "contrib": pc_contrib, "before": pc_before, "artillery": {"source": "canal officiel des alertes « Повітряна тривога » (t.me/air_alert_ua), menaces d'artillerie agrégées par hromada (limites OCHA COD-AB, CC BY-IGO) puis par maille", "gain": "AUC à distance égale 0,681 → 0,731 en walk-forward (deux étapes : une alerte relève P, son absence ne le change pas)", "stopped": "2026-09-07"}, "bins": list(range(-58, 62, 4)),
                     "profile": [round(float(x), 4) for x in np.mean(np.array(contact_prof), axis=0)] if contact_prof else []},
         "localSigma": getattr(model, "local", None) or getattr(model, "local_report", None),
         "localBand": local_band,
         "asym": {"bilan": asym_bilan, "thr": 0.2, "tile_km": 24},
         "pmove": {"auc": round(pm_auc, 3) if pm_auc else None, "base": round(pm_base, 3) if pm_base else None, "n": pm_n, "tile_km": 24, "thr_km": 0.5,
                   "horizon_months": 2, "encoding": "q = 1 + P × 62 sur les mailles à ≤ 3 km de la ligne, 0 ailleurs",
-                  "features": ["assauts état-major", "asymétrie côté russe", "z relatif de l'asymétrie", "feux", "UCDP", "pertes", "mouvement récent 1 mois", "mouvement récent 3 mois"],
-                  "missingInCI": ["Telegram (mentions de combat, dossier de recherche)", "liste officielle rejouée (fichier figé)"]},
+                  "features": getattr(sect, "pm_names", []), "trainFrom": "2022-05", "steps": pm_steps,
+                  "ookla": "Speedtest® by Ookla® Global Fixed and Mobile Network Performance Maps (https://github.com/teamookla/ookla-open-data), CC BY-NC-SA 4.0 ; agrégats par bloc de 10 km × trimestre",
+                  "missingInCI": ["Telegram (mentions de combat, dossier de recherche)"]},
         "zscores": {"refMonths": 12, "names": ["feux", "UCDP", "pertes", "mouvement"], "encoding": "q = (z + 2) × 5"},
         "nowcast": dict(rep, names=["feux", "UCDP", "pertes"], widthKm=30, r0=0.03, grid=[0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0]),
         "nMonths": len(months), "steps": dk, "stepDays": STEP_DAYS, "windowDays": WINDOW_DAYS,

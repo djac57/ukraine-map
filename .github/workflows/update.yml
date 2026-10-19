@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - name: "Dépendances (nowcast : calcul matriciel)"
-        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.16.3
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.16.3 pyarrow==21.0.0
       - name: Restaurer le cache des données brutes
         uses: actions/cache/restore@v4
         with: { path: raw, key: "raw-${{ github.run_id }}", restore-keys: "raw-" }
@@ -86,6 +86,10 @@ jobs:
         continue-on-error: true
       - name: "Faits des bilans quotidiens (état-major UA, MoD RF) : agrégats par maille et par mois"
         run: python scripts/build_official_signals.py raw raw/viina
+        timeout-minutes: 10
+        continue-on-error: true
+      - name: "Ookla : débits fixes et mobiles par bloc, dernier trimestre (S3 public, CC BY-NC-SA 4.0)"
+        run: python scripts/fetch_ookla.py
         timeout-minutes: 10
         continue-on-error: true
       - name: "Construire la carte du front (mois, puis un pas tous les 3 jours sur les 90 derniers jours)"

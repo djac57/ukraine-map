@@ -607,7 +607,9 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
      modèle du mois t apprend sur q ≤ t − 3 HORS du bloc évalué ; référence = production + mouvement, KAB, bâti) :
      Sentinel-2 +0,0121 ± 0,0048 sans blocs, **+0,0177 ± 0,0054 avec** (28 mois) : le gain TIENT (à intégrer quand la
      chaîne S2 sera en CI) ; terrain +0,0150 ± 0,0042 sans blocs, **−0,0050 ± 0,0061 avec** (37 mois) : mémoire du lieu,
-     NON. Script : `ukraine-recherche/analyses/banc/blocs_spatiaux.py`, résultats `resultats/blocs100.txt`.
+     NON ; terrain + barrières +0,0206 → +0,0043 ± 0,0056 (non significatif). Contrôle : placebo statique +0,0022 sans
+     blocs → 0,0000 avec (les blocs retirent bien la mémoire du lieu). Script :
+     `ukraine-recherche/analyses/banc/blocs_spatiaux.py`, résultats `resultats/blocs100.txt`.
   KPI (a) « information hors cartes » : 3,87 % avant et après (aucune des trois intégrations ne touche le champ p ; la
   bande, seule à pouvoir le faire, est inchangée).
 - **19/10/2026 : NOUVEAU KPI PRINCIPAL, « avance sur les cartes »** (décision de l'utilisateur ; il remplace
@@ -1097,7 +1099,7 @@ python3 scripts/build.py raw
 python3 scripts/build_osint.py raw
 python3 scripts/build_claims.py raw raw/viina
 python3 scripts/build_official_signals.py raw raw/viina      # --tout : tous les mois du brut
-python3 -u scripts/build_front.py raw/viina                  # 35 à 50 min
+python3 -u scripts/build_front.py raw/viina                  # 35 à 50 min (19/10/2026, en local, machine chargée : 113 min)
 python3 scripts/stamp.py
 python3 scripts/check_arrows.py                              # 0 échec exigé
 python3 -c "import yaml,glob;[yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]"
