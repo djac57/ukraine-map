@@ -2363,7 +2363,10 @@ function drawDeltaChart(cm){
   const top = y.domain()[1];
   for (const r of rows.filter(r => Math.abs(r[1]) > top)) { const xb = x(r[0]), bw = x.bandwidth(), up = r[1] > 0, yb = up ? y(top) + 6 : y(-top) - 6;
     svg.append("path").attr("d", `M${xb - 1},${yb} l${bw / 4},-3 l${bw / 4},6 l${bw / 4},-6 l${bw / 4},6 l1,-3`).attr("stroke", C.bg).attr("stroke-width", 2.5).attr("fill", "none");
-    svg.append("text").attr("class", "tick").attr("x", xb + bw + 3).attr("y", up ? y(top) + 9 : y(-top) - 3).text((up ? "+" : "−") + fmt(Math.round(Math.abs(r[1]) / 1000) * 1000)); }
+    // valeur écrite dans la barre, à la verticale (pas de chevauchement entre barres voisines)
+    const ym = (y(0) + (up ? y(top) : y(-top))) / 2;
+    svg.append("text").attr("transform", `translate(${xb + bw / 2},${ym}) rotate(-90)`).attr("text-anchor", "middle").attr("dy", "0.35em")
+      .attr("fill", "#fff").style("font", `600 ${Math.min(11, Math.max(8, bw * 0.55))}px "JetBrains Mono",monospace`).text((up ? "+" : "−") + fmt(Math.round(Math.abs(r[1]) / 1000) * 1000)); }
   svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class", "tick").attr("x", i => x(i)).attr("y", h - m.b + 14).text(i => D.months[i].slice(0, 4));
   const mk = svg.append("rect").attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "none").attr("stroke", C.accent).attr("stroke-width", 1.5);
   marks.push(() => mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3));
