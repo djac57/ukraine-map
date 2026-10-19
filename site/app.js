@@ -1732,14 +1732,27 @@ function setStep(sx){
 function setMonth(i){ let k = AX.findIndex(a => a.m === i && !a.d); if (k < 0) k = AX.map(a => a.m).lastIndexOf(i); if (k >= 0) setStep(k); }
 slider.oninput = () => { stop(); setStep(+slider.value); };
 let timer = null;
-function stop(){ if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ lecture"; }
+const playLabel = () => _t("▶ lecture"), pauseLabel = () => _t("❚❚ pause");
+function stop(){ if (timer) { clearInterval(timer); timer = null; } $("play").textContent = playLabel(); }
+// lecture : pas (tous, mois, trimestre, année ; toujours calés sur le dernier mois) et vitesse réglables
+function playSteps(){
+  const g = $("gran") ? $("gran").value : "all", lastM = AX[AX.length - 1].m, every = {q: 3, y: 12}[g] || 1;
+  const L = []; AX.forEach((a, n) => { if (g === "all" || (!a.d && (lastM - a.m) % every === 0)) L.push(n); });
+  if (L[L.length - 1] !== AX.length - 1 && g !== "all") L.push(AX.length - 1);
+  return L;
+}
+const playMs = () => 650 / (+($("speed") && $("speed").value) || 1);
+let playTick = null;
+$("play").textContent = playLabel();
 $("play").onclick = () => {
   if (timer) return stop();
-  let s = stepIdx; if (s >= AX.length - 1) s = -1;
-  $("play").textContent = "❚❚ pause";
-  const tick = () => { s++; if (s >= AX.length) return stop(); setStep(s); if (s === AX.length - 1) stop(); };
-  tick(); timer = setInterval(tick, 650);
+  const L = playSteps(); let s = L.findIndex(n => n > stepIdx) - 1; if (s < -1 || stepIdx >= AX.length - 1) s = -1;
+  $("play").textContent = pauseLabel();
+  playTick = () => { s++; if (s >= L.length) return stop(); setStep(L[s]); if (s === L.length - 1) stop(); };
+  playTick(); timer = setInterval(playTick, playMs());
 };
+if ($("speed")) $("speed").onchange = () => { if (timer) { clearInterval(timer); timer = setInterval(playTick, playMs()); } };
+if ($("gran")) $("gran").onchange = () => { if (timer) { stop(); $("play").click(); } };
 function setMode(m){ mode = m; $("modePts").setAttribute("aria-pressed", m === "pts"); $("modeDen").setAttribute("aria-pressed", m === "den"); legend(); draw(); }
 $("modePts").onclick = () => setMode("pts"); $("modeDen").onclick = () => setMode("den");
 // comparaison 2021 retirée le 18/10/2026 (décision de l'utilisateur) : la normale 2012-2021 ne sert plus qu'au calcul des feux anormaux
