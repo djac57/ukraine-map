@@ -2278,8 +2278,12 @@ function updateArea(){
       const dm = fvar ? null : fmode === "equilibre" ? mo.dmc : mo.dmcV && mo.dmcV[fmode];
       const ci = key => dm && dm[key] ? " · " + _t("95 % : {a} à {b} km²", {a: (dm[key][0] >= 0 ? "+" : "−") + r10s(dm[key][0]), b: (dm[key][1] >= 0 ? "+" : "−") + r10s(dm[key][1])}) : "";
       // intervalle du modèle (dm, ci) volontairement NON affiché : trop large au regard de l'erreur constatée (décision du 19/10/2026)
-      big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), sgn(d12), who(d12)) : "") +
-        (d1 !== null ? line(_t("30 derniers jours"), sgn(d1), who(d1)) : "") +
+      // erreur EMPIRIQUE (data/kmchange_error.json, P80 de |notre variation − variation du consensus lue un mois plus tard|,
+      // 12 derniers mois évalués) : 12 mois ± 600 km², 30 jours ± 500 km² ; sous ce seuil, une variation n'est pas mesurable
+      const E12 = 600, E1 = 500, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100);
+      const sgn100 = x => (x >= 0 ? "+" : "−") + r100(x) + "\u00a0km²", hab = e => _t("écart habituel ± {e} km²", {e: fmt(e)});
+      big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), sgn100(d12), (Math.abs(d12) > E12 ? who(d12) : _t("pas de variation mesurable")) + " · " + hab(E12)) : "") +
+        (d1 !== null ? line(_t("30 derniers jours"), Math.abs(d1) > E1 ? sgn100(d1) : "≈\u00a00", (Math.abs(d1) > E1 ? who(d1) : _t("pas de variation mesurable")) + " · " + hab(E1)) : "") +
         line(_t("total occupé"), "≈\u00a0" + fmt(Math.round(v / 1000) * 1000) + "\u00a0km²", _t("{s} % de l'Ukraine · {f}", {s: share, f: frameLabel(fi)})) +
         (ru >= 50 ? line(document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien", fmt(Math.round(ru/10)*10) + "\u00a0km²", "") : ""); }
   }

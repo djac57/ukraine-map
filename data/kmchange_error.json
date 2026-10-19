@@ -1,0 +1,15 @@
+{
+  "m1":  {"p50": 296, "p80": 621, "p90": 696, "bias": 28, "n": 32},
+  "m12": {"p50": 628, "p80": 1594, "p90": 2054, "bias": -23, "n": 32},
+  "derniers_12_mois": {
+    "m1":  {"p50": 262, "p80": 509, "p90": 667, "bias": -8, "n": 12},
+    "m12": {"p50": 390, "p80": 607, "p90": 811, "bias": 174, "n": 12}
+  },
+  "consensus_du_jour": {
+    "m1":  {"p50": 254, "p80": 455, "p90": 618, "bias": -2, "n": 32},
+    "m12": {"p50": 306, "p80": 581, "p90": 953, "bias": -48, "n": 32}
+  },
+  "variation_vraie_mediane_abs": {"m1": 181, "m12": 3303},
+  "periode": "fins de mois 2024-01 → 2026-08 (fenêtres entièrement après la libération de Kherson) ; « derniers_12_mois » : 2025-09 → 2026-08",
+  "definition": "erreur = notre variation (FRONT.months[i].a.equilibre.tout[0] − même valeur 1 ou 12 mois avant) − variation vraie ; variation vraie = variation de la surface russe du consensus des cartes (majorité DeepState corrigé du journal / ISW / Wikipédia, localités VIINA, mailles de 2 km, égalité ou contesté = 0,5) sur la même fenêtre, lue 1 mois plus tard (états au bout de la fenêtre et au début décalés de +1 mois, convention vérité retardée de kpi_avance). p50/p80/p90 = quantiles de |erreur| en km² ; bias = erreur moyenne (+ = on surestime l'avancée russe)."
+}

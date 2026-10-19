@@ -724,6 +724,11 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   Poids appris (moyenne depuis 2023 / part des mois non nuls) : MoD RF 0,55/62 %, filtre 0,16/89 %, radar bâti
   0,14/27 %, artillerie 0,09/64 %, Telegram (points) 0,08/58 %, UCDP 0,06/40 %, frappes 0,06/16 %, KAB 0,05/27 %, pertes
   0,04/44 %, feux 0,02/11 %, terrain 0. Durée locale : 2 min (6 min avec `--kpi`). `check_arrows.py` : 0 échec.
+- 19/10/2026 : **ERREUR EMPIRIQUE de la variation de km²** (demande : remplacer l'intervalle Monte Carlo) —
+  `ukraine-recherche/analyses/erreur_km2/RAPPORT.md`, `data/kmchange_error.json`. Vérité = variation du consensus des
+  cartes lue 1 mois plus tard ; 2024-01 → 2026-08 : 30 j p80 621 km² (biais +28) pour une variation vraie médiane de
+  181 → chiffre 30 j sous le bruit (consensus du jour p80 455) ; 12 mois p80 1 594 (607 sur les 12 derniers mois),
+  biais −23, variation vraie ≈ 3 300. Proposé : « ± p80 » empirique, 30 j affiché seulement si |variation| > p80.
 
 ---
 
