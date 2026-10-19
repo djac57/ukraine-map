@@ -2341,9 +2341,11 @@ function lineChart(el, rows, opt){
     .on("click", (e,i) => { stop(); setMonth(i); }).append("title").text(i => opt.title(i));
   // mois affiché sans donnée encore (règle des 7 jours) : mention dans la boîte
   const lastRow = rows.length ? rows[rows.length - 1][0] : -1, lastM = lastRow >= NMF ? D.months.indexOf(FR.months[lastRow].date.slice(0, 7)) : lastRow;
-  const nd = svg.append("text").attr("class", "tick").attr("text-anchor", "end").attr("y", m.t + 12);
-  marks.push(() => { mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3).attr("opacity", 1);
-    nd.attr("x", x(cur) - 6).text(cur > lastM ? _t("en cours : pas encore de donnée (J−7)") : ""); });
+  // mois sans donnée encore : boîte légèrement teintée, « en cours » écrit à la verticale dans la boîte
+  const nd = svg.append("text").attr("class", "tick").attr("text-anchor", "middle");
+  marks.push(() => { const empty = cur > lastM, xc = x(cur) + x.bandwidth() / 2, yc = (m.t + h - m.b) / 2;
+    mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3).attr("opacity", 1).attr("fill", empty ? C.accent : "none").attr("fill-opacity", empty ? .1 : 0);
+    nd.attr("transform", `translate(${xc},${yc}) rotate(-90)`).attr("dy", "0.35em").text(empty ? _t("en cours") : ""); });
   el.replaceChildren(svg.node());
 }
 const chartFrames = () => FR.months.map((v, i) => v && !(i < NMF && firstDay && v.date >= firstDay) ? v : null);
@@ -2380,8 +2382,10 @@ function drawDeltaChart(cm){
       .attr("fill", "#fff").style("font", `600 ${Math.min(10, Math.max(7, bw * 0.45))}px "JetBrains Mono",monospace`).text((up ? "+" : "−") + fmt(Math.round(Math.abs(r[1]) / 1000) * 1000)); }
   svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class", "tick").attr("x", i => x(i)).attr("y", h - m.b + 14).text(i => D.months[i].slice(0, 4));
   const mk = svg.append("rect").attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "none").attr("stroke", C.accent).attr("stroke-width", 1.5);
-  const lastB = rows.length ? rows[rows.length - 1][0] : -1, ndb = svg.append("text").attr("class", "tick").attr("text-anchor", "end").attr("y", m.t + 12);
-  marks.push(() => { mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3); ndb.attr("x", x(cur) - 6).text(cur > lastB ? _t("en cours : pas encore de donnée (J−7)") : ""); });
+  const lastB = rows.length ? rows[rows.length - 1][0] : -1, ndb = svg.append("text").attr("class", "tick").attr("text-anchor", "middle");
+  marks.push(() => { const empty = cur > lastB, xc = x(cur) + x.bandwidth() / 2, yc = (m.t + h - m.b) / 2;
+    mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3).attr("fill", empty ? C.accent : "none").attr("fill-opacity", empty ? .1 : 0);
+    ndb.attr("transform", `translate(${xc},${yc}) rotate(-90)`).attr("dy", "0.35em").text(empty ? _t("en cours") : ""); });
   // survol : valeur immédiate au-dessus de la barre (cible = toute la colonne du mois) ; clic : aller à ce mois
   const tipD = document.createElement("div"); tipD.className = "dtip"; tipD.hidden = true;
   const val = new Map(rows.map(r => [r[0], r[1]]));
