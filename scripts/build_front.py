@@ -41,6 +41,7 @@ from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guard  # noqa: E402
+import barrier_tiling  # noqa: E402
 
 SRC_DIR = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "viina"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -921,6 +922,7 @@ class Model:
     def __init__(self, months, snap, status, claims, official, cell, places):
         self.months, self.snap, self.status, self.claims, self.official = months, snap, status, claims, official
         self.cell, self.places = cell, places
+        self.bar = None   # barrier_tiling.BarrierTiling (noyaux d'annonces arrêtés aux barrières dures)
         self.U = [k for k in range(N) if cell[k] != -1]
         self.nU = len(self.U)
         self.uidx = [-1] * N
@@ -999,7 +1001,7 @@ class Model:
                 if u < 0:
                     continue
                 d2 = (dj * dj + di * di) * CELL_KM ** 2
-                if d2 > 4 * r * r:
+                if d2 > 4 * r * r or (self.bar and self.bar.cut(c0, j2 * NX + i2)):   # pas à travers une barrière dure
                     continue
                 v = logit * math.exp(-d2 / (2 * r * r))
                 if abs(v) > abs(target.get(u, 0.0)):
@@ -1011,6 +1013,7 @@ class Model:
         if self.center[k] < 0:
             return
         cj, ci = divmod(self.center[k], NX)
+        a = self.bar.anchor[k] if self.bar else -1   # maille hors fleuve la plus proche de la localité (sa rive)
         rc = int(math.ceil(2 * r / CELL_KM))
         for dj in range(-rc, rc + 1):
             for di in range(-rc, rc + 1):
@@ -1021,7 +1024,7 @@ class Model:
                 if u < 0:
                     continue
                 d2 = (dj * dj + di * di) * CELL_KM ** 2
-                if d2 > 4 * r * r:
+                if d2 > 4 * r * r or (a >= 0 and self.bar.cut(a, j2 * NX + i2)):   # pas à travers une barrière dure
                     continue
                 v = logit * math.exp(-d2 / (2 * r * r))
                 if abs(v) > abs(target.get(u, 0.0)):
@@ -1292,10 +1295,17 @@ class Model:
         state = {"age": {}, "key": {}, "official": {}}
         prev = {f: None for f in fields}
         base_inp = None
+        if mc:
+            import numpy as np
+            pers = getattr(self, "mc_persist", None) or {"w": 0.0, "phi": 0.0}
+            # état latent des tirages, conservé d'un instantané à l'autre (tirages appariés, voir monte_carlo_paired)
+            self._mc = {"rng": np.random.default_rng(42), "w": pers["w"], "phi": pers["phi"], "z": {}, "u": {}, "draws": {},
+                        "dates": {}, "time": 0.0, "n": 0}
         for m in month_list:
             inp = self.month_inputs(m, P, sigma0, v_km, layers, state, kstrength)
             ps = {}
             mcres = None
+            views_mc = {}
             for name, (camps, drop, ch) in fields.items():
                 Pf = P
                 use = inp
@@ -1310,8 +1320,23 @@ class Model:
                     full[k] = L[u]
                 prev[name] = full
                 ps[name] = [sig(x) for x in L]
-                if mc and name == "equilibre" and (len(m) == 7 or m == getattr(self, "last_key", None)):
-                    mcres = self.monte_carlo(inp, P, obs, L)
+                if mc and name in VIEWS and (len(m) == 7 or m == getattr(self, "last_key", None)):
+                    views_mc[name] = (obs, L)
+            if views_mc:
+                if P["camp_balance"] and set(views_mc) == set(VIEWS):
+                    mcres = self.monte_carlo_paired(inp, P, views_mc, m)
+                    if m == getattr(self, "last_month", None):
+                        # contrôle : ancien Monte Carlo (tirages indépendants, boucle Python) sur le même instantané
+                        import time
+                        t0 = time.time()
+                        old = self.monte_carlo(inp, P, *views_mc["equilibre"])
+                        self._mc["old"] = {"time": round(time.time() - t0, 1), "lo": round(old[0]), "hi": round(old[1]),
+                                           "new": [round(mcres[0]), round(mcres[1])]}
+                        print(f"  Monte Carlo {m} : apparié {self._mc['last_time']:.1f} s, intervalle du stock "
+                              f"{round(mcres[0]):,}–{round(mcres[1]):,} km² ; ancien {self._mc['old']['time']:.1f} s, "
+                              f"{round(old[0]):,}–{round(old[1]):,} km²", flush=True)
+                else:
+                    mcres = self.monte_carlo(inp, P, *views_mc["equilibre"])
             if on_month:
                 on_month(m, inp, ps, mcres)
         return prev
@@ -1372,6 +1397,125 @@ class Model:
         sd = {u: math.sqrt(max(0.0, s2[u] / MC_DRAWS - (s1[u] / MC_DRAWS) ** 2)) for u in band}
         # intervalle à 95 % : centiles 2,5 et 97,5 (100 tirages : ~2-3 tirages dans chaque queue)
         return [areas[int(0.025 * (len(areas) - 1))], areas[int(round(0.975 * (len(areas) - 1)))], sd]
+
+    def monte_carlo_paired(self, inp, P, views, key):
+        """Monte Carlo à tirages APPARIÉS d'un instantané à l'autre (même modèle d'erreur que monte_carlo, vectorisé, pour
+        les quatre vues d'un coup). Tirage d : décalage de chaque carte par bloc de mc_block_km, σ_s · z, et
+        rééchantillonnage des sources dans chaque camp. z = √w · c + √(1 − w) · a : c permanent, a AR(1) de coefficient φ
+        par mois (φ^(Δjours/30,44) entre deux instantanés) ; le choix des sources garde son tirage avec la même probabilité
+        w + (1 − w) · φ^k. w et φ : persistance mesurée des écarts des cartes (mc_persistence). Le tirage d d'un instantané
+        et le tirage d d'un autre sont donc corrélés comme les erreurs de position réelles : la différence des surfaces,
+        tirage par tirage, donne l'intervalle du CHANGEMENT. Perturbation centrée : logit perturbé moins logit non perturbé
+        calculés avec la même formule (l'ancienne version retranchait obs, calculé avec le σ local : léger biais).
+        Renvoie (bas, haut, écart-type par maille) du stock pour la vue équilibrée ; écarts par tirage dans self._mc."""
+        import time
+        import numpy as np
+        t0 = time.time()
+        st = self._mc
+        D, rng, w, phi = MC_DRAWS, st["rng"], st["w"], st["phi"]
+        day = inp["day"]
+        tau = dt.date(int(day[:4]), int(day[4:6]), int(day[6:])).toordinal()
+        lmax, b1 = P["lmax"], 1 - P["beta"]
+        bands = {v: np.array([u for u in range(self.nU) if self.isUA[u] and -6 < obs[u] < 6], np.int64) for v, (obs, L) in views.items()}
+        B = np.unique(np.concatenate(list(bands.values())))
+        nB = len(B)
+        bs = max(1, int(P["mc_block_km"] / CELL_KM))
+        Ub = np.asarray(self.U, np.int64)[B]
+        ublk, binv = np.unique((Ub // NX // bs) * 1000 + (Ub % NX) // bs, return_inverse=True)
+
+        def step(e):  # fait vieillir l'état latent jusqu'à tau ; renvoie r = φ^Δ (mois)
+            r = phi ** (max(0, tau - e[0]) / 30.44)
+            e[0] = tau
+            return r
+        Z = {}
+        for s in inp["lv"]:
+            Zs = np.empty((D, len(ublk)))
+            for j, b in enumerate(ublk):
+                e = st["z"].get((s, int(b)))
+                if e is None:
+                    e = st["z"][(s, int(b))] = [tau, rng.standard_normal(D), rng.standard_normal(D)]
+                elif e[0] != tau:
+                    r = step(e)
+                    e[2] = r * e[2] + math.sqrt(max(0.0, 1 - r * r)) * rng.standard_normal(D)
+                Zs[:, j] = math.sqrt(w) * e[1] + math.sqrt(1 - w) * e[2]
+            Z[s] = Zs
+        srcs = list(inp["lv"]) + [s for s in POINT if inp["ker"].get(s)]
+        by_camp = defaultdict(list)
+        for s in srcs:
+            by_camp[CAMP[s]].append(s)
+        pick = {s: np.zeros(D) for s in srcs}
+        for c, lst in by_camp.items():
+            for j in range(len(lst)):
+                e = st["u"].get((c, j))
+                if e is None:  # [date, part permanente ?, u permanent, u renouvelable]
+                    e = st["u"][(c, j)] = [tau, rng.random(D) < w, rng.random(D), rng.random(D)]
+                elif e[0] != tau:
+                    r = step(e)
+                    e[3] = np.where(rng.random(D) >= r, rng.random(D), e[3])
+                idx = np.minimum((np.where(e[1], e[2], e[3]) * len(lst)).astype(np.int64), len(lst) - 1)
+                for i, s in enumerate(lst):
+                    pick[s] += idx == i
+        acc = {c: [np.zeros((D, nB)), np.zeros((D, nB)), np.zeros(nB), np.zeros(nB)] for c in CAMPS}
+        widen = np.asarray(inp["widen"], np.float64)[B]
+        ex = inp.get("extra", {})
+        Bl = B.tolist()
+        for s in srcs:
+            if CAMP[s] not in acc:
+                continue
+            if s in inp["lv"]:
+                col, dd, exs = inp["lv"][s], inp["dist"][s], ex.get(s, {})
+                valid = np.array([col[u] is not None for u in Bl])
+                dist = np.array([dd[u] if col[u] is not None else 0.0 for u in Bl], np.float64)
+                den = inp["sigma"][s] * widen + np.array([exs.get(u, 0.0) for u in Bl])
+                v0 = np.clip(dist / den, -lmax, lmax)
+                vd = np.clip((dist[None, :] + inp["sigma"][s] * Z[s][:, binv]) / den[None, :], -lmax, lmax)
+            else:
+                kv = [inp["ker"][s].get(u) for u in Bl]
+                valid = np.array([x is not None for x in kv])
+                v0 = np.array([0.0 if x is None else x for x in kv])
+                vd = v0[None, :]
+            v0 = np.where(valid, v0, 0.0)
+            vd = np.where(valid[None, :], vd, 0.0)
+            wd = (W[s] * pick[s])[:, None]
+            a = acc[CAMP[s]]
+            a[0] += wd * vd
+            a[1] += wd * valid[None, :]
+            a[2] += W[s] * v0
+            a[3] += W[s] * valid
+        out = {}
+        sd = {}
+        lo = hi = None
+        for v, (obs, L) in views.items():
+            o, o0 = 0.0, 0.0
+            n, n0 = 0, 0
+            for c in VIEWS[v]:
+                a = acc[c]
+                ok, ok0 = a[1] > 0, a[3] > 0
+                o = o + np.where(ok, a[0] / np.where(ok, a[1], 1.0), 0.0)
+                o0 = o0 + np.where(ok0, a[2] / np.where(ok0, a[3], 1.0), 0.0)
+                n, n0 = n + ok, n0 + ok0
+            o = np.where(n > 0, o / np.maximum(n, 1), 0.0)
+            o0 = np.where(n0 > 0, o0 / np.maximum(n0, 1), 0.0)
+            pos = np.searchsorted(B, bands[v])
+            Lb = np.asarray([L[u] for u in bands[v].tolist()], np.float64)
+            pv = 1 / (1 + np.exp(-(Lb[None, :] + b1 * (o[:, pos] - o0[None, pos]))))
+            if "isUA" not in st:
+                st["isUA"] = np.asarray(self.isUA, bool)
+            base = float((1 / (1 + np.exp(-np.asarray(L, np.float64)[st["isUA"]]))).sum())
+            band_area = float((1 / (1 + np.exp(-Lb))).sum())
+            areas = (base - band_area + pv.sum(1)) * CELL_KM ** 2
+            out[v] = areas - base * CELL_KM ** 2   # écart du tirage à l'espérance du champ (km²)
+            if v == "equilibre":
+                srt = np.sort(areas)
+                lo, hi = float(srt[int(0.025 * (D - 1))]), float(srt[int(round(0.975 * (D - 1)))])
+                s_ = pv.std(0)
+                sd = {int(u): float(x) for u, x in zip(bands[v].tolist(), s_)}
+        st["draws"][key] = out
+        st["dates"][key] = tau
+        st["last_time"] = time.time() - t0
+        st["time"] += st["last_time"]
+        st["n"] += 1
+        return [lo, hi, sd]
 
     def grey_strata(self, p, f):
         """Largeur de la zone grise 0,05-0,95 du champ fusionné, par strate (même définition que validate_local) :
@@ -1484,7 +1628,7 @@ def compute_offsets(model, fm, P, H=2, HL=12.0, TS=12, shrink=60.0, cap=6.0, bar
             e = np.r_[d[er] - CELL_KM / 2, d[eu] + CELL_KM / 2]
             idx = np.r_[er, eu]
             ok = np.isfinite(e) & (np.abs(e) <= 30)
-            ERR[(t, s)] = (tile[idx[ok]], e[ok])
+            ERR[(t, s)] = (tile[idx[ok]], e[ok], idx[ok])
     out, stats = {}, defaultdict(list)
     for t, m in enumerate(fm):
         out[m] = {}
@@ -1517,7 +1661,58 @@ def compute_offsets(model, fm, P, H=2, HL=12.0, TS=12, shrink=60.0, cap=6.0, bar
     for s, v in stats.items():
         v = np.abs(np.array(v))
         print(f"  décalage {s} ({fm[-1]}) : |b| médian {np.median(v):.2f} km, 90e centile {np.percentile(v, 90):.2f} km, tuiles |b| > 1 km : {np.mean(v > 1):.0%}", flush=True)
+    model.mc_persist = mc_persistence(ERR, out, fm, uj, ui, P)
     return out
+
+
+def mc_persistence(ERR, out, fm, uj, ui, P):
+    """Persistance dans le temps de l'erreur de position des cartes (tirages appariés du Monte Carlo, voir
+    Model.monte_carlo_paired). Écart résiduel de chaque carte (DeepState, ISW, Wikipédia) à la ligne de vérité retardée
+    (consensus à t + 2), décalage appris retiré (celui que le modèle retire lui-même), moyenné par bloc de mc_block_km
+    (les blocs du Monte Carlo) ; corrélation (non centrée : erreur de moyenne nulle) entre le mois t et le mois t − k,
+    même carte, même bloc. Ajustement ρ(k) = w + (1 − w) · φ^k : part permanente w et part AR(1) de coefficient φ par mois.
+    Le bruit de maille dans la moyenne par bloc et l'erreur propre du consensus abaissent ρ : estimation prudente
+    (intervalle du changement plutôt trop large)."""
+    import numpy as np
+    bs = max(1, int(P["mc_block_km"] / CELL_KM))
+    blk = (uj // bs) * 1000 + ui // bs
+    R = {}
+    for (t, s), (_, e, ix) in ERR.items():
+        b = out.get(fm[t], {}).get(s)
+        r = e - (b[ix] if b is not None else 0.0)
+        ub, inv, cnt = np.unique(blk[ix], return_inverse=True, return_counts=True)
+        mean = np.bincount(inv, weights=r) / cnt
+        R[(t, s)] = {int(k): float(v) for k, v, c in zip(ub, mean, cnt) if c >= 5}
+    rho = {}
+    for k in range(1, 13):
+        sxy = sxx = syy = 0.0
+        n = 0
+        for (t, s), cur in R.items():
+            old = R.get((t - k, s))
+            if not old:
+                continue
+            for bk, v in cur.items():
+                if bk in old:
+                    sxy += v * old[bk]
+                    sxx += v * v
+                    syy += old[bk] ** 2
+                    n += 1
+        if n >= 30 and sxx > 0 and syy > 0:
+            rho[k] = (sxy / math.sqrt(sxx * syy), n)
+    if len(rho) < 3:  # trop peu de données : tirages indépendants d'un mois à l'autre (intervalle large, prudent)
+        print("  persistance des écarts : trop peu de paires, tirages indépendants d'un mois à l'autre", flush=True)
+        return {"w": 0.0, "phi": 0.0, "rho": {}}
+    best = (1e18, 0.0, 0.0)
+    for w in [i / 100 for i in range(0, 96)]:
+        for ph in [i / 100 for i in range(0, 100)]:
+            err = sum(n * (r - (w + (1 - w) * ph ** k)) ** 2 for k, (r, n) in rho.items())
+            if err < best[0]:
+                best = (err, w, ph)
+    _, w, ph = best
+    print("  persistance des écarts de position (bloc de %d km, résidu après décalage appris) : " % int(P["mc_block_km"])
+          + ", ".join(f"ρ({k}) {r:.2f}" for k, (r, n) in sorted(rho.items()) if k in (1, 2, 3, 6, 12))
+          + f" ; ajusté w {w:.2f}, φ {ph:.2f} (ρ(1) {w + (1 - w) * ph:.2f}, ρ(12) {w + (1 - w) * ph ** 12:.2f})", flush=True)
+    return {"w": w, "phi": ph, "rho": {k: [round(r, 3), n] for k, (r, n) in sorted(rho.items())}}
 
 
 def calibrate(model, months_sample, P):
@@ -1805,6 +2000,172 @@ def wanted_dates(months, cutoff_day):
     return out
 
 
+CHANGE_LAGS = (("m1", 30), ("m12", 365))   # mêmes paires que frameAt(fi, 30) et frameAt(fi, 365) dans site/app.js
+
+
+def change_intervals(model, months, dk, months_out, days_out, fm, cons_area):
+    """Intervalle à 95 % du CHANGEMENT de surface occupée (tout le territoire) entre un instantané et celui de 30 / 365
+    jours avant (même choix que frameAt dans site/app.js) : centiles 2,5 et 97,5 de la différence des écarts des tirages
+    APPARIÉS (monte_carlo_paired), ajoutés au changement publié. Écrit mo["dmc"] = {"m1": [bas, haut], "m12": [bas, haut]}
+    (vue équilibrée) et mo["dmcV"] = {"ua"|"ru"|"tiers": {...}}. Pas récents sans tirages propres : couple de tirages du
+    dernier instantané tiré et de celui qui le précède du même délai (comme le stock, écarts reportés). Contrôle sur
+    l'historique : la variation du consensus des cartes (t + H) tombe-t-elle dans l'intervalle ?"""
+    import numpy as np
+    st = getattr(model, "_mc", None)
+    if not st or not st.get("draws"):
+        return None
+    draws, tau = st["draws"], st["dates"]
+    order = list(months) + list(dk)
+    mlist = [months_out.get(m) for m in months] + [days_out.get(k) for k in dk]
+    pdate = [dt.date.fromisoformat(mo["date"]).toordinal() if mo else None for mo in mlist]
+    mck = sorted(draws, key=lambda k: tau[k])
+
+    def frame_at(i, days):  # copie de frameAt (site/app.js) : dernier instantané daté ≤ date − (jours − 3), lui exclu
+        t, best, bt = pdate[i] - (days - 3), -1, None
+        for j, d in enumerate(pdate):
+            if d is not None and d <= t and (bt is None or d > bt) and j != i:
+                best, bt = j, d
+        return best
+
+    def mc_at(d, excl=None):
+        c = [k for k in mck if tau[k] <= d and k != excl]
+        return c[-1] if c else None
+
+    def q(e):
+        e = np.sort(e)
+        n = len(e)
+        return float(e[int(0.025 * (n - 1))]), float(e[int(round(0.975 * (n - 1)))])
+    # étalonnage walk-forward (conformal) de la largeur : score = |vérité − centre| / demi-largeur sur les couples mensuels
+    # (fm[t], fm[t − k]), vérité = variation du consensus des cartes à t + 1 (retard propre des cartes) ; à la date d, facteur
+    # = quantile 95 % (rang ⌈(n + 1)·0,95⌉) des 24 derniers scores dont la vérité est connue à d (date de fm[t + 1] ≤ d), dès 12 scores ;
+    # avant : facteur 1 (Monte Carlo brut). Les tirages appariés donnent la forme et la variation d'un instantané à
+    # l'autre ; l'étalonnage corrige l'échelle (le Monte Carlo ne voit que l'erreur de position des cartes).
+    if os.environ.get("MC_DUMP"):  # diagnostic local : tirages et vérités pour étudier l'étalonnage hors du build
+        import pickle
+        pickle.dump({"draws": draws, "tau": tau, "cons": cons_area, "fm": fm,
+                     "a": {m: {v: months_out[m]["a"][v]["tout"][0] for v in VIEWS} for m in fm if months_out.get(m)},
+                     "mc": {m: months_out[m]["mc"]["tout"] for m in fm if months_out.get(m)}}, open(os.environ["MC_DUMP"], "wb"))
+    H_CAL, CAL_WINDOW = 1, 24
+    scores = {lab: [] for lab, _ in CHANGE_LAGS}
+    kofl = {"m1": 1, "m12": 12}
+    for lab in scores:
+        k = kofl[lab]
+        for t in range(k, len(fm) - H_CAL):
+            a, b = fm[t], fm[t - k]
+            if a not in draws or b not in draws or fm[t + H_CAL] not in cons_area or fm[t - k + H_CAL] not in cons_area:
+                continue
+            lo, hi = q(draws[a]["equilibre"] - draws[b]["equilibre"])
+            d = months_out[a]["a"]["equilibre"]["tout"][0] - months_out[b]["a"]["equilibre"]["tout"][0]
+            truth = cons_area[fm[t + H_CAL]] - cons_area[fm[t - k + H_CAL]]
+            scores[lab].append((tau[fm[t + H_CAL]], tau[a], abs(truth - (d + (lo + hi) / 2)) / max(1.0, (hi - lo) / 2), truth, d, lo, hi))
+
+    def scale(lab, day):
+        # fenêtre glissante des CAL_WINDOW derniers scores : l'expanding gardait les mois de 2022 (cartes en retard de
+        # 10 000 à 30 000 km²) et triplait la largeur pour toujours (facteur 3,2 à 30 jours, 4,0 à 12 mois)
+        past = sorted(x[2] for x in sorted(x for x in scores[lab] if x[0] <= day)[-CAL_WINDOW:])
+        n = len(past)
+        if n < 12:
+            return 1.0
+        return past[min(n - 1, math.ceil((n + 1) * 0.95) - 1)]
+
+    def widen(lo, hi, s):
+        c, h = (lo + hi) / 2, (hi - lo) / 2
+        return c - s * h, c + s * h
+    n_rep = 0
+    for i, mo in enumerate(mlist):
+        if not mo:
+            continue
+        dm, dv = {}, {}
+        for lab, days in CHANGE_LAGS:
+            j = frame_at(i, days)
+            if j < 0:
+                continue
+            kD, kR = order[i], order[j]
+            if kD not in draws or kR not in draws:
+                kD = mc_at(pdate[i])
+                kR = mc_at(tau[kD] - (days - 3), excl=kD) if kD else None
+                if not kR:
+                    continue
+                n_rep += 1
+            s = scale(lab, pdate[i])
+            for v in VIEWS:
+                lo, hi = widen(*q(draws[kD][v] - draws[kR][v]), s)
+                d = mo["a"][v]["tout"][0] - mlist[j]["a"][v]["tout"][0]
+                iv = [round(d + lo), round(d + hi)]
+                if v == "equilibre":
+                    dm[lab] = iv
+                else:
+                    dv.setdefault(v, {})[lab] = iv
+        if dm:
+            mo["dmc"] = dm
+        if dv:
+            mo["dmcV"] = dv
+    # contrôle : instantanés mensuels, vérité = consensus des cartes à t + H (H = 1 : retard propre des cartes)
+    chk = {}
+    for H in (0, 1):
+        for lab, k in (("m1", 1), ("m12", 12)):
+            n = hit = hit_i = z_n = z_hit = 0
+            n_c = hit_c = z_hit_c = z_n_c = 0
+            wid, wid_i, wst, err, wid_c = [], [], [], [], []
+            for t in range(k, len(fm) - H):
+                a, b = fm[t], fm[t - k]
+                if a not in draws or b not in draws or fm[t + H] not in cons_area or fm[t - k + H] not in cons_area:
+                    continue
+                lo, hi = q(draws[a]["equilibre"] - draws[b]["equilibre"])
+                # mêmes marges, tirages NON appariés (tirage d contre tirage d − 1, indépendants) : comparaison
+                li, hi_i = q(draws[a]["equilibre"] - np.roll(draws[b]["equilibre"], 1))
+                d = months_out[a]["a"]["equilibre"]["tout"][0] - months_out[b]["a"]["equilibre"]["tout"][0]
+                truth = cons_area[fm[t + H]] - cons_area[fm[t - k + H]]
+                n += 1
+                hit += d + lo <= truth <= d + hi
+                hit_i += d + li <= truth <= d + hi_i
+                wid.append(hi - lo)
+                wid_i.append(hi_i - li)
+                wst.append(months_out[a]["mc"]["tout"][1] - months_out[a]["mc"]["tout"][0])
+                err.append(abs(d - truth))
+                quiet = abs(truth) < 100 * k  # « rien ne bouge » : moins de 100 km² par mois selon le consensus
+                if quiet:
+                    z_n += 1
+                    z_hit += d + lo <= 0 <= d + hi
+                # intervalle publié (étalonné sur le passé seulement, ≥ 12 scores connus à la date de l'instantané)
+                if sum(1 for x in scores[lab] if x[0] <= tau[a]) >= 12:
+                    lc, hc = widen(lo, hi, scale(lab, tau[a]))
+                    n_c += 1
+                    hit_c += d + lc <= truth <= d + hc
+                    wid_c.append(hc - lc)
+                    if quiet:
+                        z_n_c += 1
+                        z_hit_c += d + lc <= 0 <= d + hc
+            if n:
+                chk[f"H{H}_{lab}"] = {"n": n, "cover": round(hit / n, 3), "coverIndep": round(hit_i / n, 3),
+                                      "widthMedian": round(float(np.median(wid))), "widthIndepMedian": round(float(np.median(wid_i))),
+                                      "stockWidthMedian": round(float(np.median(wst))), "absErrMedian": round(float(np.median(err))),
+                                      "zeroIn": [z_hit, z_n], "calibrated": {"n": n_c, "cover": round(hit_c / n_c, 3) if n_c else None,
+                                      "widthMedian": round(float(np.median(wid_c))) if wid_c else None, "zeroIn": [z_hit_c, z_n_c]}}
+    out = {"lags": dict(CHANGE_LAGS), "w": st["w"], "phi": st["phi"], "rho": (getattr(model, "mc_persist", None) or {}).get("rho", {}),
+           "draws": MC_DRAWS, "nMC": st["n"], "timeS": round(st["time"], 1), "old": st.get("old"), "replicated": n_rep, "check": chk,
+           "calib": {"truth": "consensus des cartes à t + 1", "minScores": 12, "window": CAL_WINDOW, "factor": None}}
+    print(f"intervalle du changement (tirages appariés, w {st['w']:.2f}, φ {st['phi']:.2f}) : {st['n']} Monte Carlo en "
+          f"{st['time']:.0f} s ; {n_rep} couples reportés (pas récents)", flush=True)
+    for kk, c in chk.items():
+        print(f"  contrôle {kk} : couverture {c['cover']:.0%} (non apparié {c['coverIndep']:.0%}), n {c['n']}, largeur médiane "
+              f"{c['widthMedian']:,} km² (non apparié {c['widthIndepMedian']:,} ; stock {c['stockWidthMedian']:,}), écart médian au "
+              f"consensus {c['absErrMedian']:,} km², 0 dans l'intervalle quand le consensus ne bouge pas : {c['zeroIn'][0]}/{c['zeroIn'][1]}", flush=True)
+        cc = c["calibrated"]
+        if cc["n"]:
+            print(f"    étalonné (walk-forward) : couverture {cc['cover']:.0%} sur {cc['n']}, largeur médiane {cc['widthMedian']:,} km², "
+                  f"0 dedans au calme {cc['zeroIn'][0]}/{cc['zeroIn'][1]}", flush=True)
+    last_day = max(pdate[i] for i, mo in enumerate(mlist) if mo)
+    fac = {lab: round(scale(lab, last_day), 3) for lab in scores}
+    out["calib"]["factor"] = fac
+    print(f"  facteurs d'étalonnage actuels : {fac} ({ {lab: len(v) for lab, v in scores.items()} } scores)", flush=True)
+    last = [mo for mo in mlist if mo and mo.get("dmc")]
+    if last:
+        lm = last[-1]
+        print(f"  {lm['date']} : " + " ; ".join(f"{lab} {lm['dmc'][lab][0]:,} – {lm['dmc'][lab][1]:,} km²" for lab in lm["dmc"]), flush=True)
+    return out
+
+
 def main():
     guard.require_files("build_front.py", [os.path.join(SRC_DIR, "gn_UA_tess.geojson")]
                         + [os.path.join(SRC_DIR, f"control_{y}.zip") for y in range(2022, dt.date.today().year + 1)]
@@ -1843,11 +2204,15 @@ def main():
     cell = russian_band(cell)
     pid_index = {p["id"]: k for k, p in enumerate(places)}
     ended = carry_forward(status)
+    # barrières dures (19/10/2026) : ni le pavage ni les statuts VIINA ne passent d'une rive à l'autre (barrier_tiling.py)
+    cell, bar = barrier_tiling.apply(cell, places, laea, X0, Y1, SIZE, NX, NY, ROOT, status=status)
     dsm_fixed, dsm_events = apply_dsm_log(status, places)
     official = load_official_claims(pid_index)
     events, ev_rate = control_events(status, places, official, dsm_events)
     model = Model(months, dict(snap, **daily), status, claims, official, cell, places)
+    model.bar = bar
     model.last_key = frames[-1]
+    model.last_month = fm[-1]
     crimea = [p["adm1"] in CRIMEA_ADM1 for p in places]
     pre = []
     for b in model.base_codes(PRE_DATE):
@@ -1913,6 +2278,7 @@ def main():
     ind = indicator_grids(months)
     codes_store = {}
     claim_places = {}
+    cons_area = {}
 
     def fdate(m):
         return snap.get(m) or daily[m]
@@ -1927,6 +2293,9 @@ def main():
                 v = [x for x in b[:3] if x in (1, 2)]
                 cons.append(1 if v.count(2) > v.count(1) else 0 if v.count(1) > v.count(2) else -1)
             ncast.add_month(months.index(m), ps["equilibre"], [cons[cell[k]] if cell[k] >= 0 else -1 for k in U], ind[months.index(m)])
+            # surface occupée selon le consensus (égalité : moitié), pour le contrôle de l'intervalle du changement
+            cval = [1.0 if c == 1 else 0.5 if (c == -1 and any(x in (1, 2) for x in b[:3])) else 0.0 for c, b in zip(cons, inp["base"])]
+            cons_area[m] = sum(cval[cell[k]] for k in U if cell[k] >= 0) * CELL_KM ** 2
             # désaccord des cartes (une russe, une ukrainienne) : proxy de contact pour P(contact au sol)
             dis_pl = [1 if (2 in b[:3] and 1 in b[:3]) else 0 for b in inp["base"]]
             dis_cell[months.index(m)] = np.array([dis_pl[cell[k]] if cell[k] >= 0 else 0 for k in U], np.int8)
@@ -2252,6 +2621,7 @@ def main():
         sect._sd = {k: v for k, v in sect._sd.items() if k[0] not in ("lb", "lbr")}
     lastm_lb = months_out[fm[-1]]
     print(f"zone grise après bande locale ({fm[-1]}) : {lastm_lb['grey']['km2']:,} km², {lastm_lb['grey']['width_km']} km de large ; par strate {lastm_lb['grey'].get('strata')}", flush=True)
+    dmc_meta = change_intervals(model, months, dk, months_out, days_out, fm, cons_area)
 
     variants = [
         ("défaut : camps à un tiers chacun", {}),
@@ -2353,7 +2723,7 @@ def main():
         "claimStrength": {s: round(v, 2) for s, v in kstrength.items()}, "claimReliability": kdetail, "claimStats": cstats,
         "claimPlaces": claim_places,
         "claimLog": claim_log,
-        "mcDraws": MC_DRAWS, "calibSlope": round(slope, 2), "calibMonths": len(sample),
+        "mcDraws": MC_DRAWS, "calibSlope": round(slope, 2), "calibMonths": len(sample), "dmc": dmc_meta,
         "runs": base64.b64encode(bytes(runs)).decode(), "flags": base64.b64encode(flags).decode(), "nPlaces": len(places),
         "events": {"sources": EV_SOURCES, "reliability": ev_rate, "windowDays": 30, "table": getattr(control_events, "table", {})},
         "contact": {"method": "P(contact au sol), régression logistique walk-forward", "auc": sect.pc_auc, "coef": sect.pc_coef,

@@ -198,7 +198,14 @@ probabilité de contrôle russe** partout (bande russe comprise) ; les distances
 ### 3.9 Aires
 - Aire attendue = Σ_x p(x)·aire(x) ; médiane = aire où p ≥ 0,5 ; zone grise = aire où 0,05 ≤ p ≤ 0,95.
 - Intervalle à 95 % : Monte Carlo, 100 tirages, décalages des lignes de chaque source tirés par blocs de 50 km
-  (`mc_block_km`), quantiles 2,5 et 97,5 %.
+  (`mc_block_km`), quantiles 2,5 et 97,5 %. Depuis le 19/10/2026 : tirages APPARIÉS d'un instantané à l'autre
+  (`Model.monte_carlo_paired`, vectorisé, quatre vues d'un coup) ; perturbation centrée (logit perturbé − logit non
+  perturbé, même formule).
+- Intervalle à 95 % du CHANGEMENT (30 jours, 12 mois ; `change_intervals`) : z = √w·c + √(1−w)·a par carte et bloc
+  (c permanent, a AR(1) de coefficient φ par mois), choix des sources conservé avec la probabilité ρ(k) = w + (1−w)·φ^k ;
+  w, φ ajustés sur la persistance mesurée des écarts des cartes au consensus t + 2 (résidu après décalage appris, par
+  bloc de 50 km : `mc_persistence`). Centiles de la différence tirage par tirage, puis largeur étalonnée en walk-forward
+  (conformal, 24 derniers scores, vérité = variation du consensus à t + 1). Champ `months[i].dmc` (§ 6, 19/10/2026).
 
 ### 3.10 Flèches (`app.js`)
 - Gradient (`computeArrows`) : pour chaque tronçon (100, 50, 20, 10 km) de la ligne 50 %, déplacement mensuel le long
@@ -657,6 +664,34 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   sur les mailles qui changent) ; assauts et S2 dégradent un peu (modèles à revoir). Événements : Pokrovsk 2024 vu
   (+4 km en mai, vrai +4,5 ; artillerie, Telegram orienté, liste) ; Kharkiv, Robotyne simultanés (cartes séparées) ;
   Kherson, Vivaldi non anticipés ; Koursk non mesurable.
+- **19/10/2026 : INTERVALLE À 95 % SUR LE CHANGEMENT** (demande de l'utilisateur : le gros titre affiche le changement
+  sur 12 mois et 30 jours, sans intervalle). `build_front.py` : `mc_persistence`, `Model.monte_carlo_paired`,
+  `change_intervals`. Champ `FRONT.months[i].dmc = {"m1": [bas, haut], "m12": [bas, haut]}` (km², tout le
+  territoire, vue équilibrée, bornes du changement lui-même, pas des écarts) ; `months[i].dmcV = {"ua"|"ru"|"tiers":
+  {"m1", "m12"}}` ; couples identiques à `frameAt(fi, 30)` et `frameAt(fi, 365)` de `app.js`. Diagnostics :
+  `FRONT.dmc` (persistance, facteurs, contrôle). Pas d'intervalle pour les variantes « sans X ».
+  - **Hypothèse de corrélation** : les tirages mensuels étaient indépendants (graine 42 à chaque mois). Mesure :
+    écart des cartes au consensus t + 2, décalage appris retiré, moyenne par bloc de 50 km : ρ(1) 0,66, ρ(2) 0,48,
+    ρ(3) 0,37, ρ(6) 0,27, ρ(12) 0,24 (~2 000 à 2 900 paires) ; ajusté w 0,27 (permanent) + AR(1) φ 0,53. Prudent : le
+    bruit de maille et l'erreur du consensus abaissent ρ. La propagation par le filtre (β = 0,3) est ignorée (≤ 5 %
+    de largeur).
+  - **Contrôle brut** (vérité : consensus à t + 1, 54 couples à 30 jours, 43 à 12 mois) : 30 jours couverture 93 %
+    mais largeur médiane 3 360 km² ≈ stock (3 430) pour un écart médian réel de 362 km² ; 12 mois couverture 65 %
+    seulement (écart médian 1 081 km², dérive du modèle contre le consensus sur un an). Tirages non appariés :
+    4 900 km² de large. Le Monte Carlo seul ne donne donc pas la bonne échelle.
+  - **Retenu : étalonnage walk-forward** (conformal) : score = |vérité − centre| / demi-largeur, facteur = quantile
+    95 % des 24 derniers scores connus à la date (≥ 12, sinon 1). Fenêtre 24 car l'expanding gardait 2022 (facteurs
+    3,2 et 4,0 : 16 000 km² de large). Facteurs actuels 0,58 (30 j) et 1,38 (12 mois). Hors échantillon depuis
+    2024 : couverture 100 % sur 32 et 31 couples (prudent), 0 dans l'intervalle quand le consensus ne bouge pas
+    14/14 à 30 jours.
+  - **Valeurs au 30/09/2026** (vue équilibrée) : 30 jours −46 km² [−776 ; +1 220] ; 12 mois +1 736 km²
+    [−1 084 ; +3 981] (stock 120 160 [118 101 ; 121 785]). À 30 jours, l'intervalle fait ~2 000 km² contre 3 700 pour
+    le stock ; à 12 mois, il est PLUS large que le stock (erreurs décorrélées sur un an + dérive au consensus).
+  - **Coût** : Monte Carlo vectorisé, 0,3-0,4 s par instantané contre 3,1-3,4 s ; 56 Monte Carlo en 23 s contre
+    ~180 s : le build est plus RAPIDE (~−2,5 min). Intervalle du stock à peine changé (perturbation centrée) :
+    09/2026 118 303 – 121 987 contre 118 495 – 122 255 avec l'ancien code. Build local complet 25 min 23 s.
+  - Pas récents (CI, `DAILY_DAYS=90`) : couple reporté depuis le dernier instantané tiré et celui du même délai avant
+    (comme le stock). Non testé en local (build sans pas récents, comme au § 9).
 - 19/10/2026 (après-midi) : **MOTEUR DE FUSION PORTÉ EN PRODUCTION, en VUE PARALLÈLE** (`scripts/build_fusion.py`,
   `scripts/fusion/`, `site/front_fusion.js`, `site/fusion_explain.js` ; `build_front.py` NON modifié, pas encore en CI ni
   affiché). Le socle est relu dans les fichiers PUBLIÉS : consensus et états par carte reconstruits depuis

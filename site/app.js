@@ -2274,8 +2274,11 @@ function updateArea(){
       const sgn = x => (x >= 0 ? "+" : "−") + r10s(x) + "\u00a0km²";
       const share = (v / UA_KM2 * 100).toFixed(0);
       const line = (lab, val, det) => `<div class="kmline"><span class="k">${lab}</span><b>${val}</b><span>${det}</span></div>`;
-      big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), sgn(d12), who(d12)) : "") +
-        (d1 !== null ? line(_t("30 derniers jours"), sgn(d1), who(d1)) : "") +
+      // intervalle à 95 % sur le changement lui-même (tirages appariés, étalonné sur le passé ; build_front.py, FR.months[].dmc)
+      const dm = fvar ? null : fmode === "equilibre" ? mo.dmc : mo.dmcV && mo.dmcV[fmode];
+      const ci = key => dm && dm[key] ? " · " + _t("95 % : {a} à {b} km²", {a: (dm[key][0] >= 0 ? "+" : "−") + r10s(dm[key][0]), b: (dm[key][1] >= 0 ? "+" : "−") + r10s(dm[key][1])}) : "";
+      big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), sgn(d12), who(d12) + ci("m12")) : "") +
+        (d1 !== null ? line(_t("30 derniers jours"), sgn(d1), who(d1) + ci("m1")) : "") +
         line(_t("total occupé"), "≈\u00a0" + fmt(Math.round(v / 1000) * 1000) + "\u00a0km²", _t("{s} % de l'Ukraine · {f}", {s: share, f: frameLabel(fi)})) +
         (ru >= 50 ? line(document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien", fmt(Math.round(ru/10)*10) + "\u00a0km²", "") : ""); }
   }
