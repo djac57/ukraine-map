@@ -48,7 +48,7 @@
       <div data-lyr="lyrImp" hidden><svg width="30" height="10" style="color:var(--ink)"><circle cx="3" cy="3" r="2.3" fill="var(--bg)"/><circle cx="3" cy="3" r="1.4" fill="currentColor"/><circle cx="11" cy="3" r="2.3" fill="var(--bg)"/><circle cx="11" cy="3" r="1.4" fill="currentColor"/><circle cx="19" cy="3" r="2.3" fill="var(--bg)"/><circle cx="19" cy="3" r="1.4" fill="currentColor"/><circle cx="27" cy="3" r="2.3" fill="var(--bg)"/><circle cx="27" cy="3" r="1.4" fill="currentColor"/><circle cx="7" cy="7.5" r="2.3" fill="var(--bg)"/><circle cx="7" cy="7.5" r="1.4" fill="currentColor"/><circle cx="15" cy="7.5" r="2.3" fill="var(--bg)"/><circle cx="15" cy="7.5" r="1.4" fill="currentColor"/><circle cx="23" cy="7.5" r="2.3" fill="var(--bg)"/><circle cx="23" cy="7.5" r="1.4" fill="currentColor"/></svg><span data-t="lgImp" data-tt="lgImpTip" title="">impacts détectés (Sentinel-2) : pointillé sombre, de chaque côté de la ligne ⓘ</span></div>
       <div data-lyr="lyrPm"><svg width="30" height="10"><defs><linearGradient id="lgpm"><stop offset="0" stop-color="#e8a200" stop-opacity=".15"/><stop offset="1" stop-color="#e8a200" stop-opacity=".9"/></linearGradient></defs><rect y="2" width="30" height="6" fill="url(#lgpm)"/></svg><span data-t="lgPm" data-tt="lgPmTip" title="">prévision 2 mois : où la ligne va bouger ⓘ</span></div>
       <div data-lyr="lyrFusion" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2"/></svg><span data-t="lgFusion" data-tt="lgFusionTip" title="">ligne et densité : moteur de fusion (test) ⓘ</span></div>
-      <div data-lyr="lyrAdv" hidden><svg width="30" height="10"><path d="M15 5h13" stroke="var(--front)" stroke-width="3" opacity=".75" stroke-linecap="round"/><path d="M15 5h-9" stroke="var(--uactl)" stroke-width="3" opacity=".75" stroke-linecap="round"/><circle cx="15" cy="5" r="2.2" fill="var(--bg)" stroke="var(--ink)"/></svg><span data-t="lgAdv" data-tt="lgAdvTip" title="">prévision 2 mois : de combien (km, fourchette 80 %) ⓘ</span></div>
+      <div data-lyr="lyrAdv" hidden><svg width="30" height="10"><path d="M15 5h13" stroke="var(--front)" stroke-width="4" opacity=".95" stroke-linecap="round"/><path d="M15 5h-9" stroke="var(--uactl)" stroke-width="1.6" opacity=".6" stroke-linecap="round"/><circle cx="15" cy="5" r="2.2" fill="var(--bg)" stroke="var(--ink)"/></svg><span data-t="lgAdv" data-tt="lgAdvTip" title="">prévision 2 mois : de combien (km, fourchette 80 %) ⓘ</span></div>
     </details>
     <details class="lggrp" open data-grp="lgGrpCombat"><summary data-t="lgGrpCombat">combats</summary>
       <div data-lyr="lyrCombat" hidden><svg width="30" height="10"><defs><pattern id="hcb" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.6" height="4" fill="var(--front)"/></pattern></defs><rect width="30" height="10" fill="url(#hcb)"/></svg><span data-t="lgCombat">combats intenses (sans direction)</span></div>
@@ -138,7 +138,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="i18n.js?v=1a5319f74a"></script>
+<script src="i18n.js?v=eadf96e8fe"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
@@ -171,6 +171,6 @@
 </script>
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
-<script src="app.js?v=1c5677d097"></script>
+<script src="app.js?v=a43a92b6c7"></script>
 </body>
 </html>

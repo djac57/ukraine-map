@@ -1308,10 +1308,13 @@ function drawAdv(k){
     const at = (x, y) => { const c = Math.floor(y) * GX + Math.floor(x); return c >= 0 && c < GX * GY ? g[c] : 0.5; };
     let nx = -(at(bx + 2, by) - at(bx - 2, by)), ny = -(at(bx, by + 2) - at(bx, by - 2)); const nn = Math.hypot(nx, ny); if (nn < 1e-6) continue; nx /= nn; ny /= nn;
     const sx = (gAff[0] + bx * gAff[2]) * k + tr.x, sy = (gAff[1] + by * gAff[2]) * k + tr.y; if (sx < -30 || sx > W + 30 || sy < -30 || sy > H + 30) continue;
-    const pxkm = gAff[2] * k / km, seg = (L, col, sg) => { if (L <= 0.05) return; const len = Math.max(7, L * pxkm);
-      ctx.strokeStyle = C.bg; ctx.globalAlpha = 0.9; ctx.lineWidth = 6.5; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + sg * nx * len, sy + sg * ny * len); ctx.stroke();   // liseré clair
-      ctx.strokeStyle = col; ctx.globalAlpha = 0.9; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + sg * nx * len, sy + sg * ny * len); ctx.stroke(); };
-    seg(Math.max(0, hi), C.front, 1); seg(Math.max(0, -lo), C.uactl, -1);
+    // barre asymétrique : le côté vers lequel penche la prévision (espérance t[8]) en trait épais et plein, l'autre côté de
+    // la fourchette en trait fin et pâle ; espérance quasi nulle : deux traits fins (« peut bouger, sens incertain »)
+    const pxkm = gAff[2] * k / km, mean = t[8] || 0, lean = Math.abs(mean) < 0.15 ? 0 : Math.sign(mean);
+    const seg = (L, col, sg, strong) => { if (L <= 0.05) return; const len = Math.max(7, L * pxkm), w = strong ? 4.5 : 1.8;
+      ctx.strokeStyle = C.bg; ctx.globalAlpha = 0.9; ctx.lineWidth = w + 2.5; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + sg * nx * len, sy + sg * ny * len); ctx.stroke();   // liseré clair
+      ctx.strokeStyle = col; ctx.globalAlpha = strong ? 0.95 : 0.55; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + sg * nx * len, sy + sg * ny * len); ctx.stroke(); };
+    seg(Math.max(0, hi), C.front, 1, lean > 0); seg(Math.max(0, -lo), C.uactl, -1, lean < 0);
     ctx.globalAlpha = 1; ctx.fillStyle = C.bg; ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy, 2.4, 0, 7); ctx.fill(); ctx.stroke();
     advHits.push({x: sx, y: sy, t}); }
   ctx.restore(); ctx.globalAlpha = 1;
