@@ -1,4 +1,4 @@
-# Mise à jour quotidienne (FIRMS, VIINA, WarSpotting, Oryx, missiles, UCDP) puis publication sur Pages.
+# Mise à jour quotidienne (FIRMS, VIINA, WarSpotting, Oryx, missiles, UCDP, signaux Telegram) puis publication sur Pages.
 # - schedule / workflow_dispatch : récupération, construction, commit des sorties, déploiement ;
 # - push : déploiement seul (aucune récupération ni construction).
 # Secret requis : FIRMS_MAP_KEY. Le dossier raw/ n'est jamais versionné : il vit dans le cache Actions,
@@ -55,6 +55,10 @@ jobs:
         run: python scripts/fetch_dsmlog.py raw/viina
         timeout-minutes: 5
         continue-on-error: true
+      - name: "Telegram : 15 canaux publics, 45 derniers jours (aperçu t.me/s, sans compte ; textes gardés dans raw/ seulement)"
+        run: python scripts/fetch_telegram.py raw --days 45 --budget 45
+        timeout-minutes: 60
+        continue-on-error: true
       - name: Sauvegarder le cache (même en cas d'échec ou d'expiration)
         if: always()
         uses: actions/cache/save@v4
@@ -71,6 +75,10 @@ jobs:
       - name: "Frappes ukrainiennes signalées sur la Russie et les zones occupées : agrégats par région et par mois"
         run: python scripts/build_strikes_ru.py raw
         timeout-minutes: 10
+        continue-on-error: true
+      - name: "Signaux Telegram : agrégats par tronçon de 24 km, par mois et par décade (aucun texte, décalage J-7)"
+        run: python scripts/build_telegram_layer.py raw raw/viina
+        timeout-minutes: 15
         continue-on-error: true
       - name: Extraire et géocoder les annonces (faits seulement)
         run: python scripts/build_claims.py raw raw/viina

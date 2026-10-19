@@ -170,6 +170,15 @@ def read_tg_csv(path):
         return None
     h = rows[0].keys()
     g = lambda r, *names: next((float(r[x] or 0) for x in names if x in r), 0.0)  # noqa: E731
+    if "pas" in h and "debut" in h:            # format de la collecte CI : lignes « decade » et « mois » mêlées, on garde les décades
+        rows = [r for r in rows if r["pas"] == "decade"]
+        for r in rows:
+            d0 = dt.date.fromisoformat(r["debut"][:10])
+            r["jour"] = (d0.replace(day=10) if d0.day <= 10 else d0.replace(day=20) if d0.day <= 20 else
+                         dt.date(d0.year + d0.month // 12, d0.month % 12 + 1, 1) - dt.timedelta(days=1)).isoformat()
+        if not rows:
+            return None
+        h = rows[0].keys()
     tcol = next((c for c in ("date", "jour", "decade", "fin", "mois", "month") if c in h), None)
     ccol = next((c for c in ("camp_source", "camp", "source_camp") if c in h), None)
     if tcol is None or ccol is None or not any(c in h for c in ("k", "troncon", "i0")):
@@ -188,7 +197,7 @@ def read_tg_csv(path):
             y, mo, dd = int(t[:4]), int(t[5:7]), int(t[8])
             t = (dt.date(y, mo, 10) if dd == 1 else dt.date(y, mo, 20) if dd == 2 else
                  dt.date(y + mo // 12, mo % 12 + 1, 1) - dt.timedelta(days=1)).isoformat()
-        vals = (g(r, "n_combat"), g(r, "n_ua"), g(r, "n_ru"), g(r, "n_presence_ua", "n_pres_ua"), g(r, "n_presence_ru", "n_pres_ru"))
+        vals = (g(r, "n_combat"), g(r, "n_ua", "n_att_ua"), g(r, "n_ru", "n_att_ru"), g(r, "n_presence_ua", "n_pres_ua"), g(r, "n_presence_ru", "n_pres_ru"))
         tg_add(TG_DAY if res == "jour" else TG_MON, k, t[:10] if res == "jour" else t[:7], r[ccol], vals)
         last = max(last or t, t)
     return res, last
