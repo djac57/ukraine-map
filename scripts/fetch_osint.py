@@ -28,7 +28,7 @@ WS = "https://ukr.warspotting.net/api/losses/russia/{d}/{p}/"
 ORYX = "https://raw.githubusercontent.com/scarnecchia/oryx_data/main/daily_count.csv"
 MISSILES = "https://www.kaggle.com/api/v1/datasets/download/piterfm/massive-missile-attacks-on-ukraine"
 START = dt.date(2022, 2, 24)
-LAG_DAYS = int(os.environ.get("LAG_DAYS", "0"))   # décalage de publication : 0 depuis le 19/10/2026 (décision de l'utilisateur ; 7 auparavant)
+LAG_DAYS = int(os.environ.get("LAG_DAYS", "1"))   # décalage de publication : J-1 depuis le 19/10/2026 (décision de l'utilisateur ; J-7 auparavant)
 
 
 def get(url, timeout=120):
