@@ -1861,7 +1861,8 @@ function drawLosses(k){
 // zoom
 const zoom = d3.zoom().scaleExtent([1, 14]).on("zoom", e => { tr = e.transform; draw(); });
 const sel = d3.select(canvas).call(zoom);
-function setExtent(){ zoom.translateExtent([[-40,-40],[W+40,H+40]]).extent([[0,0],[W,H]]); }
+// marge de déplacement même au zoom minimal (sinon, sur mobile, glisser d'un doigt ne fait rien et la carte paraît figée)
+function setExtent(){ const mx = W * 0.35, my = H * 0.35; zoom.translateExtent([[-mx, -my], [W + mx, H + my]]).extent([[0,0],[W,H]]); }
 $("zin").onclick = () => sel.transition().duration(300).call(zoom.scaleBy, 1.8);
 $("zout").onclick = () => sel.transition().duration(300).call(zoom.scaleBy, 1/1.8);
 $("zreset").onclick = () => sel.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
