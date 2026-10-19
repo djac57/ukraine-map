@@ -534,6 +534,8 @@ La précision de chaque flèche est recalculée à chaque mise à jour et affich
 <p>L'espérance est Σ p × surface. L'intervalle à 95 % (centiles 2,5 et 97,5) vient de <span id="pMC"></span> tirages Monte Carlo par mois. Dans chacun, chaque ligne de source est décalée d'une erreur N(0, σ<sub>s</sub>) tirée par blocs de 50 km (les erreurs sont corrélées localement, pas sur tout le front), et les sources sont rééchantillonnées avec remise à l'intérieur de chaque camp.</p>
 <h3>Chiffres clés : la variation des km²</h3>
 <p>Le stock (environ 120 000 km², à ± 1 900 km² près) dit peu de chose ; le gros titre donne donc le <strong>changement</strong>, sur 12 mois et sur 30 jours, de notre estimation (espérance Σ p × surface de la vue affichée, la même série que la courbe des km²). À côté, l'<strong>écart habituel</strong> : l'erreur médiane de cette même série contre la variation constatée plus tard (consensus des cartes stabilisé 1 à 3 mois après), recalculée à chaque mise à jour sur les 24 derniers mois évaluables. Pour le nowcast, actuellement : environ ± 300 km² à 30 jours et ± 820 km² à 12 mois. Une variation plus petite est signalée « dans l'écart habituel » : à 30 jours, c'est souvent le cas, car la variation réelle médiane (environ 180 km²) est sous ce bruit. En vue équilibrée, la variation selon la vue russe et selon la vue ukrainienne est donnée à côté ; leur désaccord habituel est de l'ordre de 200 km² à 30 jours et de 700 km² à 12 mois. Un intervalle à 95 % du changement par tirages Monte Carlo appariés est calculé, mais non affiché : étalonné sur le passé, il reste plus large que l'erreur constatée.</p>
+<h3>Retirer plusieurs sources à la fois</h3>
+<p>Sur la carte, décocher une source dans « Sources du calcul » affiche le modèle recalculé sans elle : ces variantes « sans X » sont calculées exactement, une par source, à chaque mise à jour. Quand plusieurs sources sont décochées, la carte combine ces variantes dans le navigateur : pour chaque maille, logit p = logit p(complet) + Σ [logit p(sans X) − logit p(complet)]. C'est exact quand les sources retirées agissent indépendamment, puisque le modèle additionne les sources en logit ; c'est une approximation sinon (lissage dans le temps, bande calibrée et décalages appris ne s'additionnent pas tout à fait). Les km², la zone grise et les flèches de la combinaison sont recalculés sur ce champ. Avec une seule source décochée, la formule redonne exactement la variante calculée.</p>
 <h3>7. Choix arbitraires et sensibilité</h3>
 <p>Sont des choix, pas des mesures :</p>
 <ul>
@@ -656,6 +658,6 @@ La précision de chaque flèche est recalculée à chaque mise à jour et affich
 <script src="front.js?v=dd3baae0b2"></script>
 <script src="osint.js?v=46ed380b81"></script>
 <script src="methode_i18n.js?v=f737e30a24"></script>
-<script src="app.js?v=03a201f249"></script>
+<script src="app.js?v=13b7b561d8"></script>
 </body>
 </html>

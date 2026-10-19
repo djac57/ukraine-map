@@ -180,8 +180,27 @@ const bandFade = new Float32Array(GX * GY).fill(1);
 // mailles du modèle : Ukraine (indice de localité ≥ 0) et bande russe frontalière (-2), sans découpage à la frontière
 const UCELLS = []; for (let c = 0; c < GX * GY; c++) if (cellPlace[c] !== -1) UCELLS.push(c);
 const fieldCache = {};
+// combinaison de plusieurs sources retirées (approximation) : logit p = logit p(complet) + Σ [logit p(sans X) − logit p(complet)],
+// à partir des variantes « sans X » publiées ; km² et parts recalculés sur le champ obtenu (méthode : page méthode)
+const isCombo = v => typeof v === "string" && v.startsWith("combo:"), comboParts = v => v.slice(6).split("+");
+function buildCombo(view){
+  const parts = comboParts(view), E = viewFields("equilibre"), Ps = parts.map(viewFields); if (!E || Ps.some(x => !x)) return null;
+  const lg = q => { const p = Math.min(62.5, Math.max(0.5, q)) / 63; return Math.log(p / (1 - p)); }, out = [];
+  const cellA = (FR.grid.size / 1000) ** 2;
+  for (let i = 0; i < E.length; i++) {
+    if (!E[i] || Ps.some(P => !P[i])) { out.push(null); continue; }
+    const e = E[i], q = new Uint8Array(UCELLS.length); let sum = 0, med = 0, grey = 0;
+    for (let u = 0; u < UCELLS.length; u++) { const le = lg(e[u]); let z = le; for (const P of Ps) z += lg(P[i][u]) - le;
+      const p = 1 / (1 + Math.exp(-z)); q[u] = Math.round(p * 63); if (cellPlace[UCELLS[u]] >= 0) { sum += p * cellA; if (p >= 0.5) med += cellA; if (p >= 0.05 && p <= 0.95) grey += cellA; } }
+    out.push(q);
+    const mo = FR.months[i]; if (mo) { mo.v = mo.v || {}; mo.v[view] = {tout: [Math.round(sum), Math.round(med), Math.round(grey)]}; }
+  }
+  FR.variants[view] = {drop: [...new Set(parts.flatMap(x => (FR.variants[x] && FR.variants[x].drop) || []))]};
+  return out;
+}
 function viewFields(view){
   if (fieldCache[view]) return fieldCache[view];
+  if (isCombo(view)) { const F = buildCombo(view); if (F) fieldCache[view] = F; return F; }
   const enc = window.FRONTP && window.FRONTP[view]; if (!enc) return null;
   const out = []; let prev = new Uint8Array(UCELLS.length);
   for (const e of enc) {
@@ -194,6 +213,7 @@ function viewFields(view){
   return fieldCache[view] = out;
 }
 function ensureView(view, then){
+  if (isCombo(view)) { const need = ["equilibre"].concat(comboParts(view)); const step = k => k >= need.length ? (viewFields(view), then()) : ensureView(need[k], () => step(k + 1)); return step(0); }
   if (window.FRONTP && window.FRONTP[view]) return then();
   const sc = document.createElement("script"); sc.src = `front_${view}.js?v=${FRONT_V[view] || ""}`; sc.onload = then; document.head.appendChild(sc);
 }
@@ -1904,22 +1924,23 @@ function varNote(){
   const el = $("varNote"), fi = frontIdx(), mo = fi >= 0 ? FR.months[fi] : null;
   if (!fvar || !mo || !mo.v || !mo.v[fvar]) { el.textContent = ""; return; }
   const a = mo.v[fvar].tout[0], b = mo.a.equilibre.tout[0], d = a - b;
-  el.textContent = `${VARLAB[fvar] || fvar} : ${fmt(Math.round(a / 10) * 10)} km² (${d >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(d / 10) * 10))} par rapport au modèle complet, cartes seules).`;
+  const lab = isCombo(fvar) ? comboParts(fvar).map(x => VARLAB[x] || x).join(", ").replace(/, Sans /g, ", sans ") : VARLAB[fvar] || fvar;
+  el.textContent = `${lab} : ${fmt(Math.round(a / 10) * 10)} km² (${d >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(d / 10) * 10))} par rapport au modèle complet, cartes seules).`;
 }
 // cases « sources du calcul » : toutes cochées = modèle complet ; décocher une source montre la variante « sans X »
 // (variantes précalculées, une seule à la fois : décocher une autre source recoche la précédente)
 document.querySelectorAll("[data-var]").forEach(cb => cb.onchange = () => {
-  const v = cb.checked ? "" : cb.dataset.var;
-  document.querySelectorAll("[data-var]").forEach(o => { o.checked = o.dataset.var !== v; });
-  $("varSel").value = v; $("varSel").onchange();
+  const off = [...document.querySelectorAll("[data-var]")].filter(o => !o.checked).map(o => o.dataset.var).sort();
+  setVar(off.length === 0 ? null : off.length === 1 ? off[0] : "combo:" + off.join("+"));
 });
-$("varSel").onchange = () => {
-  fvar = $("varSel").value || null;
+$("varSel").onchange = () => setVar($("varSel").value || null);
+function setVar(v){
+  fvar = v;
   if (fvar && fmode !== "equilibre") document.querySelector('[data-mode="equilibre"]').click();
   diffFor = -2;
-  ensureView(fieldName(), () => { frontFor = -2; diffFor = -2; draw(); updateArea(); varNote(); });
+  ensureView(fieldName(), () => { frontFor = -2; diffFor = -2; arrowCache = {}; draw(); updateArea(); varNote(); legend(); });
   frontFor = -2; draw(); updateArea(); legend(); varNote();
-};
+}
 document.querySelectorAll("[data-raw]").forEach(cb => cb.onchange = () => { rawOn[cb.dataset.raw] = cb.checked; legend(); draw(); });
 if ($("lyrImp")) $("lyrImp").onchange = e => { showImp = e.target.checked; if (showImp) loadImp(() => draw()); legend(); draw(); };
 if ($("lyrTg")) $("lyrTg").onchange = e => { showTg = e.target.checked; if (showTg) loadTg(() => draw()); legend(); draw(); };
@@ -2158,7 +2179,7 @@ function hover(e){
     tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
     return;
   }
-  tip.innerHTML = `<div class="r"><span>${_t("p(occupé)")}${fvar ? " · " + fvar.replace("_", " ") : ""}</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div><div class="r"><span>${_t("état")}</span><b>${st}</b></div>` + ctxt +
+  tip.innerHTML = `<div class="r"><span>${_t("p(occupé)")}${fvar ? " · " + (isCombo(fvar) ? comboParts(fvar).length + " sources retirées" : fvar.replace("_", " ")) : ""}</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div><div class="r"><span>${_t("état")}</span><b>${st}</b></div>` + ctxt +
     `<div style="margin-top:4px;color:var(--faint)">${_t("source · vote · poids dans le calcul")}</div>` +
     act.map(([s, c]) => `<div class="r"><span>${NAMES[s]} <span style="color:var(--faint)">(${_t(({ua: "ukr.", ru: "russe", tiers: "tiers"})[FR.camps[s]])})</span></span><b>${STN[c]} · ${Math.round(FR.weights[s] / cw[FR.camps[s]] / nc * 100)}\u00a0%</b></div>`).join("") +
     `<div style="margin-top:4px;color:var(--faint)">${_t("les tracés votent selon leur distance à la maille : poids nominaux")}</div>` +
@@ -2320,7 +2341,7 @@ function updateArea(){
       (eq ? `intervalle à 95\u00a0% : ${r10(mc.tout[0])} – ${r10(mc.tout[1])} km²` : `vue partielle (intervalle calculé pour la vue équilibrée)`) + ` · sous la ligne médiane : ${r10(a.tout[1])} km²</div>` +
     `<div>pris depuis le 24 février 2022<b>${r10(a.depuis2022[0])} km²</b>` + (eq ? `95\u00a0% : ${r10(mc.depuis2022[0])} – ${r10(mc.depuis2022[1])} km² · ` : "") + `Crimée ${r10(crimea)} et Donbass d'avant 2022 ${r10(pre)} km² comptés à part</div>` +
     `<div>zone grise (0,05 ≤ p ≤ 0,95)<b style="color:var(--accent)">${r10(mo.grey ? mo.grey.km2 : 0)} km²</b>largeur moyenne ${mo.grey && mo.grey.width_km != null ? String(mo.grey.width_km).replace(".", ",") : "—"} km le long de ${fmt(mo.grey ? mo.grey.front_km : 0)} km de front · désaccord des vues russe et ukrainienne : ${r10(mo.dis.tout[0])} km² (vue russe ${r10(mo.a.ru.tout[0])}, vue ukr. ${r10(mo.a.ua.tout[0])})</div>` +
-    (fvar && mo.v && mo.v[fvar] ? `<div style="grid-column:1/-1">sans cette source (${fvar.replace("_", " ")}) : <i>${r10(mo.v[fvar].tout[0])} km²</i>, soit ${mo.v[fvar].tout[0] - mo.a.equilibre.tout[0] >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round((mo.v[fvar].tout[0] - mo.a.equilibre.tout[0])/10)*10))} km² par rapport au modèle complet ; zone grise ${r10(mo.v[fvar].tout[2])} km²</div>` : "");
+    (fvar && mo.v && mo.v[fvar] ? `<div style="grid-column:1/-1">sans ${isCombo(fvar) ? "ces sources (" + comboParts(fvar).map(x => x.replace("sans_", "")).join(", ") + ")" : "cette source (" + fvar.replace("_", " ") + ")"} : <i>${r10(mo.v[fvar].tout[0])} km²</i>, soit ${mo.v[fvar].tout[0] - mo.a.equilibre.tout[0] >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round((mo.v[fvar].tout[0] - mo.a.equilibre.tout[0])/10)*10))} km² par rapport au modèle complet ; zone grise ${r10(mo.v[fvar].tout[2])} km²</div>` : "");
 }
 const UA_KM2 = (() => { let n = 0; for (let c = 0; c < GX * GY; c++) if (cellPlace[c] >= 0) n++; return n * (FR.grid.size/1000) ** 2; })();
 function lineChart(el, rows, opt){
