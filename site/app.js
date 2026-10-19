@@ -2186,10 +2186,11 @@ function updateArea(){
       const r10s = x => fmt(Math.round(Math.abs(x) / 10) * 10), who = x => x >= 0 ? _t("gagnés par la Russie") : _t("repris par l'Ukraine");
       const sgn = x => (x >= 0 ? "+" : "−") + r10s(x) + "\u00a0km²";
       const share = (v / UA_KM2 * 100).toFixed(0);
-      big.innerHTML = (d12 !== null ? `<b>${sgn(d12)}</b><span>${who(d12)} ${_t("en 12 mois")}${d1 !== null ? ` · ${_t("{d} sur 30 jours", {d: sgn(d1)})}` : ""} · ${frameLabel(fi)}</span>` +
-          `<span>${_t("occupé : ≈ {k} km² ({s} % de l'Ukraine)", {k: fmt(Math.round(v / 1000) * 1000), s: share})}</span>`
-        : `<b>${r(v)} km²</b><span>${document.documentElement.dataset.kmLabel || "occupés"} · ${frameLabel(fi)}</span>`) +
-        (ru >= 50 ? `<span style="color:var(--cool)">${document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien"} : ${fmt(Math.round(ru/10)*10)} km²</span>` : ""); }
+      const line = (lab, val, det) => `<div class="kmline"><span class="k">${lab}</span><b>${val}</b><span>${det}</span></div>`;
+      big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), sgn(d12), who(d12)) : "") +
+        (d1 !== null ? line(_t("30 derniers jours"), sgn(d1), who(d1)) : "") +
+        line(_t("total occupé"), "≈\u00a0" + fmt(Math.round(v / 1000) * 1000) + "\u00a0km²", _t("{s} % de l'Ukraine · {f}", {s: share, f: frameLabel(fi)})) +
+        (ru >= 50 ? line(document.documentElement.dataset.ruLabel || "en Russie, sous contrôle ukrainien", fmt(Math.round(ru/10)*10) + "\u00a0km²", "") : ""); }
   }
   const fi = frontIdx(), el = $("areaBox");
   if (fi < 0) { el.innerHTML = `<div style="grid-column:1/-1"><span class="na">front : pas d'instantané pour ce mois</span></div>`; return; }
