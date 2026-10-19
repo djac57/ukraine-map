@@ -1161,10 +1161,10 @@ function buildAsym(fi){
   cx.putImageData(img, 0, 0); asymPat = cv;
 }
 // « secteurs susceptibles de bouger » : P(la ligne bouge d'au moins 0,5 km d'ici t+2) par tronçon de 24 km, sans sens,
-// liseré ambre côté ukrainien, mailles à ≤ 3 km de la ligne (q = 1 + P × 62), opacité croissante avec P
+// liseré ambre du côté où le mouvement est attendu (modèle de sens), mailles à ≤ 3 km de la ligne (q = 1 + P × 62), opacité selon P
 let pmFor = -2, pmImg = null, showPm = !!(document.getElementById("lyrPm") && document.getElementById("lyrPm").checked);
 function buildPm(fi, k){
-  // liseré AMBRE du côté ukrainien de la ligne seulement (distinct des hachures grises de contact, du rouge et du bleu) ;
+  // liseré AMBRE (distinct des hachures grises de contact, du rouge et du bleu) ;
   // élargi à l'affichage en vue d'ensemble pour rester visible ; opacité selon P
   const r = k < 1.6 ? 5 : k < 3 ? 2 : 1, key = fi + ":" + r + ":" + fieldName();
   if (pmFor === key) return;
@@ -1172,14 +1172,19 @@ function buildPm(fi, k){
   const F = viewFields("pmove"), g = fullField(fieldName(), fi); if (!F || !F[fi] || !g) return;
   const cv = document.createElement("canvas"); cv.width = GX; cv.height = GY;
   const cx = cv.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data, q = F[fi];
+  // côté du liseré selon le sens prévu (modèle de sens, tronçon de 24 km) : côté ukrainien si avancée russe probable
+  // (P(sens RU) ≥ 60 %), côté russe si reprise ukrainienne probable (≤ 40 %), des deux côtés sinon ou sans modèle
+  const SR = new Map(), sr = sensRows(fi), T = (SENS && SENS.tileCells) || 12;
+  if (sr) for (const row of sr) if (row[3] != null) SR.set(Math.floor(row[1] / T) * 1000 + Math.floor(row[0] / T), row[3]);
   for (let u = 0; u < UCELLS.length; u++) {
     if (!q[u]) continue;
     const p = (q[u] - 1) / 62, a = Math.max(0, Math.min(1, (p - 0.1) / 0.4));   // sous 10 % : rien (taux de base 13 %)
     if (a <= 0) continue;
     const c0 = UCELLS[u], i0 = c0 % GX, j0 = Math.floor(c0 / GX), al = Math.round(255 * (0.2 + 0.75 * a));
+    const ps = SR.get(Math.floor(j0 / T) * 1000 + Math.floor(i0 / T)), uaSide = ps == null || ps >= 40, ruSide = ps == null || ps <= 60;
     for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
       if (di * di + dj * dj > r * r || i0 + di < 0 || i0 + di >= GX || j0 + dj < 0 || j0 + dj >= GY) continue;
-      const c = (j0 + dj) * GX + i0 + di; if (!(g[c] < 0.5) || cellPlace[c] < 0) continue;
+      const c = (j0 + dj) * GX + i0 + di; if (cellPlace[c] < 0) continue; const isUa = g[c] < 0.5; if (isUa ? !uaSide : !ruSide) continue;
       const o = c * 4; if (d[o + 3] < al) { d[o] = 232; d[o+1] = 162; d[o+2] = 0; d[o+3] = al; } }
   }
   cx.putImageData(img, 0, 0); pmImg = cv;
@@ -1301,6 +1306,7 @@ function drawAdv(k){
 }
 function drawPm(k){
   const fp = frontIdx(); if (fp < 0) return;
+  if (!window.FRONT_SENS) loadSens(() => { pmFor = -2; draw(); });
   buildPm(fp, k); if (!pmImg) return;
   ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(tr.x, tr.y); ctx.scale(k, k);
   ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]); ctx.clip(domainPath);
@@ -1813,6 +1819,12 @@ function stop(){ if (timer) { clearInterval(timer); timer = null; } $("play").te
 // lecture : pas (tous, mois, trimestre, année ; toujours calés sur le dernier mois) et vitesse réglables
 function playSteps(){
   const g = $("gran") ? $("gran").value : "all", lastM = AX[AX.length - 1].m, every = {q: 3, y: 12}[g] || 1;
+  if (g === "w") {   // par semaine : les pas récents espacés d'au moins 7 jours (en partant du dernier), les mois avant
+    const L = [], t = n => Date.parse(AX[n].d); let lastT = null;
+    for (let n = AX.length - 1; n >= 0; n--) { const a = AX[n];
+      if (a.d) { if (lastT === null || lastT - t(n) >= 6.5 * 864e5) { L.push(n); lastT = t(n); } } else L.push(n); }
+    return L.reverse();
+  }
   const L = []; AX.forEach((a, n) => { if (g === "all" || (!a.d && (lastM - a.m) % every === 0)) L.push(n); });
   if (L[L.length - 1] !== AX.length - 1 && g !== "all") L.push(AX.length - 1);
   return L;
