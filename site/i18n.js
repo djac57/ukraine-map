@@ -175,6 +175,7 @@ const TX = {
   "à partir du 24 février": ["from 24 February", "з 24 лютого", "с 24 февраля"],
   "pertes : pas encore publiées (mois complet + 7 jours)": ["losses: not yet published (full month + 7 days)", "втрати: ще не опубліковані (повний місяць + 7 днів)", "потери: ещё не опубликованы (полный месяц + 7 дней)"],
   "pertes : aucune ce mois-ci": ["losses: none this month", "втрати: цього місяця немає", "потери: в этом месяце нет"],
+  "combats UCDP : ce mois n'est pas encore publié, dernier mois publié affiché ({m})": ["UCDP fighting: this month is not published yet, showing the latest published month ({m})", "бої UCDP: цей місяць ще не опубліковано, показано останній опублікований ({m})", "бои UCDP: этот месяц ещё не опубликован, показан последний опубликованный ({m})"],
   "combats UCDP : pas encore publiés pour ce mois": ["UCDP fighting: not yet published for this month", "бої UCDP: ще не опубліковані за цей місяць", "бои UCDP: ещё не опубликованы за этот месяц"],
   "combats UCDP : aucun événement localisé": ["UCDP fighting: no located event", "бої UCDP: жодної локалізованої події", "бои UCDP: ни одного локализованного события"],
   "missiles : pas encore publiés (mois complet + 7 jours)": ["missiles: not yet published (full month + 7 days)", "ракети: ще не опубліковані (повний місяць + 7 днів)", "ракеты: ещё не опубликованы (полный месяц + 7 дней)"],

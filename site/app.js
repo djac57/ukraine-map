@@ -1300,13 +1300,17 @@ function drawFront(k){
 }
 // ---------- couches UCDP et arcs de missiles ----------
 const UC = O.ucdp.pts, NU = UC.length / 5;
+// mois UCDP affiché : le mois courant s'il est publié, sinon le dernier mois publié (au plus 2 mois avant), atténué
+const ucdpLastIdx = D.months.indexOf((O.ucdp.last || "").slice(0, 7));
+const ucdpMonth = () => (D.months[cur] > (O.ucdp.last || "") && ucdpLastIdx >= 0 && cur - ucdpLastIdx <= 2) ? ucdpLastIdx : cur;
 function drawUcdp(k){
-  const last = Math.min(cur, cutIdx); if (last < cur) return;
+  const um = ucdpMonth(), fade = um === cur ? 1 : 0.6;
+  if (um === cur && cur > cutIdx) return;
   ctx.fillStyle = C.ucdp;
   for (let j = 0; j < NU; j++) {
-    if (UC[j*5+2] !== cur) continue;
+    if (UC[j*5+2] !== um) continue;
     const r = cellRect(UC[j*5], UC[j*5+1]);
-    ctx.globalAlpha = Math.min(0.85, 0.25 + 0.12 * Math.sqrt(UC[j*5+3]));
+    ctx.globalAlpha = fade * Math.min(0.85, 0.25 + 0.12 * Math.sqrt(UC[j*5+3]));
     ctx.fillRect(r[0], r[1], r[2], r[3]);
   }
   ctx.globalAlpha = 1;
@@ -2031,7 +2035,8 @@ function layerNotes(){
   if (showLoss && cur > cutIdx) n.push(_t("pertes : pas encore publiées (mois complet + 7 jours)"));
   else if (showLoss && !O.ws.perMonth[cur].some(Boolean)) n.push(_t("pertes : aucune ce mois-ci"));
   if (showUcdp) { let any = false; for (let j = 0; j < NU; j++) if (UC[j*5+2] === cur) { any = true; break; }
-    if (!any) n.push(_t(cur > cutIdx || D.months[cur] > (O.ucdp.last || "") ? "combats UCDP : pas encore publiés pour ce mois" : "combats UCDP : aucun événement localisé")); }
+    if (!any && ucdpMonth() !== cur) n.push(_t("combats UCDP : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(ucdpMonth())}));
+    else if (!any) n.push(_t(cur > cutIdx || D.months[cur] > (O.ucdp.last || "") ? "combats UCDP : pas encore publiés pour ce mois" : "combats UCDP : aucun événement localisé")); }
   if (showArcs && !O.launch.arcs.some(a => a[0] === cur)) n.push(_t(cur > cutIdx ? "missiles : pas encore publiés (mois complet + 7 jours)" : D.months[cur] < "2022-10" ? "missiles : série à partir d'octobre 2022" : "missiles : aucune cible précisée ce mois-ci"));
   return n;
 }
