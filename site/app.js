@@ -1968,6 +1968,7 @@ if (showPm) ensureView("pmove", () => { pmFor = -2; draw(); });
 function syncMapLegend(){
   document.querySelectorAll("#mapLegend [data-lyr]").forEach(row => { const k = row.dataset.lyr;
     if (k === "always") { row.hidden = false; return; }
+    if (row.hasAttribute("data-off")) { row.hidden = true; return; }   // entrée d'une case masquée (modèle unique)
     const cb = k.startsWith("raw:") ? document.querySelector(`input[data-raw="${k.slice(4)}"]`) : document.getElementById(k);
     row.hidden = !(cb && cb.checked); });
   // un groupe sans entrée visible disparaît
