@@ -2314,7 +2314,8 @@ function lineChart(el, rows, opt){
   const w = el.clientWidth, h = opt.h || (w < 500 ? 200 : 240), m = {t:10, r:8, b:26, l: w < 500 ? 46 : 58};
   const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w-m.r]).paddingInner(0.18), cx = i => x(i) + x.bandwidth()/2;
   // abscisse d'un instantané : mois au centre de sa bande ; pas récent à sa place dans le mois
-  const fx = fi => { if (fi < NMF) return cx(fi); const d = FR.months[fi].date, mi = D.months.indexOf(d.slice(0, 7)), nd = new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate();
+  const fx = fi => { if (fi < 0) return cx(0) - x.step() * 0.5;   // point d'avant-guerre (23/02/2022), juste avant le premier mois
+    if (fi < NMF) return cx(fi); const d = FR.months[fi].date, mi = D.months.indexOf(d.slice(0, 7)), nd = new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate();
     return cx(mi) + ((+d.slice(8, 10) - 0.5) / nd - 0.5) * x.step(); };
   const ext = d3.extent(rows.flatMap(r => r.slice(1).filter(v => v != null)));
   const y = d3.scaleLinear().domain(opt.zero ? [0, ext[1] * 1.05] : [ext[0] * 0.98, ext[1] * 1.01]).nice().range([h-m.b, m.t]);
@@ -2379,6 +2380,8 @@ function drawAreaChart(){
   const lean = document.body.classList.contains("lean");
   // axe depuis 0 et repère « occupé avant le 24/02/2022 » : la courbe commence fin février 2022, invasion déjà en cours
   const f0 = FR.months[frontIdx()] || chartFrames().filter(Boolean).pop(), pre = f0 && f0.a[cm] && f0.a[cm][perim] && f0.a[cm].depuis2022 && perim === "tout" ? f0.a[cm].tout[0] - f0.a[cm].depuis2022[0] : null;
+  // la courbe part du niveau d'avant-guerre (≈ 45 500 km² le 23/02/2022) : le saut de février-mars 2022 est visible
+  if (pre && rows.length) rows.unshift([-1, pre, pre, null, null, pre, pre]);
   lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], zero: true, ref: pre ? {v: pre, label: _t("occupé avant le 24 février 2022 : ≈ {v} km²", {v: fmt(Math.round(pre / 100) * 100)})} : null, lines: lean ? [{i: 1, color: C.front, w: 2.2}] : [
       {i: 5, color: C.ink, w: 1, dash: "2 3", op: .55}, {i: 6, color: C.cool, w: 1, dash: "2 3", op: .8},
       {i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.front, w: 2.2}],
