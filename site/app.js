@@ -2332,6 +2332,33 @@ function lineChart(el, rows, opt){
   el.replaceChildren(svg.node());
 }
 const chartFrames = () => FR.months.map((v, i) => v && !(i < NMF && firstDay && v.date >= firstDay) ? v : null);
+// variation mensuelle de NOTRE estimation (même série que les chiffres clés) : barres rouges (gain russe) / bleues
+// (reprise ukrainienne), bande grisée = écart habituel à 30 jours (erreur empirique, site/kmchange.js)
+function drawDeltaChart(cm){
+  const el = document.getElementById("dChart"); if (!el) return;
+  const F = FR.months, rows = [];
+  for (let i = 0; i < NMF; i++) { const a = F[i], j = i > 0 ? frameAt(i, 30) : -1, b = j >= 0 ? F[j] : null;
+    if (a && b && a.a[cm] && b.a[cm]) rows.push([i, a.a[cm].tout[0] - b.a[cm].tout[0]]); }
+  if (!rows.length) { el.replaceChildren(); return; }
+  const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (cm === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
+  const E1 = KR && KR.m1 && KR.m1.p50 ? KR.m1.p50 : 300;
+  const w = el.clientWidth || 600, h = 130, m = {t: 18, r: 4, b: 20, l: 46};
+  const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w - m.r]).paddingInner(0.2);
+  const lim = Math.max(E1 * 1.5, d3.quantile(rows.map(r => Math.abs(r[1])).sort(d3.ascending), 0.97) || 1);
+  const y = d3.scaleLinear().domain([-lim, lim]).nice().range([h - m.b, m.t]).clamp(true);
+  const svg = d3.create("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("height", h);
+  svg.append("rect").attr("x", m.l).attr("width", w - m.r - m.l).attr("y", y(E1)).attr("height", y(-E1) - y(E1)).attr("fill", C.rule).attr("opacity", .5);
+  svg.append("g").selectAll("line").data(y.ticks(4)).join("line").attr("x1", m.l).attr("x2", w - m.r).attr("y1", y).attr("y2", y).attr("stroke", C.rule).attr("opacity", v => v === 0 ? 1 : .6);
+  svg.append("g").selectAll("text").data(y.ticks(4)).join("text").attr("class", "tick").attr("x", m.l - 5).attr("y", y).attr("dy", "0.32em").attr("text-anchor", "end").text(v => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v)));
+  svg.append("g").selectAll("rect").data(rows).join("rect").attr("x", r => x(r[0])).attr("width", x.bandwidth())
+    .attr("y", r => y(Math.max(0, r[1]))).attr("height", r => Math.abs(y(r[1]) - y(0))).attr("fill", r => r[1] >= 0 ? C.front : C.uactl).attr("opacity", .9)
+    .append("title").text(r => _t("{m} : {v} km² sur 30 jours (écart habituel ± {e})", {m: monthLabel(r[0]), v: (r[1] >= 0 ? "+" : "−") + fmt(Math.round(Math.abs(r[1]) / 10) * 10), e: fmt(Math.round(E1 / 10) * 10)}));
+  svg.append("text").attr("class", "tick").attr("x", m.l).attr("y", 11).text(_t("variation sur 30 jours (km²) ; bande grise : écart habituel"));
+  svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class", "tick").attr("x", i => x(i)).attr("y", h - m.b + 14).text(i => D.months[i].slice(0, 4));
+  const mk = svg.append("rect").attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "none").attr("stroke", C.accent).attr("stroke-width", 1.5);
+  marks.push(() => mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3));
+  el.replaceChildren(svg.node());
+}
 function drawAreaChart(){
   const eq = fmode === "equilibre";
   const cm = amode();   // courbe : NOTRE estimation (vue active, nowcast par défaut), même série que les chiffres clés
@@ -2342,6 +2369,7 @@ function drawAreaChart(){
       {i: 5, color: C.ink, w: 1, dash: "2 3", op: .55}, {i: 6, color: C.cool, w: 1, dash: "2 3", op: .8},
       {i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.front, w: 2.2}],
     title: i => FR.months[i] ? _t("{m} — {mode} : {a} km² (95 % : {lo} – {hi}) ; vue russe {r}, vue ukrainienne {u}", {m: monthLabel(i), mode: MODEN[cm], a: fmt(FR.months[i].a[cm][perim][0]), lo: fmt(mcOf(FR.months[i])[perim][0]), hi: fmt(mcOf(FR.months[i])[perim][1]), r: fmt(FR.months[i].a.ru[perim][0]), u: fmt(FR.months[i].a.ua[perim][0])}) : _t("{m} — pas d'instantané", {m: monthLabel(i)})});
+  drawDeltaChart(cm);
   const rrows = chartFrames().map((v, i) => v && v.a[amode()] && v.a[amode()].russie ? [i, v.a[amode()].russie[1]] : null).filter(Boolean);
   const ruEl = document.getElementById("ruChart");
   if (ruEl && rrows.some(r => r[1] >= 50)) {
