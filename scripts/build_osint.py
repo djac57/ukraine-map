@@ -24,7 +24,7 @@ import guard  # noqa: E402
 RAW = sys.argv[1] if len(sys.argv) > 1 else "raw"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CELL = 0.1
-LAG_DAYS = 7
+LAG_DAYS = int(os.environ.get("LAG_DAYS", "0"))   # décalage de publication : 0 depuis le 19/10/2026 (décision de l'utilisateur ; 7 auparavant)
 
 GROUPS = ["chars", "blindés", "artillerie", "défense aérienne", "logistique", "aéronefs et autres"]
 WS_GROUP = {

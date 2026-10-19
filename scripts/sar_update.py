@@ -367,7 +367,7 @@ def main():
     ap.add_argument("--max-tiles", type=int, default=0, help="limite (tests)")
     ap.add_argument("--partial", action="store_true", help="calculer aussi le mois en cours (jusqu'à J−7)")
     a = ap.parse_args()
-    cutoff_d = dt.date.today() - dt.timedelta(days=7)              # décalage d'au moins 7 jours
+    cutoff_d = dt.date.today() - dt.timedelta(days=int(os.environ.get("LAG_DAYS", "0")))   # décalage de publication (0 depuis le 19/10/2026)
     if a.month:
         month = a.month
     elif a.partial or (cutoff_d + dt.timedelta(days=1)).day == 1:

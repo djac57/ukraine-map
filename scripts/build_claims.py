@@ -33,7 +33,7 @@ ROOT = os.path.dirname(HERE)
 
 RAW = sys.argv[1] if len(sys.argv) > 1 else "raw"
 VIINA_DIR = sys.argv[2] if len(sys.argv) > 2 else os.path.join(RAW, "viina")
-LAG_DAYS = 7
+LAG_DAYS = int(os.environ.get("LAG_DAYS", "0"))   # décalage de publication : 0 depuis le 19/10/2026 (décision de l'utilisateur ; 7 auparavant)
 
 OBL = r"\w*\s+(?:област|обл\.)"
 REGION = [  # (motif, nom ADM1 du pavage GeoNames) : adjectif + « область », forme en -щина, ou ДНР / ЛНР
