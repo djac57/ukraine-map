@@ -2128,6 +2128,13 @@ canvas.addEventListener("mousemove", hover);
 canvas.addEventListener("click", hover);
 canvas.addEventListener("mouseleave", e => { if (e.relatedTarget && tip.contains(e.relatedTarget)) return; tip.style.display = "none"; tip.classList.remove("pin"); });
 tip.addEventListener("mouseleave", e => { if (e.relatedTarget === canvas) return; tip.style.display = "none"; tip.classList.remove("pin"); });
+// légende de la carte : un clic (ou un toucher) sur un libellé marqué ⓘ déplie son explication sous la ligne
+if ($("mapLegend")) $("mapLegend").addEventListener("click", e => {
+  const t = e.target.closest("[data-tt]"); if (!t || !t.title) return;
+  e.preventDefault(); const row = t.closest("div") || t, nx = row.nextElementSibling;
+  if (nx && nx.classList.contains("lgtip")) { nx.remove(); return; }
+  const d = document.createElement("div"); d.className = "lgtip"; d.textContent = t.title; row.after(d);
+});
 $("legend").addEventListener("click", e => {
   const b = e.target.closest("[data-g]"); if (!b) return;
   const g = +b.dataset.g; lossOn[g] = !lossOn[g]; legend(); draw();

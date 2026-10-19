@@ -170,7 +170,8 @@ footer p{margin:0 0 8px}
 .maplegend details.lggrp[open]>summary::before{content:"▾ "}
 .maplegend{max-width:300px}
 .maplegend summary{display:none}
-.maplegend span[title]{pointer-events:auto;cursor:help}
+.maplegend span[title]{pointer-events:auto;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.maplegend .lgtip{font-size:10.5px;line-height:1.4;color:var(--muted);max-width:340px;padding:2px 0 4px 36px;white-space:normal}
 .bigrow{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:18px 0 2px}
 .bigrow b{font:500 clamp(26px,4vw,38px) "JetBrains Mono",monospace;color:var(--front)}
 .bigrow span{font-size:13px;color:var(--muted)}
