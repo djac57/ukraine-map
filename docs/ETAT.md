@@ -592,6 +592,51 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   l'horizon t+2 par tronçon passe la règle de publication intégrée, recalculée à chaque build : CRPS de production
   0,2225 contre 0,2353, toutes les classes et tous les secteurs ≥ nominal − 5 pts. t+1 (CRPS 0,1361 contre 0,1357) et
   les km² ont `show` à faux et ne s'affichent pas. Décision d'affichage à prendre par l'utilisateur (§ 8, point 2 quater).
+- 19/10/2026 (soir) : **AMPLEUR v2 testée, NON RETENUE : v1 reste publiée** (demande de l'utilisateur : régime établi
+  contre la sous-estimation des offensives durables, modèle de sens en deuxième étage, pas de 10 jours, protocole
+  strict). Étude `ukraine-recherche/analyses/ampleur/v2_etude.py` → `v2_etude.txt` (RAPPORT.md, § « Ampleur v2 »).
+  Paramètres choisis sur les origines 2023-2024, puis gelés et évalués sur 2025+ (2 982 tronçons-mois à t+1, 2 824 à
+  t+2). Vérité : champ des cartes publié.
+  - Terme « régime établi » : le tronçon a bougé au moins L mois de suite dans le même sens, à v ≥ 0,25 km/mois.
+    Mélange (1 − λ) · v1 + λ · h · v · r, où r = rapports Δ / (h · v) des régimes passés de même sens (oubli 6 mois) ;
+    λ est réappris chaque mois sur les régimes passés. Retenu sur 2023-2024 : L = 2.
+  - P(sens RU | bouge) de `front_sens.js`, en variable ou à la place du deuxième étage : pas de gain sur 2023-2024
+    (t+2 : 0,2598 contre 0,2586 ; à la place : 0,2749). Non retenue.
+  - **Hors échantillon (2025+), CRPS** :
+    - t+1 : v1 0,1062, v2 0,1063, persistance 0,1125 ;
+    - t+2 : v1 0,1633, v2 0,1638, persistance 0,1839 ;
+    - pour comparaison, sur 2023-2024 : t+2 v1 0,2586, v2 0,2457 (gain de réglage, qui ne tient pas).
+  - Couverture hors échantillon, v1 / v2 :
+    - 80 % : 94,1 / 93,8 % ; 95 % : 96,2 / 96,4 % ;
+    - par classe de risque à 80 % : 96 / 86 / 84 % contre 96 / 85 / 83 % ;
+    - par secteur à 80 % : de 83 à 98 % (v1) et de 80 à 98 % (v2) ;
+    - par secteur à 95 % : de 92 à 99 % pour les deux.
+  - km² à t+2 hors échantillon :
+    - biais +178 (v1) contre +150 km² (v2), MAE 396 contre 385 (tendance 388) ;
+    - couverture v2 74 / 100 % sur 19 origines seulement ;
+    - non publiés.
+  - Événements à t+2 (réalisé / v1 / v2, km²) : Pokrovsk 2025 1 616 / 558 / 572 ; Vivaldi 84 / 165 / 187 ; Pokrovsk
+    été 2024 1 176 / 135 / 98 ; Vouhledar 1 204 / 114 / 92 ; Kourakhove 912 / 177 / 195 ; Avdiïvka 232 / −80 / −36 ;
+    Vovtchansk et Koursk inchangés, 0 % couverts. **La sous-estimation des offensives durables n'est pas corrigée.**
+  - Diagnostic : dans les tronçons en régime à forte P(mouvement), la vitesse sur 6 mois reconduite tombe juste
+    (5 313 km² prévus contre 5 100 réalisés à t+2 en 2025+, v1 2 523). Mais le taux de poursuite d'un régime n'est
+    pas stationnaire : rapport moyen réalisé / tendance de 0,13 (2022-2023), 0,42 (2024), 0,77 (2025) et 0,25 (2026).
+    Appris sur le passé, il arrive toujours en retard.
+  - **Trois passages, dont deux non aveugles** : après avoir vu 2025+, on a ajouté la condition de pression, la vitesse
+    sur 6 mois, le pool par sens et l'oubli. La variante « P(mouvement) ≥ 0,35 » battrait v1 sur 2025+ (0,1059 et
+    0,1620), mais elle n'est pas celle que 2023-2024 désigne, et elle a été construite après avoir vu 2025+. Elle
+    n'est donc pas retenue. À juger seulement sur des origines nouvelles (≥ 2026-08).
+  - **Pas de 10 jours : impossible en production.** La vérité publiée (`front_equilibre.js`) est mensuelle, et les pas
+    de 3 jours ne couvrent que les 90 derniers jours : pas assez d'historique pour apprendre ni valider.
+  - **Production** (`scripts/build_advance.py`, ~15 s, 2 fils BLAS au plus) :
+    - le script calcule v1 et v2 (gelée) à chaque build ;
+    - il publie v2 seulement si elle bat v1 en CRPS sur 2025+ ET passe la règle de couverture ; sinon v1 (cas
+      d'aujourd'hui) ;
+    - il ne lit plus que les instantanés mensuels (`kind = "m"`, indice < `nMonths`), donc il résiste aux pas de
+      3 jours de la CI (testé sur un `front.js` simulé) ;
+    - format de `front_advance.js` **inchangé** (tuiles identiques à la v1 d'origine), avec des champs en plus par
+      horizon : `modele`, `params`, `validation.v1_v2`, `validation.evenements`, `validation.lambda_regime` ;
+    - `show` : t+1 et t+2 par tronçon OUI, km² NON (inchangé).
 - **19/10/2026 : Ookla APPROUVÉ par l'utilisateur** (licence CC BY-NC-SA 4.0 acceptée, projet non commercial), dans
   P(mouvement) si le gain tient dans le build réel (il tient : 0,839 → 0,842). Conditions : attribution « Speedtest® by
   Ookla® Global Fixed and Mobile Network Performance Maps » avec lien et licence sur la page méthode (sources et
@@ -1027,10 +1072,14 @@ gains walk-forward ; voir le bilan ci-dessus) :
      - au survol (k ≥ 4) : « d'ici fin novembre : entre a et b km (80 %), médiane m ; 95 % : c à d » ;
      - ⓘ : couverture par secteur, surprises (Vovtchansk, Koursk) hors intervalle, offensives durables sous-estimées ;
      - rien si `show.troncons` est faux, et aucune prévision km² sur la courbe.
-   - **Suites** :
-     - terme « tendance en régime établi » dans l'étage d'ampleur : Pokrovsk 2025 sous-estimé ;
-     - P(sens | bouge) de `build_direction.py` (AUC 0,85) à la place du deuxième étage ;
-     - pas de 10 jours sur la vérité décadaire de `analyses/sens/`.
+   - **Suites : « Ampleur v2 » faite le 19/10, NON RETENUE** (§ 6). Le régime établi et le P(sens) de
+     `front_sens.js` ne battent pas v1 hors échantillon ; le pas de 10 jours est impossible avec la vérité publiée
+     mensuelle. Le build garde le choix automatique v1 / v2 et publie v1 aujourd'hui. Pistes restantes :
+     - variante « régime + pression » (P ≥ 0,35), construite sans aveugle : à juger sur les origines ≥ 2026-08
+       seulement ;
+     - taux de poursuite des régimes non stationnaire : le modéliser par un signal d'intensité (assauts, pertes)
+       plutôt que par le passé des rapports ;
+     - pas de 10 jours : possible seulement si un historique décadal du champ des cartes est publié.
 2 ter. **Telegram dans le champ p** (demande de l'utilisateur, 19/10) : que ces signaux PÈSENT dans la prédiction ET dans
    l'état des lieux : même côté = confirmation de contrôle (resserre la bande), traversant = présence adverse (élargit
    ou fait pencher). À tester en walk-forward dans v4 avec le KPI de dépendance et la précision.
