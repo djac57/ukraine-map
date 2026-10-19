@@ -72,6 +72,11 @@ canvas{display:block;width:100%;touch-action:none;cursor:grab}
 .panel summary{cursor:pointer;padding:8px 12px;font:12px "JetBrains Mono",monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .pgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:0 12px 6px}
 .pgrid fieldset{border:0;border-top:1px solid var(--rule);margin:0;padding:8px 0 0;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+/* fieldset : min-inline-size vaut min-content par défaut, il déborderait sur la colonne voisine */
+.pgrid fieldset{min-width:0;min-inline-size:0}
+.pgrid .selrow{max-width:100%}
+.pgrid .selrow select{min-width:0;flex:1 1 auto}
+.pgrid .hint{max-width:100%;overflow-wrap:anywhere}
 .pgrid legend{font:11px "JetBrains Mono",monospace;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;padding:0 4px 0 0}
 .pgrid .chk{padding:3px 7px;font-size:11.5px}
 .pgrid .chk input:disabled + *, .pgrid .chk:has(input:disabled){opacity:.45}
