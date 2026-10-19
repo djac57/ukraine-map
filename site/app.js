@@ -2343,12 +2343,14 @@ function drawDeltaChart(cm){
   const F = FR.months, rows = [];
   for (let i = 0; i < NMF; i++) { const a = F[i], j = i > 0 ? frameAt(i, 30) : -1, b = j >= 0 ? F[j] : null;
     if (a && b && a.a[cm] && b.a[cm]) rows.push([i, a.a[cm].tout[0] - b.a[cm].tout[0]]); }
+  // premier mois : saut de l'invasion depuis le niveau d'avant-guerre (barre tronquée, valeur écrite)
+  { const a0 = F[0] && F[0].a[cm]; if (a0 && a0.depuis2022) rows.unshift([0, a0.depuis2022[0]]); }
   if (!rows.length) { el.replaceChildren(); return; }
   const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (cm === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
   const E1 = KR && KR.m1 && KR.m1.p50 ? KR.m1.p50 : 300;
   const w = el.clientWidth || 600, h = 130, m = {t: 18, r: 4, b: 20, l: 46};
   const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w - m.r]).paddingInner(0.2);
-  const lim = Math.max(E1 * 1.5, d3.quantile(rows.map(r => Math.abs(r[1])).sort(d3.ascending), 0.97) || 1);
+  const lim = Math.max(E1 * 1.5, d3.quantile(rows.slice(1).map(r => Math.abs(r[1])).sort(d3.ascending), 0.95) || 1);
   const y = d3.scaleLinear().domain([-lim, lim]).nice().range([h - m.b, m.t]).clamp(true);
   const svg = d3.create("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("height", h);
   svg.append("rect").attr("x", m.l).attr("width", w - m.r - m.l).attr("y", y(E1)).attr("height", y(-E1) - y(E1)).attr("fill", C.rule).attr("opacity", .5);
@@ -2357,6 +2359,11 @@ function drawDeltaChart(cm){
   svg.append("g").selectAll("rect").data(rows).join("rect").attr("x", r => x(r[0])).attr("width", x.bandwidth())
     .attr("y", r => y(Math.max(0, r[1]))).attr("height", r => Math.abs(y(r[1]) - y(0))).attr("fill", r => r[1] >= 0 ? C.front : C.uactl).attr("opacity", .9);
   svg.append("text").attr("class", "tick").attr("x", m.l).attr("y", 11).text(_t("variation sur 30 jours (km²)"));
+  // barres tronquées : coupure en zigzag et valeur réelle écrite au bout
+  const top = y.domain()[1];
+  for (const r of rows.filter(r => Math.abs(r[1]) > top)) { const xb = x(r[0]), bw = x.bandwidth(), up = r[1] > 0, yb = up ? y(top) + 6 : y(-top) - 6;
+    svg.append("path").attr("d", `M${xb - 1},${yb} l${bw / 4},-3 l${bw / 4},6 l${bw / 4},-6 l${bw / 4},6 l1,-3`).attr("stroke", C.bg).attr("stroke-width", 2.5).attr("fill", "none");
+    svg.append("text").attr("class", "tick").attr("x", xb + bw + 3).attr("y", up ? y(top) + 9 : y(-top) - 3).text((up ? "+" : "−") + fmt(Math.round(Math.abs(r[1]) / 1000) * 1000)); }
   svg.append("g").selectAll("text").data(d3.range(NM).filter(i => D.months[i].endsWith("-01"))).join("text").attr("class", "tick").attr("x", i => x(i)).attr("y", h - m.b + 14).text(i => D.months[i].slice(0, 4));
   const mk = svg.append("rect").attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "none").attr("stroke", C.accent).attr("stroke-width", 1.5);
   marks.push(() => mk.attr("x", x(cur) - 1.5).attr("width", x.bandwidth() + 3));
