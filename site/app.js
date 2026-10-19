@@ -971,6 +971,9 @@ function bfs(fromTest, intoTest, out, maxSteps){
 }
 bfs(c => cellPlace[c] >= 0, c => cellPlace[c] === -2, nearUA, 60);
 bfs(c => cellPlace[c] === -2, c => cellPlace[c] >= 0, nearBand, 60);
+const nearAll = new Int32Array(GX * GY).fill(-1); bfs(c => cellPlace[c] >= 0, c => cellPlace[c] < 0, nearAll, 30);   // tracés bruts
+// masque « Ukraine seule » (mailles de la grille) : les tracés bruts y sont découpés
+let uaOnlyPath = null; { const m = new Float32Array(GX * GY); for (let c = 0; c < GX * GY; c++) if (cellPlace[c] >= 0) m[c] = 1; uaOnlyPath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates); }
 let pBand = new Float32Array(GX * GY), isoBand = null;
 function buildFront(){
   buildRuMask();
@@ -1037,6 +1040,9 @@ function rawPath(src, fi){
   const n = FR.viina.indexOf(src), codes = monthCodes[fi], m = new Float32Array(GX * GY);
   let any = false;
   for (let c = 0; c < GX * GY; c++) { const k = cellPlace[c]; if (k < 0) continue; const v = codes[k] >> (2*n) & 3; if (v === 2) { m[c] = 1; any = true; } else if (v === 3) { m[c] = 0.5; any = true; } }
+  // hors d'Ukraine (Russie, mer, pays voisins) : valeur de la maille ukrainienne la plus proche, pour que le contour ne
+  // longe jamais la frontière ni la côte (ce ne sont pas des lignes de front)
+  for (let c = 0; c < GX * GY; c++) if (cellPlace[c] < 0) m[c] = nearAll[c] >= 0 ? m[nearAll[c]] : 0;
   return rawCache[key] = any ? ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates) : null;
 }
 // zones qui dépendent de la source retirée : |p(variante) − p(modèle complet, cartes seules)| > 0,1
@@ -1390,8 +1396,9 @@ function drawFront(k){
     const pth = rawPath(src, fi); if (!pth) continue;
     // tracés bruts cochés : trait épais sur un liseré clair, pour ressortir sur la densité et la zone grise
     const dash = src === "isw" ? [7*u, 3*u] : src === "wiki" ? [2*u, 3*u] : [];
+    ctx.save(); if (uaOnlyPath) ctx.clip(uaOnlyPath);
     ctx.setLineDash(dash); ctx.strokeStyle = C.bg; ctx.globalAlpha = 0.85; ctx.lineWidth = 4.6 * u; ctx.stroke(pth);
-    ctx.strokeStyle = RAWCOL[src]; ctx.globalAlpha = 1; ctx.lineWidth = 2.6 * u; ctx.stroke(pth);
+    ctx.strokeStyle = RAWCOL[src]; ctx.globalAlpha = 1; ctx.lineWidth = 2.6 * u; ctx.stroke(pth); ctx.restore();
   }
   ctx.restore();
   ctx.setLineDash([]); ctx.globalAlpha = 1;
