@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
-const FRONT_V = {"advance": "500c569f61", "asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "3f6aa0738f", "destr": "6d2f393980", "equilibre": "98b088d2af", "fusion": "4840b6ec50", "mcsd": "043fe02e46", "nowcast": "2c17b54478", "pmove": "00616af86d", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "sens": "42247d2638", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "3c75335233", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"advance": "500c569f61", "asym": "e4a52ea131", "combat": "6f6fcc18b2", "contact": "3f6aa0738f", "destr": "6d2f393980", "equilibre": "98b088d2af", "fusion": "4840b6ec50", "mcsd": "043fe02e46", "nowcast": "2c17b54478", "pmove": "00616af86d", "ru": "d83885e60c", "sans_dsm": "afbce7678f", "sans_enveloppes": "9bf7f49912", "sans_gsua": "1093e392a9", "sans_indices": "064df09c9c", "sans_isw": "4113c1839f", "sans_medias": "a61a66abdc", "sans_modru": "14f33ca763", "sans_presence": "b3f26eb64d", "sans_wiki": "1234914807", "sens": "42247d2638", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "3511d38ee1", "ua": "c3b7b81f79", "zf": "7d771a092c", "zm": "4565874939", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -1221,7 +1221,8 @@ function drawTg(k){
   tgHits = []; if (!TG) return;
   const fi = frontIdx(); if (fi < 0) return; const g = fullField(fieldName(), fi); if (!g) return;
   const dk = fi + ":" + fieldName(); if (tgDistFor !== dk) { tgDistFor = dk; tgDist = new Map(); }
-  const last = fi === FR.months.length - 1 && TG.recent, mi = TG.months.indexOf(FR.months[fi].date.slice(0, 7));
+  // période du MOIS AFFICHÉ (pas celui du dernier instantané du front) : les 30 derniers jours sur le dernier pas
+  const last = stepIdx === AX.length - 1 && TG.recent, mi = TG.months.indexOf(D.months[cur]);
   const rows = last ? TG.recent.rows.map(r => [r[0], r[1], r[2], r[3], r[4], r[5]]) : TG.m.filter(r => r[0] === mi).map(r => r.slice(1));
   const km = FR.grid.size / 1000;
   ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1241,7 +1242,7 @@ function drawTg(k){
     ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath();
     if (kind === "cross") { ctx.globalAlpha = Math.min(1, 0.6 + 0.1 * Math.sqrt(n)); ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.4; ctx.stroke(); }
     else { ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke(); }
-    tgHits.push({x, y, r, key, a, p, kind, recent: !!last});
+    tgHits.push({x, y, r, key, a, p, kind, recent: !!last, c, ic});
   }
   ctx.restore(); ctx.globalAlpha = 1;
 }
@@ -1924,8 +1925,18 @@ const tip = $("tip");
 // info-bulle courte au survol (3 lignes au plus) ; les détails (sources, votes, z, composition) au clic sur la maille.
 // Sur écran tactile, un premier toucher montre la version courte, un second sur la même maille les détails.
 let tipKey = null, tipFull = false;   // position du dernier affichage, détails ouverts ou non
+// liens vers les messages publics (30 derniers jours, au plus 3 ; TG.recent.links) : texte au survol, cliquables après un clic
+window.__tgHit = () => tgHits.find(h => h.recent && TG && TG.recent && TG.recent.links && TG.recent.links[h.c + "," + h.ic]);   // contrôle (captures)
+function tgLinks(h, pinned){
+  const L = h.recent && TG.recent && TG.recent.links ? TG.recent.links[h.c + "," + h.ic] : null; if (!L || !L.length) return "";
+  const esc = t => String(t).replace(/[^\w\/.-]/g, "");
+  return `<div style="margin-top:4px">${_t("messages")} : ` + L.map(x => pinned ? `<a href="https://t.me/${esc(x)}" target="_blank" rel="noopener noreferrer">t.me/${esc(x)}</a>` : `t.me/${esc(x)}`).join(" · ") + `</div>` +
+    (pinned ? "" : `<div style="color:var(--faint)">${_t("clic : liens cliquables")}</div>`);
+}
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  // info-bulle épinglée par un clic (liens Telegram cliquables) : on la garde tant que la souris reste à moins de 12 px
+  if (tip.classList.contains("pin")) { if (e.type === "mousemove" && tipKey && Math.hypot(tipKey[0] - mx, tipKey[1] - my) < 12) return; tip.classList.remove("pin"); }
   if (showImp && impHits.length) {
     let best = null, bd = 40; for (const h of impHits) { const dd = Math.hypot(h.x - mx, h.y - my); if (dd < bd) { bd = dd; best = h; } }
     if (best) {
@@ -1950,7 +1961,8 @@ function hover(e){
       tip.innerHTML = `<div>${_t(best.key === "ru" ? "sources russes, ce mois-ci : {a} mention(s) d'attaques ukrainiennes, {p} de présence ukrainienne" : "sources ukrainiennes, ce mois-ci : {a} mention(s) d'attaques russes, {p} de présence russe", {a: best.a, p: best.p})}</div>` +
         (best.recent && TG.recent ? `<div style="color:var(--faint)">${_t("30 derniers jours, jusqu'au {d}", {d: TG.recent.to})}</div>` : "") +
         `<div>${_t(best.kind === "cross" ? "présence signalée chez le camp adverse, à moins de 6 km de la ligne (traverse la ligne)" : best.kind === "same" ? "signalée de son propre côté (confirmation de contrôle)" : "attaques signalées près de la ligne, sans présence signalée (les attaques visent le terrain adverse)")}</div>` +
-        `<div style="color:var(--faint)">${_t("indique qu'un secteur va bouger, pas qui avance")}</div>`;
+        `<div style="color:var(--faint)">${_t("indique qu'un secteur va bouger, pas qui avance")}</div>` + tgLinks(best, e.type === "click");
+      if (e.type === "click") { tip.classList.add("pin"); tipKey = [mx, my]; }
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
     }
@@ -2114,7 +2126,8 @@ function hover(e){
 }
 canvas.addEventListener("mousemove", hover);
 canvas.addEventListener("click", hover);
-canvas.addEventListener("mouseleave", () => tip.style.display = "none");
+canvas.addEventListener("mouseleave", e => { if (e.relatedTarget && tip.contains(e.relatedTarget)) return; tip.style.display = "none"; tip.classList.remove("pin"); });
+tip.addEventListener("mouseleave", e => { if (e.relatedTarget === canvas) return; tip.style.display = "none"; tip.classList.remove("pin"); });
 $("legend").addEventListener("click", e => {
   const b = e.target.closest("[data-g]"); if (!b) return;
   const g = +b.dataset.g; lossOn[g] = !lossOn[g]; legend(); draw();

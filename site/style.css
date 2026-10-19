@@ -87,6 +87,8 @@ canvas{display:block;width:100%;touch-action:none;cursor:grab}
 .camp{font-style:normal;font-size:10px;padding:0 4px;border-radius:2px;border:1px solid var(--rule);color:var(--muted)}
 .camp.ua{color:var(--cool)}.camp.ru{color:var(--front)}.camp.ti{color:var(--accent)}
 .tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font:12px/1.45 "JetBrains Mono",monospace;color:var(--muted);min-width:190px;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;z-index:3}
+.tip.pin{pointer-events:auto}
+.tip a{color:var(--accent)}
 .tip b{color:var(--ink);font-weight:500}
 .tip .r{display:flex;justify-content:space-between;gap:12px}
 .chk{display:inline-flex;align-items:center;gap:6px;font:12px "JetBrains Mono",monospace;color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:5px 9px;cursor:pointer;background:var(--chip)}

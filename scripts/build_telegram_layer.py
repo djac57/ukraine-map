@@ -111,7 +111,8 @@ def aggregate(msgs, recent=None):
       ce  (AFFICHAGE, mailles) : mailles × mois (+ « 30j » si recent = (début, fin)), attribution à la phrase."""
     new = lambda: defaultdict(lambda: [0] * len(KINDS))  # noqa: E731
     tr, trd, ce = new(), new(), new()
-    for d, camp, ev_m, ev_s in msgs:
+    links = defaultdict(list)   # (maille, camp) → [(jour, canal, numéro)] sur les 30 derniers jours (attribution à la phrase)
+    for d, camp, ev_m, ev_s, *ref in msgs:
         for t, kinds in _bytr(ev_m).items():
             for pas, deb in (("mois", d[:7]), ("decade", decade(d))):
                 _add(tr, (pas, deb, t, camp), vec(kinds))
@@ -121,6 +122,9 @@ def aggregate(msgs, recent=None):
             _add(ce, ("mois", d[:7], c, camp), vec(kinds))
             if recent and recent[0] <= d <= recent[1]:
                 _add(ce, ("30j", recent[0], c, camp), vec(kinds))
+                if len(ref) == 2 and ref[1] is not None:
+                    links[(c, camp)].append((d, ref[0], ref[1]))
+    aggregate.links = links
     return tr, trd, ce
 
 
@@ -170,7 +174,8 @@ def read_posts(paths, cutoff, gaz):
             stat["localises_message"] += bool(ev_m)
             stat["localises"] += bool(ev_s)
             if ev_m or ev_s:
-                msgs.append((p["d"], p["camp"], ev_m, ev_s))
+                # référence publique du message (canal, numéro) pour le lien t.me/<canal>/<n> au survol (30 derniers jours)
+                msgs.append((p["d"], p["camp"], ev_m, ev_s, os.path.basename(path)[:-6], p.get("id")))
     return msgs, stat
 
 
@@ -215,7 +220,7 @@ def main():
               f"commune {lo} → {hi}", flush=True)
         windows.append((msgs, lo, hi, "collecte récente"))
 
-    recent = None
+    recent, recent_links = None, None
     for msgs, lo, hi, label in windows:
         rwin = ((dt.date.fromisoformat(hi) - dt.timedelta(days=RECENT_DAYS - 1)).isoformat(), hi)
         new_tr, new_trd, new_ce = aggregate(msgs, rwin if rwin[0] >= lo else None)
@@ -239,6 +244,7 @@ def main():
                 del rows_ce[k]
             rows_ce.update({k: v for k, v in new_ce.items() if k[0] == "30j"})
             recent = rwin
+            recent_links = getattr(aggregate, "links", {})
         rm = [d for p_, d in replaced if p_ == "mois"]
         print(f"{label} : {len(rm)} mois remplacés ({rm[0] if rm else '-'} → {rm[-1] if rm else '-'}), "
               f"{sum(1 for p_, _ in replaced if p_ == 'decade')} décades{', 30 derniers jours ' + str(rwin) if rwin[0] >= lo else ''}", flush=True)
@@ -279,6 +285,15 @@ def main():
           if pas == "30j" and any(sel(v))]
     cells_out = {"nx": T.NX, "camps": CAMPS, "months": months, "upto": upto, "m": cm,
                  "recent": {"from": recent[0], "to": recent[1], "rows": cr} if recent else None}
+    # liens vers les messages publics (au plus 3 par maille et par camp, les plus récents), décalage J-7 respecté ;
+    # sans nouvelle collecte, on garde ceux déjà publiés
+    if recent and recent_links is not None:
+        cells_out["recent"]["links"] = {f"{c},{CAMPS.index(camp)}": [f"{ch}/{mid}" for _, ch, mid in sorted(v, reverse=True)[:3]]
+                                        for (c, camp), v in sorted(recent_links.items()) if v}
+    elif recent and old_js is not None:
+        prev = (guard.published("telegram_cells.js", "TG_CELLS") or {}).get("recent") or {}
+        if prev.get("links") and prev.get("from") == recent[0]:
+            cells_out["recent"]["links"] = prev["links"]
     if old_js and not seed:
         old_cells = guard.published("telegram_cells.js", "TG_CELLS") or {}
         guard.check("build_telegram_layer.py", [("tronçons-mois (sources russes)", len(ru), len(old_js.get("ru", [])), "count"),
