@@ -14,6 +14,7 @@ from .terrain import Barrieres  # noqa: F401
 from .cartes import TemoinCartes  # noqa: F401
 from .figes import RGRID as FIGES_RGRID, PoidsCartesFiges, SecteursFiges  # noqa: F401
 from .videos import PresenceFilmee  # noqa: F401  (emplacement, DÉSACTIVÉ : autorisation GeoConfirmed non obtenue)
+from .regime import Regime  # noqa: F401  (v4 : régime du tronçon, mélange doux de deux jeux de poids)
 
 
 def catalogue():
@@ -46,5 +47,10 @@ def catalogue():
         Dynamique("kab_dyn", "Alertes KAB comme pression"),
         Dynamique("ookla_dyn", "Ookla : baisse des tests de débit comme pression"),
         Dynamique("nowcast", "Nowcast publié : témoin du décalage par rapport aux cartes"),
+        # v4 (20/10/2026)
+        Dynamique("crat", "Cratères Sentinel-2 v2 par côté (pression, densités, disponibilité par tronçon)"),
+        Dynamique("crat_large", "Cratères Sentinel-2 v2 par côté, strict + élargi (pression)"),
+        Dynamique("decade", "Vitesse du consensus à la décade (dernière décade du mois)"),
+        Dynamique("perime", "Avance périmée d'une carte (en avance depuis des mois sans confirmation)"),
         Barrieres("terrain", "Terrain dur (fleuves, escarpements, canaux)"),
     ]

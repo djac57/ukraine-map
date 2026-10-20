@@ -89,12 +89,16 @@ class Moteur:
             self._NB[t] = sparse.csr_matrix((V, (I, J)), shape=(n, n))
         return self._NB[t]
 
-    def run(self, position, dynamique, filtre=True, terrain=True, placebo=None, seed=0, figes=None, couplage=False):
+    def run(self, position, dynamique, filtre=True, terrain=True, placebo=None, seed=0, figes=None, couplage=False,
+            regime=None, regime_cartes=(), regime_poids=False):
         """position : noms des modèles de position ; dynamique : noms des modèles dynamiques ; placebo : None ou
         liste de noms dont les vraisemblances / variables sont PERMUTÉES entre tronçons du même mois ("figes" : biais
         des secteurs figés permutés) ; figes : None ou `obs.SecteursFiges` préparé (centre de la composante stable
         décalé de ρ·B_k dans les secteurs figés, ρ appris) ; couplage : log π_k ← log π_k + c · moyenne des voisins
-        (c appris), pour des tronçons courts (v2)."""
+        (c appris), pour des tronçons courts (v2) ; regime (v4) : None ou `obs.Regime` préparé (g par ligne, connu à t) ;
+        regime_cartes : parties (« mu », « pi ») de l'a priori des cartes dont les coefficients dépendent du régime
+        (a + g·a') ; regime_poids : poids des modèles de position et du filtre mélangés (1 − g)·w + g·w' (deux jeux
+        appris) ; placebo « regime » : g permuté entre tronçons du même mois."""
         C = self.C
         rng = np.random.default_rng(seed)
         pos = [n for n in position if n in self.LL and n != "terrain"]
@@ -105,6 +109,12 @@ class Moteur:
         dyn_eff = [_Perm(m, perm) if placebo and m.name in placebo else m for m in dyn]
         rec, post, wts, comp = {}, {}, {}, {}
         cartes = obs.TemoinCartes()
+        gfun = None
+        if regime is not None:
+            def gfun(t):
+                return regime(t, perm[t] if placebo and "regime" in placebo else None)
+            if regime_cartes:
+                cartes.gate = (gfun, tuple(regime_cartes))
         for t in C.months:
             cartes.fit(t, C, dyn_eff)
             lp = cartes.logprior(t, C, dyn_eff)
@@ -129,8 +139,9 @@ class Moteur:
                     pv = FKER @ pv
                     lf[i] = np.log(pv / max(pv.sum(), 1e-300) + 1e-6)
             d2 = np.array([C.d2.get((t, k), np.nan) for k in C.rows[t]])
-            rec[t] = {"lp": lp, "lpr": lpr, "lf": lf, "LL": LLs, "d2": d2, "NB": self.neighbours(t) if couplage else None}
-            w = self._learn(t, rec, pos, filtre, figes is not None, couplage)
+            rec[t] = {"lp": lp, "lpr": lpr, "lf": lf, "LL": LLs, "d2": d2, "NB": self.neighbours(t) if couplage else None,
+                      "g": gfun(t) if (gfun is not None and regime_poids) else None}
+            w = self._learn(t, rec, pos, filtre, figes is not None, couplage, regime_poids and gfun is not None)
             wts[t] = w
             post[t] = _norm(self.logpost(rec[t], w, pos))
         self.cartes = cartes
@@ -143,8 +154,21 @@ class Moteur:
         ww = dict(w)
         if drop:
             ww[drop] = 0.0
+            ww[drop + "@o"] = 0.0
         lp = r["lp"] if r.get("lpr") is None else r["lpr"][int(round(ww.get("_figes", 0.0) / 0.25))]
-        L = lp + ww.get("_filtre", 0.0) * r["lf"] + sum(ww.get(n, 0.0) * r["LL"][n] for n in pos if ww.get(n, 0.0))
+        g = r.get("g")
+        if g is None:
+            L = lp + ww.get("_filtre", 0.0) * r["lf"] + sum(ww.get(n, 0.0) * r["LL"][n] for n in pos if ww.get(n, 0.0))
+        else:       # v4 : poids selon le régime, mélange doux (1 − g)·w + g·w'
+            gc = np.asarray(g, float)[:, None]
+
+            def cw(n):
+                a, b = ww.get(n, 0.0), ww.get(n + "@o", ww.get(n, 0.0))
+                return a if a == b else (1 - gc) * a + gc * b
+            L = lp + cw("_filtre") * r["lf"]
+            for n in pos:
+                if ww.get(n, 0.0) or ww.get(n + "@o", 0.0):
+                    L = L + cw(n) * r["LL"][n]
         c = ww.get("_couplage", 0.0)
         if c and r.get("NB") is not None:      # mélange géométrique avec la moyenne des voisins (netteté conservée)
             L = _lnorm(L)
@@ -152,7 +176,7 @@ class Moteur:
             L = np.where(has[:, None], (1 - c) * L + c * (r["NB"] @ L), L)
         return L
 
-    def _learn(self, t, rec, pos, filtre, figes=False, couplage=False):
+    def _learn(self, t, rec, pos, filtre, figes=False, couplage=False, gated=False):
         past = [q for q in rec if t - 24 <= q <= t - H]
         w = {n: 0.0 for n in pos}
         if filtre:
@@ -161,6 +185,9 @@ class Moteur:
             w["_figes"] = 0.0
         if couplage:
             w["_couplage"] = 0.0
+        gk = (["_filtre"] if filtre else []) + list(pos) if gated else []
+        for n in gk:
+            w[n + "@o"] = 0.0
         if len(past) < 6:
             return w
         ok = np.concatenate([np.isfinite(rec[q]["d2"]) for q in past])
@@ -173,9 +200,11 @@ class Moteur:
         jt = np.clip(np.round((d2 - DGRID[0]) / 0.5).astype(int), 0, ND - 1)
         K = KER[jt]
         dec = np.concatenate([np.full(len(rec[q]["d2"]), 0.5 ** ((t - q) / 12)) for q in past])[ok]
-        big = {"lp": lp, "lpr": lpr, "lf": lf, "LL": LL, "NB": NB}
+        g = np.concatenate([rec[q]["g"] for q in past]) if gated else None
+        big = {"lp": lp, "lpr": lpr, "lf": lf, "LL": LL, "NB": NB, "g": g}
         if not couplage:      # sans couplage, seules les lignes de vérité connue comptent (comme v1)
-            big = {"lp": lp[ok], "lpr": None if lpr is None else lpr[:, ok], "lf": lf[ok], "LL": {n: v[ok] for n, v in LL.items()}, "NB": None}
+            big = {"lp": lp[ok], "lpr": None if lpr is None else lpr[:, ok], "lf": lf[ok], "LL": {n: v[ok] for n, v in LL.items()}, "NB": None,
+                   "g": None if g is None else g[ok]}
 
         def score(ww):
             L = self.logpost(big, ww, pos)
@@ -187,9 +216,11 @@ class Moteur:
             return float(np.sum(dec * np.log((P * K).sum(1) + 1e-12)))
         best = score(w)
         keys = (["_filtre"] if filtre else []) + (["_figes"] if figes else []) + (["_couplage"] if couplage else []) + pos
+        keys = keys + [n + "@o" for n in gk]
         for _ in range(2):
             for n in keys:
-                grid = KGRID if n == "terrain" else obs.FIGES_RGRID if n == "_figes" else CGRID if n == "_couplage" else WGRID
+                b_ = n[:-2] if n.endswith("@o") else n
+                grid = KGRID if b_ == "terrain" else obs.FIGES_RGRID if n == "_figes" else CGRID if n == "_couplage" else WGRID
                 for v in grid:
                     if v == w[n]:
                         continue

@@ -1027,6 +1027,48 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   km². Procédure (`app.js`, contrôle bloquant `check_fusion()` dans `check_arrows.py`) : rapport § « v3 », point 5.
   Build réel : `build_fusion.py --kpi` 154 s, `build_kmchange.py` (vues `fusion_esperance`, `fusion_p50` ajoutées,
   format inchangé), `stamp.py`, `check_arrows.py` : 0 échec sur 2 524.
+- 20/10/2026 (soir) : **MOTEUR DE FUSION v4 testé, NON basculé : la v3 reste le modèle de la carte** (demande de
+  l'utilisateur : quatre pistes, chacune seule puis combinées ; détail : `ukraine-recherche/analyses/fusion/RAPPORT.md`
+  § « v4 »). Protocole : entrées figées (scratchpad `fv4/k4` = `fv3/k3` + `crateres_points.js` à deux niveaux), banc
+  `fv4/exp4.py`, réglage 2023-24 puis gelé 2025-26, règle de v3 fixée d'avance ; **21 variantes + 4 placebos**. Code
+  ajouté derrière des options ÉTEINTES (v3 rejouée identique au chiffre près) ; GeoConfirmed non utilisé.
+  (1) **Régime du secteur** (`fusion/obs/regime.py`, mélange doux, g = 1 − exp(−O/2 km), O = mouvement soutenu du
+  consensus sur 6 mois, tronçon + voisins, connu à t) : candidat r9 = coefficients de μ des cartes a + g·a' et poids
+  des modèles de position / du filtre (1 − g)·w + g·w'. 2023-24 / 2025-26 : Brier ≤ 30 km 0,03404 → 0,03354 / 0,02505 →
+  0,02479 ; mailles qui changent t+2 0,3658 → 0,3557 / 0,3249 → 0,3207 ; P10 93,0 → 92,8 / **91,7 → 90,9 %** (secteurs
+  < 90 % 3 → 5) ; corrélation au consensus +0,0001 / +0,0004 ; km² `akm` 30 j p80 481 → 563 / **417 → 590** (écart
+  moyen +54 ± 31 km² en 2025-26), 12 m 1 006 → 865 / 668 → 772 (bruit) ; délai des bascules 23,4 → 24,9 j / 44,8 →
+  46,3 j (vues avant 32,9 → 35,6 % / 52,6 → 55,1 %, fausses alarmes +0,02 / +0,05 pt). PLACEBO (g permuté) : la moitié
+  du gain de 2023-24, rien en 2025-26 (0,3232). Variantes P(mouvement) publiée, « ou » des deux, O₀ = 4, π seul : non
+  retenues. `kpi_avance.py` (KPI_CHAMP=fusion, pas mensuel) : v3 +3,15 / +2,70 → r9 **+2,87 / +3,51** (h = 2 +3,04 /
+  +6,48 → +2,67 / +7,65). « Avance périmée d'une carte » (`perime`) : échoue.
+  (2) **Cratères S2 v2** (pression par côté, densités par km² comparés, indicatrice « observé » par tronçon-mois,
+  strict et strict + élargi) : 2023-24 Brier ≤ 30 km +0,00016 (échoue) ; 2025-26 changent 0,3249 → 0,3189 mais Brier
+  ≤ 30 km 0,02505 → 0,02529 ; sur les seuls tronçons observés : mieux sur ce qui bouge, moins bien sur le stable. Non
+  retenus ; évaluables seulement depuis 2024-07 (19 mois avec détections, hivers presque vides).
+  (3) **Résolution temporelle** : pas de 3 jours ABSENTS du `front.js` local (CI du 20/10 non redescendue) ; repli sur
+  le consensus reconstruit aux décades (`analyses/sens/y_dec.csv`) : aucun gain (délai +0,4 / +0,1 j) ; non portable.
+  (4) **Avancée partielle centrée** (`champ.PROFIL` « pic ») : 4 variantes, dans le bruit ou pire ; non retenue.
+  Combinées (tout ; tout avec μ seul ; r9 + profil) : k2 meilleur sur Pokrovsk 2025 (0,228) et changent 2025-26 (0,3140)
+  mais échoue en 2023-24 (P10 92,4) ; r9 + profil ≈ r9.
+  Événements (changent, v3 → r9 ; nowcast) : Pokrovsk 2024 0,329 → 0,269 (0,467) ; Pokrovsk 2025 0,282 → 0,260
+  (**0,181**) ; Avdiïvka 0,457 → 0,429 (0,203) ; Antonivka–Kozatske 0,374 → 0,370 ; Lyman (boîte 2025-26) toutes mailles
+  0,0532 → 0,0484 (0,0365), changent 0,235 → 0,296 (0,314) ; Koursk hors domaine (pas de vérité en Russie).
+  **Lyman / Vivaldi 2026 (cas prioritaire, évaluation seulement)** : le consensus ne montre pas Vivaldi avant le
+  10/10/2026 (mailles qui changent non évaluables) ; surface reprise (définition de `check_arrows.py`) cartes 55 km²,
+  nowcast 140, **v3 188** (champ publié), r9 213, attendu 150-280. **Les ALERTE Vivaldi de `check_arrows.py` sont
+  calculées sur le champ des CARTES** (`app.js` : `__uafArea`, `__uafArrows` → `fullField("equilibre")`) : elles ne
+  mesurent ni la fusion ni le nowcast (à corriger dans `app.js` / `check_arrows.py` par l'utilisateur pour tester la
+  vue affichée). Ce qui est « perdu » : la fusion garde plus de surface russe que le nowcast dans le saillant toute
+  l'année 2026 (juillet 943 contre 849 km²), tronçon (576, 192) poussé de +3,5 à +7,5 km par l'avance non confirmée de
+  DeepState ; v4 ne le corrige pas.
+  Sens tiré de la loi de δ (pour l'affichage du sens ; non branché) : AUC P(reprise UA ≥ 1 km) 0,94 / 0,97, AUC du sens
+  parmi les tronçons qui bougent 0,83 / 0,94 (v3 ; r9 0,85 / 0,93), calibration correcte en 2025-26 ; il ne voit pas
+  Vivaldi (P_UA ≤ 0,10).
+  **Décision : v3 garde la production** (r9 meilleur sur ce qui bouge mais moins bon sur les km² à 30 jours et la
+  couverture P10 2025-26, et pas moins dépendant des cartes) ; `build_fusion.py` : interrupteur `REGIME = None`
+  (candidat documenté). `site/front_fusion.js`, `fusion_explain.js`, `kmchange.js` non régénérés ; `build_fusion.py
+  --no-write` vérifié.
 ---
 
 ## 7. Signaux testés
@@ -1158,6 +1200,10 @@ gains walk-forward ; voir le bilan ci-dessus) :
      `check_fusion()` : rapport de fusion § v3, point 5 (à faire par l'utilisateur : `app.js`, `index.html`, `i18n.js`,
      `check_arrows.py`, CI). Restent ouverts : forme locale du décalage ; bascules de Pokrovsk 2025 (0,315 contre
      0,199 pour le nowcast) ; biais 12 mois des km² (+190 contre +65).
+   - **v4 du 20/10/2026** (§ 6) : régime du secteur (meilleur sur ce qui bouge, moins bon sur les km² à 30 j et P10),
+     cratères v2, décades, avancée partielle centrée : rien de basculé, v3 reste. Ouverts : Pokrovsk 2025 (0,260 contre
+     0,181), avance non confirmée de DeepState à Lyman, contrôles Vivaldi de `check_arrows.py` à brancher sur la vue
+     affichée.
 1. **« Qui avait raison »** : **MESURÉ le 19/10/2026**, c'est le nouveau KPI principal « avance sur les cartes »
    (§ 4, § 6 ; `scripts/kpi_avance.py`, `ukraine-recherche/analyses/kpi_avance/RAPPORT.md`).
    - **Valeur de référence** (site du 18/10, pas mensuel, h = 1 mois, 2023-01 → 2026-08) :

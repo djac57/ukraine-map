@@ -27,6 +27,16 @@ class TemoinCartes:
     def __init__(self, win=24, thr=1.0, lam_pi=3.0, lam_mu=10.0, nu=4.0):
         self.win, self.thr, self.lam_pi, self.lam_mu, self.nu = win, thr, lam_pi, lam_mu, nu
         self.params = {}
+        # v4 (régime) : None, ou (fonction t -> g par ligne du mois t, parties concernées « mu » / « pi ») : les
+        # coefficients de π et de μ deviennent a + g·a' (mélange doux de deux régimes, variables [X, g, g·X])
+        self.gate = None
+
+    def _Xg(self, dyn, t, part, mask=None):
+        X = self._X(dyn, t, part, mask)
+        if self.gate is None or part not in self.gate[1]:
+            return X
+        g = np.asarray(self.gate[0](t), float)[:, None]
+        return np.c_[X, g, g * X]
 
     @staticmethod
     def _X(dyn, t, part, mask=None):
@@ -59,7 +69,7 @@ class TemoinCartes:
                 continue
             y.append(d[ok])
             if dyn:
-                Xp.append(self._X(dyn, q, "pi", cm_pi)[ok]); Xm.append(self._X(dyn, q, "mu", cm_mu)[ok])
+                Xp.append(self._Xg(dyn, q, "pi", cm_pi)[ok]); Xm.append(self._Xg(dyn, q, "mu", cm_mu)[ok])
         if not y or sum(len(a) for a in y) < 200:
             self.params[t] = None
             return None
@@ -70,7 +80,8 @@ class TemoinCartes:
         mv = np.abs(y) >= self.thr
         st = ~mv
         b0 = float(np.mean(y[st])); s0 = max(float(np.std(y[st])), 0.25)
-        P = {"b0": b0, "s0": s0, "n": n, "taux_mvt": float(mv.mean()), "cm_mu": cm_mu, "cm_pi": cm_pi}
+        P = {"b0": b0, "s0": s0, "n": n, "taux_mvt": float(mv.mean()), "cm_mu": cm_mu, "cm_pi": cm_pi,
+             "gate": None if self.gate is None else tuple(self.gate[1])}
         # π
         if Xp.shape[1]:
             mu_p, sd_p = Xp.mean(0), np.where(Xp.std(0) < 1e-9, 1, Xp.std(0))
@@ -105,7 +116,7 @@ class TemoinCartes:
             return np.full(n, 3.0)
         if "ws" not in P:
             return np.full(n, P["s1"])
-        Xp = self._X(dyn, t, "pi", P["cm_pi"])
+        Xp = self._Xg(dyn, t, "pi", P["cm_pi"])
         lv = P["ws"][0] + ((Xp - P["mu_p"]) / P["sd_p"]) @ P["ws"][1:] + P["ws_off"]
         return np.clip(np.sqrt(np.exp(lv)), 0.8, 12.0)
 
@@ -116,13 +127,13 @@ class TemoinCartes:
         if P is None:
             return np.full(n, 0.15), np.zeros(n), None
         if "mu_p" in P:
-            Xp = self._X(dyn, t, "pi", P["cm_pi"])
+            Xp = self._Xg(dyn, t, "pi", P["cm_pi"])
             z = P["wp"][0] + ((Xp - P["mu_p"]) / P["sd_p"]) @ P["wp"][1:]
         else:
             z = np.full(n, P["wp"][0])
         pi = 1 / (1 + np.exp(-np.clip(z, -20, 20)))
         if "mu_m" in P:
-            Xm = self._X(dyn, t, "mu", P["cm_mu"])
+            Xm = self._Xg(dyn, t, "mu", P["cm_mu"])
             mu = P["wm"][0] + ((Xm - P["mu_m"]) / P["sd_m"]) @ P["wm"][1:]
         else:
             mu = np.full(n, P["wm"][0])

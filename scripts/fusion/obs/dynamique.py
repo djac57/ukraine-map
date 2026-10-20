@@ -49,6 +49,9 @@ def tile_neighbours(r=None, w_nb=0.3):
     return nb
 
 
+_TEMOINS = {}      # v4 : variables du modèle « temoins » (préparé avant « perime » dans le catalogue)
+
+
 class Dynamique:
     KIND = "dynamique"
 
@@ -224,6 +227,89 @@ class Dynamique:
             self.F[t] = {"mu": v[:, None], "pi": np.abs(v)[:, None]}
         self.mu_names, self.pi_names = ["δ nowcast publié"], ["|δ nowcast publié|"]
 
+    def _crat(self, C, niveau):
+        """v4 : cratères S2 v2 comme PRESSION PAR CÔTÉ (`donnees.crateres_troncons`) : densités par 100 km² comparés,
+        d_RU et d_UA ; μ ← a·(log(1 + d_RU) − log(1 + d_UA)) et a ; π ← a·log(1 + d_RU + d_UA) et a, où a = 1 si le tronçon
+        a été observé des deux côtés ce mois-là (sinon 0 : ABSENT, pas « zéro cratère »). L'indicatrice a garde à part
+        les tronçons-mois sans observation (passé 2023-24 compris) : l'absence n'est ni une pénalité ni un calme. Mois sans
+        aucune observation : variables retirées (v2)."""
+        D, cv = DN.crateres_troncons(niveau)
+        self.cover = cv
+        for t in C.months:
+            n = len(C.rows[t])
+            mu, pi = np.zeros((n, 2)), np.zeros((n, 2))
+            for i, k in enumerate(C.rows[t]):
+                v = D.get((t, k))
+                if v is None or v[2] < 20 or v[3] < 20:
+                    continue
+                dr, du = 100 * v[0] / v[2], 100 * v[1] / v[3]
+                mu[i] = (np.log1p(dr) - np.log1p(du), 1.0)
+                pi[i] = (np.log1p(dr + du), 1.0)
+            self.F[t] = {"mu": mu, "pi": pi}
+        lab = "cratères S2 v2" + (" (strict + élargi)" if niveau > 1 else "")
+        self.mu_names = [f"{lab} : log densité RU − UA", f"{lab} : observé"]
+        self.pi_names = [f"{lab} : log densité totale", f"{lab} : observé"]
+
+    def _prep_crat(self, C):
+        self._crat(C, 1)
+
+    def _prep_crat_large(self, C):
+        self._crat(C, 2)
+
+    def _prep_decade(self, C):
+        """v4 (résolution temporelle) : vitesse du consensus des cartes à la DÉCADE dans le tronçon (`donnees.
+        consensus_decades`) : dernière décade du mois v_d = Y_fin − Y_20 et accélération v_d − (Y_20 − Y_10), en km de
+        profondeur (> 0 = gain russe) dans μ, leurs |·| dans π. Connu à la fin du mois t (dates ≤ fin du mois)."""
+        D = DN.consensus_decades()
+        self.cover = np.array([t in C.rows and any((t, int(S.tiles[k])) in D for k in C.rows[t]) for t in range(S.NM)])
+        for t in C.months:
+            mu = []
+            for k in C.rows[t]:
+                v = D.get((t, int(S.tiles[k])))
+                if v is None:
+                    mu.append([0.0, 0.0]); continue
+                vd, vp = v[2] - v[1], v[1] - v[0]
+                mu.append([vd, vd - vp])
+            mu = np.clip(np.array(mu, float).reshape(-1, 2), -12, 12)
+            self.F[t] = {"mu": mu, "pi": np.abs(mu)}
+        self.mu_names = ["consensus : vitesse dernière décade", "consensus : accélération (décade)"]
+        self.pi_names = ["|vitesse dernière décade|", "|accélération décade|"]
+
+    def _prep_perime(self, C):
+        """v4 (régime du TÉMOIN) : avance PÉRIMÉE d'une carte. Pour la carte m (DeepState, ISW, Wikipédia) et le tronçon k,
+        part pondérée (demi-vie 6 mois, mois q ∈ [t − 12, t − 2], vérité à q + 2 connue à t) des mois où la carte était en
+        avance (|δ_m| ≥ 1 km) sans que le consensus ne la rejoigne (δ vrai de même signe ≥ la moitié de δ_m : non),
+        rétrécie × n/(n + 3) : S_m,k(t). μ ← δ_m(t)·S_m,k(t) (une avance qui ne s'est pas confirmée depuis des mois pèse
+        moins : coefficient appris, attendu négatif) ; π ← |δ_m(t)|·S_m,k(t). Rien n'est réglé sur un secteur."""
+        TF, TC = _TEMOINS["F"], _TEMOINS["colm"]
+        self.cover = np.array([t in C.rows for t in range(S.NM)])
+        for t in C.months:
+            n = len(C.rows[t])
+            dl = TF[t]["mu"][:, :3]
+            st = np.zeros((n, 3))
+            past = [q for q in C.months if t - 12 <= q <= t - 2]
+            for i, k in enumerate(C.rows[t]):
+                for mi in range(3):
+                    num = den = 0.0
+                    for q in past:
+                        j = C.rpos[q][k]
+                        if j < 0:
+                            continue
+                        dm = TF[q]["mu"][j, mi]
+                        dv = C.d2.get((q, k))
+                        if dv is None or abs(dm) < 1.0 or not TF[q]["mu"][j, 3 + mi]:
+                            continue
+                        w = 0.5 ** ((t - q) / 6)
+                        den += w
+                        num += w * float(not (np.sign(dv) == np.sign(dm) and abs(dv) >= 0.5 * abs(dm)))
+                    st[i, mi] = (num / den) * den / (den + 3.0) if den else 0.0
+            mu = dl * st
+            self.F[t] = {"mu": mu, "pi": np.abs(mu)}
+            on = np.asarray(TC[t][0][:3], bool)
+            self.colm[t] = (on, on)
+        self.mu_names = ["δ DeepState × périmé", "δ ISW × périmé", "δ Wikipédia × périmé"]
+        self.pi_names = ["|δ DeepState| × périmé", "|δ ISW| × périmé", "|δ Wikipédia| × périmé"]
+
     def _prep_tg_oriente(self, C):
         A = {c: DN.brut("tg_" + c)[0] for c in ("att_ua", "att_ru", "pres_ua", "pres_ru")}
         self.cover = DN.brut("tg_att_ua")[1]
@@ -351,6 +437,7 @@ class Dynamique:
             self.off[t] = (onum / oden if oden else onum).astype(np.float32)
             self.offm[t], self.stm[t] = offm, stm
             self.F[t] = {"mu": np.c_[dl, av], "pi": np.c_[np.abs(dl), spread]}
+        _TEMOINS["F"], _TEMOINS["colm"] = self.F, self.colm
         self.mu_names = ["δ DeepState", "δ ISW", "δ Wikipédia", "DeepState présent", "ISW présent", "Wikipédia présent"]
         self.pi_names = ["|δ DeepState|", "|δ ISW|", "|δ Wikipédia|", "désaccord des cartes"]
 

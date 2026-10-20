@@ -25,13 +25,15 @@ CODES = {
     "C2": "cratères Sentinel-2 v2 par côté (pression)", "Tm": "Telegram orienté (attribution au message)",
     "Kd": "alertes KAB (pression)", "Ok": "Ookla : baisse des tests de débit (pression)",
     "Nw": "nowcast publié (décalage par rapport aux cartes)",
+    "Cr": "cratères Sentinel-2 v2 par côté (pression)", "Dd": "vitesse des cartes à la décade",
+    "Pe": "avance d'une carte non confirmée depuis des mois (périmée)",
 }
 POS_CODE = {"feux": "F", "ucdp": "U", "pertes": "P", "em_assauts": "A", "em_frappes": "Fa", "modru": "M", "artillerie": "Ar",
             "kab": "K", "radar_bati": "R", "tg": "T", "terrain": "Te", "_filtre": "Mem", "_figes": "Fg",
             "_couplage": "Vo"}
 DYN_CODE = {"memoire": "Me", "mouvement": "Vi", "asymetrie": "As", "impacts_s2": "S2", "s2_sens": "S2", "tg_oriente": "To",
             "liste_dyn": "Li", "activite": "Ac", "assauts_dyn": "Aa", "s2v2": "C2", "tg_msg": "Tm", "kab_dyn": "Kd",
-            "ookla_dyn": "Ok", "nowcast": "Nw"}
+            "ookla_dyn": "Ok", "nowcast": "Nw", "crat": "Cr", "crat_large": "Cr", "decade": "Dd", "perime": "Pe"}
 
 
 def _q(P, a):
@@ -65,6 +67,10 @@ def contributions(M, R, t):
         coef = P["wm"][1:] / P["sd_m"]
         j = 0
         cm = P.get("cm_mu")
+        gated = bool(P.get("gate")) and "mu" in P["gate"]
+        if gated:                                       # v4 : variables [X, g, g·X] (régime) ; nb = colonnes de base
+            nb = (len(coef) - 1) // 2
+            g = np.asarray(M.cartes.gate[0](t), float)
         for m in R["dyn_models"]:
             X = m.features(t)["mu"]
             if not X.shape[1]:
@@ -75,6 +81,9 @@ def contributions(M, R, t):
             if not nc:
                 continue
             part = coef[j:j + nc] * (X[:, src] - P["mu_m"][j:j + nc])  # n × nc (sources absentes : aucune colonne)
+            if gated:
+                o = nb + 1 + j
+                part = part + coef[o:o + nc] * (g[:, None] * X[:, src] - P["mu_m"][o:o + nc])
             if m.name == "temoins":
                 groups = (("Ds", [0, 3]), ("Is", [1, 4]), ("Wk", [2, 5]))
             else:

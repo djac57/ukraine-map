@@ -74,6 +74,11 @@ KM_SANS_BETA = True
 #  - FIGES_DELTA : biais durable appris dans le décalage δ des secteurs figés (`figes.SecteursFiges`) ; None : désactivé.
 POIDS_FIGES = dict(W=6, nthr=2, n0=200.0)
 FIGES_DELTA = None
+# v4 (20/10/2026, docs/ETAT.md § 6, rapport de fusion § v4) : RÉGIME du tronçon (`fusion/obs/regime.py`, mélange doux
+# calme / offensive en cours, g connu à t). Candidat évalué : dict(mode="mvt", O0=2.0, cartes=("mu",), poids=True)
+# (meilleur sur les mailles qui changent, Pokrovsk, Avdiïvka, délai ; moins bon sur l'erreur des km² à 30 jours et la
+# couverture P10 en 2025-26) : NON basculé, v3 reste en production. None : v3.
+REGIME = None
 
 
 def log(*a):
@@ -94,7 +99,12 @@ def main():
         f"{S.nT} tuiles ({time.time() - T0:.0f} s)")
     M = Moteur(set(POS_PROD) | set(DYN_PROD))
     fgd = M.figes(**FIGES_DELTA) if FIGES_DELTA else None
-    R = M.run(POS_PROD, DYN_PROD, figes=fgd)
+    rkw = {}
+    if REGIME:
+        from fusion import obs as OBS
+        rkw = dict(regime=OBS.Regime(mode=REGIME["mode"], O0=REGIME["O0"]).prepare(M.C),
+                   regime_cartes=tuple(REGIME.get("cartes", ())), regime_poids=bool(REGIME.get("poids")))
+    R = M.run(POS_PROD, DYN_PROD, figes=fgd, **rkw)
     log(f"moteur : loi a posteriori de δ, {len(M.C.months)} mois ({time.time() - T0:.0f} s)")
     pk = M.poids_figes(**POIDS_FIGES) if POIDS_FIGES else None
     CH = CHM.Champ(M, R, figes=pk)

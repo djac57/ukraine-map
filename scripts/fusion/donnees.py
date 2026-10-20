@@ -281,6 +281,103 @@ def nowcast_shift():
     return out
 
 
+def crateres_troncons(niveau=1, a_min=20.0):
+    """v4 : cratères Sentinel-2 v2 par tronçon du moteur × côté × mois.
+
+    Comptes : positions publiées (`site/crateres_points.js`, niveau 1 = stricte, 2 = élargie ; on garde niveau ≤
+    `niveau`), côté = signe de la distance à la ligne des CARTES du mois (champ équilibré, comme le détecteur), mailles
+    à ≤ 15 km. Surface comparée (km² × passages) : `data/impacts_troncons_decades_v2.csv` (s2_km2, secteurs de 20 km,
+    sommés sur les décades du mois, répartis sur les tronçons au prorata des mailles). Un tronçon-mois-côté n'est
+    « disponible » que si sa surface comparée atteint `a_min` des deux côtés (nuages, neige : absent ≠ zéro).
+    Renvoie ({(t, k): (n_ru, n_ua, a_ru, a_ua)}, couverture par mois)."""
+    key = ("crat", niveau)
+    if key in _MEM:
+        return _MEM[key]
+    path = os.path.join(SITE, "crateres_points.js")
+    pathc = os.path.join(DATA, "impacts_troncons_decades_v2.csv")
+    out, cover = {}, np.zeros(NM, bool)
+    if not (os.path.exists(path) and os.path.exists(pathc)):
+        _MEM[key] = (out, cover)
+        return _MEM[key]
+    import datetime as _dt
+    D = _site("crateres_points.js")
+    d0 = _dt.date.fromisoformat(D["d0"])
+    cols = D["cols"]
+    P = np.array(D["pts"], np.float64).reshape(-1, len(cols))
+    lv = P[:, cols.index("niveau")] if "niveau" in cols else np.ones(len(P))
+    P = P[lv <= niveau]
+    day = P[:, cols.index("jour")].astype(int)
+    mon = np.array([S.midx.get((d0 + _dt.timedelta(days=int(x))).isoformat()[:7], -1) for x in day], np.int64)
+    z = _cells_to_z(S.cell_of(P[:, cols.index("lon_e4")] / 1e4, P[:, cols.index("lat_e4")] / 1e4))
+    cnt = {}
+    for t_, z_ in zip(mon, z):
+        if t_ < 0 or z_ < 0 or t_ not in S.built:
+            continue
+        sd = S.SDe[t_][z_]
+        if not np.isfinite(sd) or abs(sd) > 15:
+            continue
+        k = int(S.tinv[z_])
+        v = cnt.setdefault((int(t_), k), [0.0, 0.0])
+        v[0 if sd > 0 else 1] += 1.0
+    # surface comparée par secteur de 20 km × côté × mois, répartie sur les tronçons
+    area = {}
+    for r in csv.DictReader(open(pathc, encoding="utf-8")):
+        t_ = S.midx.get(r["decade"][:7])
+        if t_ is None:
+            continue
+        a_, b_ = map(int, r["sec"].split("_"))
+        kk = (t_, a_ * 1000 + b_, r["side"])
+        area[kk] = area.get(kk, 0.0) + float(r["s2_km2"] or 0)
+    secZ = ((S.jj // 10) * 1000 + S.ii // 10)[S.Zi]
+    nsec = {}
+    for s_ in secZ:
+        nsec[int(s_)] = nsec.get(int(s_), 0) + 1
+    comp = {}
+    for s_, k_ in zip(secZ, S.tinv):
+        d = comp.setdefault(int(k_), {})
+        d[int(s_)] = d.get(int(s_), 0) + 1
+    tm = sorted({kk[0] for kk in area})
+    for t_ in tm:
+        if t_ not in S.built:
+            continue
+        for k, d in comp.items():
+            ar = {"RU": 0.0, "UA": 0.0}
+            for s_, n in d.items():
+                for side in ar:
+                    ar[side] += area.get((t_, s_, side), 0.0) * n / nsec[s_]
+            if ar["RU"] <= 0 and ar["UA"] <= 0:
+                continue
+            c = cnt.get((t_, k), [0.0, 0.0])
+            out[(t_, k)] = (c[0], c[1], ar["RU"], ar["UA"])
+            if ar["RU"] >= a_min and ar["UA"] >= a_min:
+                cover[t_] = True
+    _MEM[key] = (out, cover)
+    return _MEM[key]
+
+
+def consensus_decades():
+    """v4 (piste « résolution temporelle ») : profondeur russe Y du consensus des cartes par tuile de 24 km aux dates 10,
+    20 et fin de mois. Source : fichier FUSION_DECADES (défaut `data/consensus_decades.csv`, colonnes date, k, Y, unk ;
+    k = code de tuile (j // 12)·1000 + i // 12), reconstruit hors dépôt par `ukraine-recherche/analyses/sens/truth_dec.py`
+    (VIINA). Renvoie {(t, code): (Y_10, Y_20, Y_fin)} pour les mois où les trois décades existent (connues à la fin du
+    mois t : aucune information postérieure)."""
+    if "ydec" in _MEM:
+        return _MEM["ydec"]
+    path = os.environ.get("FUSION_DECADES") or os.path.join(DATA, "consensus_decades.csv")
+    raw = {}
+    if os.path.exists(path):
+        for r in csv.DictReader(open(path, encoding="utf-8")):
+            t_ = S.midx.get(r["date"][:7])
+            if t_ is None:
+                continue
+            dd = int(r["date"][8:10])
+            slot = 0 if dd == 10 else 1 if dd == 20 else 2
+            raw.setdefault((t_, int(r["k"])), [None, None, None])[slot] = float(r["Y"])
+    out = {kk: tuple(v) for kk, v in raw.items() if all(x is not None for x in v)}
+    _MEM["ydec"] = out
+    return out
+
+
 LOADERS = {
     "feux": load_feux, "ucdp": load_ucdp, "pertes": load_pertes,
     "em_assauts": lambda: load_officiel("etatmajor_assauts"), "em_frappes": lambda: load_officiel("etatmajor_frappes"),

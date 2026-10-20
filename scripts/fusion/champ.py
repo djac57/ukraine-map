@@ -43,7 +43,7 @@ def eval_cells(t):
 SPREAD = {"mode": "both"}
 # v3 (20/10/2026) : profil du décalage le long de la ligne (None : δ uniforme par tronçon, v2) ; contrainte de km² dans le
 # choix des paramètres du champ (None : v2)
-PROFIL = {"mode": None, "alpha": 0.0}
+PROFIL = {"mode": None, "alpha": 0.0}       # v4 : mode « pic » (profil localisé, clés L et w_act en plus)
 CHOIX = {"km_tol": None}
 
 
@@ -143,12 +143,22 @@ class Champ:
         intensité locale des combats ("act", log(1 + feux + UCDP + assauts) lissé). Aucun paramètre appris par tronçon :
         α (poids du profil) est fixé sur 2023-2024. Une partie du tronçon bouge (là où la ligne bougeait / où l'on se
         bat), le reste non ; la médiane du tronçon est conservée en moyenne."""
-        key = (t, PROFIL["mode"])
+        key = (t, PROFIL["mode"], PROFIL.get("L"), PROFIL.get("w_act"))
         cache = self.__dict__.setdefault("_pf", {})
         if key in cache:
             return cache[key]
         sd = np.nan_to_num(S.SDe[t], nan=999)
         near = np.abs(sd) <= 6.0
+        if PROFIL["mode"] == "pic":
+            r = self._r_pic(t, sd, near)
+            med = median_of(self.R["post"][t])
+            pc, pr, pw = self.pairs(t)
+            mn = np.bincount(pc, weights=pw * med[pr], minlength=S.nZ)
+            md = np.bincount(pc, weights=pw, minlength=S.nZ)
+            m = np.where(md > 1e-9, mn / np.maximum(md, 1e-12), 0.0)
+            out = ((r - 1.0) * m * (np.abs(sd) <= 30)).astype(np.float64)
+            cache[key] = out
+            return out
         if PROFIL["mode"] == "vit":
             a, eps = np.abs(self.M.vloc(t)).astype(np.float64), 0.25
         else:
@@ -172,6 +182,42 @@ class Champ:
         out = ((r - 1.0) * m * (np.abs(sd) <= 30)).astype(np.float64)
         cache[key] = out
         return out
+
+    def _r_pic(self, t, sd, near):
+        """v4 (avancée PARTIELLE centrée) : profil r(x) LOCALISÉ autour du point le plus actif du tronçon. Score
+        h(x) = bascules récentes du consensus (mailles dont l'état a changé entre t − 2 et t, connues à t) + w_a ×
+        intensité des combats log(1 + feux + UCDP + assauts), lissé (σ = 2 mailles) ; x*_k = maille proche de la ligne
+        (≤ 6 km) de score maximal dans le tronçon ; r(x) = K(x − x*_k) / moyenne du tronçon de K, K gaussien de largeur
+        L km, borné à [0 ; 3]. Sans bascule ni combat dans le tronçon : r = 1 (δ uniforme, comme v3). α et L fixés sur
+        2023-2024 (`PROFIL`)."""
+        from . import donnees as DN
+        h = np.zeros(S.nZ)
+        for q in (t - 1, t - 2):
+            if q in S.built:
+                a_, b_ = S.T[t], S.T[q]
+                h += ((a_ >= 0) & (b_ >= 0) & (a_ != b_)).astype(float)
+        wa = PROFIL.get("w_act", 0.3)
+        if wa:
+            act = np.zeros(S.nZ)
+            for src in ("feux", "ucdp", "em_assauts"):
+                A, cv = DN.brut(src)
+                if cv[t]:
+                    act = act + A[t]
+            h = h + wa * np.log1p(act)
+        h = S.smooth(S.full(h.astype(np.float32)), 2.0)[S.Zi].astype(np.float64)
+        L = PROFIL.get("L", 8.0) / S.km
+        r = np.ones(S.nZ)
+        jz, iz = S.jj[S.Zi].astype(float), S.ii[S.Zi].astype(float)
+        for k in self.C.rows[t]:
+            z = S.tile_cells[k]
+            zn = z[near[z]]
+            if not len(zn) or h[zn].max() <= 1e-6:
+                continue
+            c = zn[int(np.argmax(h[zn]))]
+            K = np.exp(-0.5 * ((jz[z] - jz[c]) ** 2 + (iz[z] - iz[c]) ** 2) / L ** 2)
+            mk = K[near[z]].mean()
+            r[z] = np.clip(K / max(mk, 1e-9), 0.0, 3.0)
+        return r
 
     def field(self, t, F, beta, gamma, sel=None, kappa=0.0):
         """Champ sur Z (champ des cartes là où aucun tronçon n'est voisin) ; sel : masque des paires à calculer."""
