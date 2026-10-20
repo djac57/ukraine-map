@@ -23,6 +23,9 @@ Testés et non retenus : tronçons de 12 et 16 km, couplage entre voisins, doubl
 figés (FUSION_TILE / FUSION_OFFSET, FIGES_DELTA restent disponibles pour les essais).
 v3 (20/10/2026, docs/ETAT.md § 6) : KAB et Ookla en pression, nowcast publié emboîté comme témoin du DÉCALAGE ;
 variations de km² lues dans months[i].akm (champ sans extrapolation β·v_loc).
+Domaine validé (20/10/2026, docs/ETAT.md § 6) : dans la BANDE RUSSE (mailles place −2 : hors Ukraine, où la fusion n'a
+aucune vérité), front_fusion.js publie la valeur du NOWCAST publié (site/front_nowcast.js), pour le champ comme pour
+akm ; les surfaces en Ukraine sont inchangées, seule la surface « russie » suit le nowcast.
 
 Sorties :
   site/front_fusion.js
@@ -40,6 +43,11 @@ Sorties :
       > 0 = la ligne probable est plus avancée côté ukrainien que celle des cartes (gain russe) ; π = probabilité que le
       tronçon bouge (≥ 1 km) ; Δ = contribution du signal au décalage médian (km × 10, même signe), 6 au plus,
       |Δ| ≥ 0,05 km.
+      Colonnes 7 et 8 (20/10/2026, sens de la fusion ; publiées pour la page méthode et les analyses, NON affichées sur
+      la carte : le sens n'y est porté que par les flèches) : [..., contributions, P(sens RU | bouge) %, P(bouge) %],
+      tirées de la loi a posteriori de δ du mois : P_RU = P(δ ≥ +1 km), P_UA = P(δ ≤ −1 km),
+      P(sens RU | bouge) = P_RU / (P_RU + P_UA) (null si P_RU + P_UA ≈ 0), P(bouge) = P_RU + P_UA (à ne pas confondre
+      avec π, colonne 5, poids du mode « mouvement » du mélange).
 """
 import argparse
 import datetime as dt
@@ -165,6 +173,20 @@ def main():
             b_, g_, s0_, sp_, kp_ = choice[t]
             Fk[t] = CHM.quant(CH.field(t, CH.tables(t, CH.s_of(t, s0_, sp_), lams[t]), 0.0, g_, kappa=kp_))
         Fk = SO.full_fields(Fk)
+    # domaine validé (décision du 20/10/2026, docs/ETAT.md § 6) : la fusion n'est validée qu'en Ukraine (vérité = consensus
+    # des cartes, rien en Russie) ; dans la BANDE RUSSE (place −2, cellPlace −2 côté site) on publie le NOWCAST publié
+    # (site/front_nowcast.js, même encodage, même indice de FRONT.months), pour le champ affiché comme pour akm. Les
+    # surfaces en Ukraine (tout, horsCrimee, depuis2022) sont inchangées ; seule « russie » suit le nowcast.
+    from fusion.socle import decode_seq, load_seq
+    NOW = decode_seq(load_seq(os.path.join(SITE, "front_nowcast.js")), S.nU)
+    band = S.cellU == -2
+    nb = 0
+    for FF in (Fu, Fk):
+        for t, p in FF.items():
+            if t < len(NOW) and NOW[t] is not None:
+                p[band] = NOW[t][band].astype(np.float32) / 63.0
+                nb += 1
+    log(f"bande russe : nowcast publié à la place de la fusion ({int(band.sum())} mailles, {nb} champs)")
     months_meta = []
     for i in range(S.nOrder):
         if i < S.NM and i in Fu:
@@ -202,11 +224,26 @@ def main():
             "validation": val, "weights": weights}
     SO.write_front(os.path.join(SITE, "front_fusion.js"), Fu, months_meta, meta)
     ex = SO.explain(M, R)
+    # sens tiré de la loi a posteriori de δ (20/10/2026, rapport de fusion § v4 « Sens par tronçon ») : colonnes 7 et 8
+    # ajoutées à chaque ligne, dans l'ordre de SO.explain (= M.C.rows[t], même ordre que R["post"][t])
+    from fusion.commun import DGRID
+    for t, rows in ex.items():
+        P = R["post"][t]
+        pr, pu = P[:, DGRID >= 1].sum(1), P[:, DGRID <= -1].sum(1)
+        for i, row in enumerate(rows):
+            mv = float(pr[i] + pu[i])
+            row.append(int(round(100 * pr[i] / mv)) if mv >= 1e-6 else None)
+            row.append(int(round(100 * mv)))
     SO.write_explain(os.path.join(SITE, "fusion_explain.js"), ex, {
         "generated": gen, "tileCells": TILE,
         "sign": "δ et Δ > 0 : ligne probable plus avancée côté ukrainien que celle des cartes (gain russe) ; < 0 : côté russe",
         "columns": ["colonne (i0)", "ligne (j0)", "δ médian (km × 10)", "δ 5 % (km × 10)", "δ 95 % (km × 10)",
-                    "P(le tronçon bouge ≥ 1 km) %", "contributions [[code, Δ km × 10], …]"],
+                    "P(le tronçon bouge ≥ 1 km) %", "contributions [[code, Δ km × 10], …]",
+                    "P(sens RU | bouge) % (loi de δ ; null : P(bouge) nulle)", "P(|δ| ≥ 1 km) % (loi de δ)"],
+        "sens": "colonnes 7 et 8, tirées de la loi a posteriori de δ : P_RU = P(δ ≥ +1 km), P_UA = P(δ ≤ −1 km) ; "
+                "P(sens RU | bouge) = P_RU / (P_RU + P_UA), P(bouge) = P_RU + P_UA ; validation walk-forward (rapport de "
+                "fusion § v4) : AUC du sens parmi les tronçons qui bougent 0,83 (2023-24) / 0,94 (2025-26), AUC de P_UA "
+                "contre une reprise ukrainienne ≥ 1 km 0,94 / 0,97",
         "codes": SO.CODES,
         "note": "probabilité d'une maille : front_fusion.js (moteur) et front_equilibre.js (cartes), au même indice de FRONT.months"})
     sz = [os.path.getsize(os.path.join(SITE, f)) // 1024 for f in ("front_fusion.js", "fusion_explain.js")]

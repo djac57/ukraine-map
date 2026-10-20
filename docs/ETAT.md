@@ -374,6 +374,7 @@ territoire basculé ; cas connus (Avdiïvka, Otcheretyne, Vovtchansk, Koursk exp
 Vouhledar, Selydove/Kourakhove, Pokrovsk, Koupiansk) ; sens interdits à Koursk ; flèches d'annonces (Vivaldi, Avdiïvka,
 Pokrovsk, Koursk) ; fins de série (ISW, UCDP) ; vue d'ensemble (une flèche à moins de 50 km de tout tronçon en
 mouvement) ; zone grise de contact détectée chaque mois.
+Depuis le 20/10/2026, tout est mesuré sur la VUE AFFICHÉE (`fieldName()`, la fusion par défaut ; § 6).
 Alertes non bloquantes : Vivaldi (flèches bleues et surface reprise), Dnipro calme. Diagnostics : P(contact) aux
 centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saillant de Vivaldi.
 
@@ -1069,6 +1070,46 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   couverture P10 2025-26, et pas moins dépendant des cartes) ; `build_fusion.py` : interrupteur `REGIME = None`
   (candidat documenté). `site/front_fusion.js`, `fusion_explain.js`, `kmchange.js` non régénérés ; `build_fusion.py
   --no-write` vérifié.
+- 20/10/2026 (nuit) : **CONTRÔLES SUR LA VUE AFFICHÉE, liseré centré, plus de sens dans l'info-bulle** (demandes de
+  l'utilisateur ; moins de complexité pour un lecteur sans contexte).
+  (1) **Contrôles** : `app.js`, tous les points de contrôle de `check_arrows.py` (`__uafArrowCheck`, `__uafArrows`,
+  `__uafArea`, `__uafP`, `__uafLine`, `__uafMoves`, `__uafDirBox`, `__uafHeads`, `__uafFlipped`) mesurent la VUE
+  AFFICHÉE (`fieldName()`, donc la fusion par défaut) au lieu de `"equilibre"` (argument de vue facultatif pour comparer) ;
+  garde-fou des flèches de gradient jugé sur le mois précédent de la même vue (celui de `computeArrows`), celui des
+  annonces sur les cartes (`POLDOF`, comme à l'affichage). Harnais : attend `front_fusion.js` et `fusion_explain.js`
+  (ERREUR s'ils ne se chargent pas), ligne `VUE MESUREE|fusion`, DIAG de la surface reprise de Vivaldi par vue.
+  **Nouvelles valeurs (vue fusion)** : flèches contrôlées 3 767, 0 échec géométrique (cartes : 2 524) ; Vivaldi, flèches
+  bleues [vue d'ensemble/20/10 km] juin 1/0/1, septembre **1/2/3 → OK** (cartes : 0/0/0 en septembre ; nowcast 1/1/2) ;
+  **surface reprise 188 km² → OK** (cartes 55, nowcast 140 ; attendu 150-280) ; les deux ALERTE Vivaldi tombent.
+  Dnipro calme : **46 flèches → ALERTE** (cartes 21 ; tolérance 8 ; surtout 2023-04 et 2024-09 → 2025-04).
+  **ÉCHEC bloquant NOUVEAU : « Koursk, pas de bleu au reflux »** : 2024-12, deux flèches bleues en pointillés
+  « poussée ukrainienne possible » (L20 3,61 et 2,66 km/mois, vue d'ensemble 3,61) vers 35,29-35,42 E, 51,23-51,36 N.
+  Cause : la fusion tient en Russie (hors du domaine où elle est validée) une poche de Koursk deux fois plus grande que
+  les cartes en août-septembre 2024 (surface tenue par l'Ukraine dans la boîte 1 513 / 1 558 km², cartes 731), puis
+  la rabat d'un coup en octobre (817) ; en décembre la fenêtre de 3 mois voit ce saut russe de ≈ 10 km, le dernier mois
+  est immobile et les combats sont derrière la ligne russe → règle du 18/10 (`computeArrows`) : flèche bleue « poussée
+  possible ». Non exempté. **Décision de l'utilisateur : la fusion est bornée à son DOMAINE VALIDÉ** :
+  `build_fusion.py` (sortie seulement) publie dans `front_fusion.js`, pour les mailles de la BANDE RUSSE (place −2,
+  24 102 mailles), la valeur du NOWCAST publié (`site/front_nowcast.js`), pour le champ affiché comme pour `akm` ;
+  surfaces en Ukraine inchangées, seule « russie » suit le nowcast ; une phrase sur la page méthode (étape 15, FR/EN).
+  Régénérés : `build_fusion.py` (96 s), `build_kmchange.py`, `stamp.py`. **`check_arrows.py` : code 0** — 3 548 flèches,
+  0 échec ; Koursk, pas de bleu au reflux : OK (aucune) ; Koursk reflux OK (2024-12 L20 1,72 km/mois), expansion OK ;
+  Vivaldi flèches bleues OK (septembre 1/2/3), surface reprise 188 km² OK ; têtes retirées en Russie 595 → 153 ;
+  Dnipro calme toujours ALERTE (46, non bloquant) ; I18N en/uk/ru OK.
+  (2) **Liseré « où la ligne va bouger »** : CENTRÉ sur la ligne affichée, des deux côtés, toujours ; plus aucune
+  logique de côté (`buildPm` : mailles de part et d'autre de la ligne 50 % de `fieldName()`, P du tronçon de 24 km lue
+  dans `FR.months[].pm`, tronçon absent → le voisin le plus probable ; rayon 5 / 2 / 1 mailles selon le zoom).
+  `front_pmove.js` n'est plus lu pour le dessin (toujours publié et contrôlé). Légende `lgPmTip` (4 langues) réécrite
+  en phrases courtes : « il dit où, pas dans quel sens : le sens est donné par les flèches ».
+  (3) **Info-bulle** : ligne « sens probable s'il bouge » et ses indices RETIRÉES ; le sens n'est porté que par les
+  flèches (inchangées : `build_direction.py`, précision mesurée et affichée). Explication du sens (modèle de sens et
+  sens de la fusion) sur la page méthode seulement (étapes 12-13, FR et EN).
+  (4) **Sens de la fusion publié** (non affiché) : `build_fusion.py` (sortie seulement) ajoute à chaque ligne de
+  `site/fusion_explain.js` deux colonnes : 7 = P(sens RU | bouge) % = P_RU / (P_RU + P_UA) (null si P_RU + P_UA ≈ 0),
+  8 = P(bouge) % = P_RU + P_UA, avec P_RU = P(δ ≥ +1 km), P_UA = P(δ ≤ −1 km) tirées de la loi a posteriori de δ du
+  mois ; clé `sens` du fichier. Lyman, tronçon (576, 192), 2026-04 → 2026-09 : P(sens RU | bouge) 97, 96, 98, 98,
+  96, 68 % ; P(bouge) 49, 49, 77, 71, 66, 33 % : il ne voit pas Vivaldi avant septembre (rapport § v4). Régénérés :
+  `build_fusion.py` (98 s), `build_kmchange.py`, `stamp.py`.
 ---
 
 ## 7. Signaux testés

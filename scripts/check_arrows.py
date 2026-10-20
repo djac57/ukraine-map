@@ -15,6 +15,10 @@ Vue d'ensemble : pendant les mois actifs, chaque tronçon en mouvement (20, 50 o
 affichée à moins de 50 km, et au moins une flèche par ~100 km de ligne en mouvement (longueur moyenne sur les trois
 échelles).
 Sort avec le code 1 si un contrôle échoue (le workflow ne versionne alors pas les sorties).
+Depuis le 20/10/2026, tous les contrôles portent sur la VUE AFFICHÉE (fieldName() d'app.js : le moteur de fusion par
+défaut) : le harnais attend front_fusion.js et fusion_explain.js (échec si la case « moteur de fusion » est cochée et
+qu'ils ne se chargent pas) ; la ligne « VUE MESUREE » le rappelle, et un DIAG donne la surface reprise de Vivaldi par
+vue (cartes, nowcast, affichée).
 """
 import functools
 import html
@@ -91,8 +95,10 @@ HARNESS = """<!doctype html><html><head><meta charset="utf-8"></head><body><pre 
 const okDir=(a,dir)=>{if(!dir) return true; if(Array.isArray(dir)) return a.dir[0]*dir[0]+a.dir[1]*dir[1]>0;
  const c=dir.vers||dir.depuis, tx=(c[0]-a.lon)*Math.cos(a.lat*Math.PI/180), ty=-(c[1]-a.lat), d=a.dir[0]*tx+a.dir[1]*ty; return dir.vers? d>0 : d<0;};
 f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l+'\\n';
-const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowCheck||!w.__uafArrows)&&n<60){return setTimeout(()=>go(n+1),500);}
- try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces : '+(r.evN||0)+' ; sans sens établi (repère creux) '+(r.reoriented||0)+' ; confirmations (en retard sur les cartes, sans direction) '+(r.late||0)+' ; sens vérifié contre le territoire basculé : '+(r.flipChecked||0)+'\\n';
+const fusOk=()=>{const cb=w.document.getElementById('lyrFusion'); return !(cb&&cb.checked)||(w.FRONT_FUSION&&w.FRONTP.fusion&&w.FUSION_EXPLAIN&&w.__uafView&&w.__uafView()==='fusion');};
+const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowCheck||!w.__uafArrows||!fusOk())&&n<120){return setTimeout(()=>go(n+1),500);}
+ if(!fusOk()){o.textContent+='ERREUR vue fusion (front_fusion.js, fusion_explain.js) non chargée : contrôles non représentatifs de la carte publiée\\n'; return;}
+ try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='VUE MESUREE|'+r.view+'\\n'; o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces : '+(r.evN||0)+' ; sans sens établi (repère creux) '+(r.reoriented||0)+' ; confirmations (en retard sur les cartes, sans direction) '+(r.late||0)+' ; sens vérifié contre le territoire basculé : '+(r.flipChecked||0)+'\\n';
   {const i=w.DATA.months.indexOf('2026-09'); if(i>=0){const A=w.__uafDirBox(i,[36.3,37.8,50.0,50.8]); const bad=A.filter(a=>a.viol); o.textContent+='CAS|Vovtchansk et Belgorod (septembre 2026) : aucune flèche vers la Russie ni vers une zone déjà tenue|'+(bad.length?'ECHEC':'OK')+'|'+JSON.stringify(A)+'|'+A.length+'\\n';}}
   o.textContent+='INCERTAINES|par mois [vue d’ensemble, zoom 20+10 km, annonces] : '+JSON.stringify(r.unc||{})+'\\n';
   o.textContent+='MISSILES|lieux de lancement sur le territoire ukrainien vérifiés (tenus par la Russie au mois du lancement) : '+(r.launches||0)+'\\n';
@@ -110,7 +116,9 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowChec
    const area=m=>w.__uafArea(months.indexOf(m),box), peak=Math.max(...refs.map(area)), gain=Math.round(peak-area(last));
    const need=w.__uafP(months.indexOf('2026-10'),37.8,49.1)!==null?2:1;
    o.textContent+='CAS|'+name+', flèches bleues|'+(ok.length>=need&&ok.includes('2026-09')?'OK':'ALERTE')+'|'+(ok.join(', ')||'aucun mois')+' (exigé : '+need+' mois dont septembre) '+JSON.stringify(per)+'|'+ok.length+'\\n';
-   o.textContent+='CAS|'+name+', surface reprise|'+(gain>=rng[0]&&gain<=rng[1]?'OK':'ALERTE')+'|'+gain+' km² repris fin '+last+' (pic '+Math.round(peak)+' km² russes ; attendu '+rng[0]+'-'+rng[1]+')|'+gain+'\\n';}
+   o.textContent+='CAS|'+name+', surface reprise|'+(gain>=rng[0]&&gain<=rng[1]?'OK':'ALERTE')+'|'+gain+' km² repris fin '+last+' (pic '+Math.round(peak)+' km² russes ; attendu '+rng[0]+'-'+rng[1]+')|'+gain+'\\n';
+   {const ref=v=>{const ar=m=>w.__uafArea(months.indexOf(m),box,false,v); return Math.round(Math.max(...refs.map(ar))-ar(last));};
+    o.textContent+='DIAG|'+name+', surface reprise par vue (affichée : '+w.__uafView()+')|cartes '+ref('equilibre')+' km² ; nowcast '+(w.FRONTP.nowcast?ref('nowcast'):'-')+' km² ; affichée '+gain+' km²\\n';}}
   {const med=m=>{const i=months.indexOf(m); const x=w.__uafMoves(i,20).map(Math.abs).sort((a,b)=>a-b); return x.length? x[Math.floor(x.length/2)] : null;};
    const ref=MOVES_REF.map(m=>m+' '+(med(m)??'-').toString()).join(', ');
    for(const [name,m] of SERIES_END){const v=med(m), i=months.indexOf(m), prev=[1,2,3,4,5,6].map(k=>med(months[i-k])).filter(x=>x!==null).sort((a,b)=>a-b), base=prev.length?prev[Math.floor(prev.length/2)]:0;

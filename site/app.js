@@ -7,7 +7,7 @@ const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
 const THEATRE = Object.assign({start: "2022-02-24", preKey: "depuis2022", preParts: [["Crimée", "horsCrimee"]], preRest: "Donbass",
   errFallback: {m1: 300, m12: 820}}, window.THEATRE || {});
 const startLabel = () => new Date(THEATRE.start + "T12:00:00Z").toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
-const FRONT_V = {"advance": "50c5ed65a5", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "crat": "51d4e58371", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "df83bc5115", "imp": "ef5999d3d8", "kmc": "3cc4e94491", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"advance": "50c5ed65a5", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "crat": "51d4e58371", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "f447673910", "imp": "ef5999d3d8", "kmc": "3cc4e94491", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -636,20 +636,27 @@ function lineShift(oldRuns, newRuns, pc, pold, cx, cy, camp){
 // barycentre des mailles qui ont basculé vers le camp annonceur (adverses à p_old, au camp à p_now) à moins de 15 km ;
 // null s'il y en a moins de 3
 // diagnostic (headless) : flèches d'un mois dans une boîte, avec leur tête et le garde-fou de direction
-window.__uafDirBox = (fi, b) => { const out = [], p0 = POLDOF(fi), km = FR.grid.size / 1000, ll = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(v => +v.toFixed(3));
+// contrôles (headless, scripts/check_arrows.py) : mesurés sur la VUE AFFICHÉE (fieldName() : la fusion par défaut), pas
+// sur le champ des cartes (20/10/2026) ; garde-fou des flèches de gradient jugé sur le mois précédent de la même vue
+// (celui qu'utilise computeArrows), celui des flèches d'annonces sur les cartes (POLDOF, comme à l'affichage)
+const CKV = () => fieldName();
+const PREVOF = (fi, v) => { const f = frameAt(fi, 30); return f >= 0 ? fullField(v, f) : null; };
+window.__uafView = () => CKV();
+window.__uafDirBox = (fi, b) => { const out = [], p0 = POLDOF(fi), pv = PREVOF(fi, CKV()), km = FR.grid.size / 1000, ll = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(v => +v.toFixed(3));
   const inb = q => q[0] >= b[0] && q[0] <= b[1] && q[1] >= b[2] && q[1] <= b[3];
-  for (const L of ["overview", 20, 10]) for (const a of (L === "overview" ? overviewArrows(fi, "equilibre") : computeArrows(fi, L, "equilibre"))) {
+  for (const L of ["overview", 20, 10]) for (const a of (L === "overview" ? overviewArrows(fi, CKV()) : computeArrows(fi, L, CKV()))) {
     const base = ll(a.gx, a.gy); if (!inb(base)) continue;
-    out.push({type: "gradient " + L, ru: a.ru, base, head: ll(a.gx + a.dx * 5 / km, a.gy + a.dy * 5 / km), viol: p0 && !a.uncertain ? dirViolation(p0, a.gx, a.gy, a.dx, a.dy, a.ru) : null, reoriented: !!a.reoriented, uncertain: !!a.uncertain, why: a.why || null}); }
+    const pa = a.possible || a.probable ? p0 : pv;   // flèches du modèle de sens : non gardées par computeArrows, jugées sur les cartes
+    out.push({type: "gradient " + L, ru: a.ru, base, head: ll(a.gx + a.dx * 5 / km, a.gy + a.dy * 5 / km), viol: pa && !a.uncertain ? dirViolation(pa, a.gx, a.gy, a.dx, a.dy, a.ru) : null, reoriented: !!a.reoriented, uncertain: !!a.uncertain, why: a.why || null}); }
   for (const a of eventArrows(fi)) { const base = ll(a.ax, a.ay); if (!inb(base) || a.late) continue;
     out.push({type: "localités", ru: a.ru, base, head: ll(a.cx, a.cy), viol: p0 ? dirViolation(p0, a.ax, a.ay, a.dir[0], a.dir[1], a.ru) : null, reoriented: !!a.reoriented, uncertain: false, why: a.why || null}); }
   return out; };
 // diagnostic (headless) : flèches dessinées au zoom k dans une boîte [lon0, lon1, lat0, lat1], avec les mailles sondées
-window.__uafHeads = (fi, k, b) => { const F = headFields(fi, "equilibre"), ll = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(x => +x.toFixed(3));
-  return drawnArrows(fi, k, "equilibre").filter(d => { const q = ll(d.ax, d.ay); return q[0] >= b[0] && q[0] <= b[1] && q[1] >= b[2] && q[1] <= b[3]; }).map(d => ({type: d.type, ru: d.ru, base: ll(d.ax, d.ay), g: d.g, Lg: +d.Lg.toFixed(2),
+window.__uafHeads = (fi, k, b) => { const F = headFields(fi, CKV()), ll = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(x => +x.toFixed(3));
+  return drawnArrows(fi, k, CKV()).filter(d => { const q = ll(d.ax, d.ay); return q[0] >= b[0] && q[0] <= b[1] && q[1] >= b[2] && q[1] <= b[3]; }).map(d => ({type: d.type, ru: d.ru, base: ll(d.ax, d.ay), g: d.g, Lg: +d.Lg.toFixed(2),
     pts: d.g ? [0.25, 0.5, 0.75, 1].map(f => { const x = d.ax + d.g.ux * d.Lg * f, y = d.ay + d.g.uy * d.Lg * f, c = Math.floor(y) * GX + Math.floor(x); return [ll(x, y), cellPlace[c], RUSSIA(c), F.p0 ? +F.p0[c].toFixed(2) : null, +F.pc[c].toFixed(2)]; }) : null})); };
 // diagnostic (headless) : mailles basculées vers un camp entre le mois précédent et le mois fi, à R km d'un point
-window.__uafFlipped = (fi, lon, lat, R, ru) => { const p0 = POLDOF(fi), pc = fullField("equilibre", fi), q = proj([lon, lat]), cx = (q[0] - gAff[0]) / gAff[2], cy = (q[1] - gAff[1]) / gAff[2], km = FR.grid.size / 1000, out = [];
+window.__uafFlipped = (fi, lon, lat, R, ru) => { const p0 = PREVOF(fi, CKV()), pc = fullField(CKV(), fi), q = proj([lon, lat]), cx = (q[0] - gAff[0]) / gAff[2], cy = (q[1] - gAff[1]) / gAff[2], km = FR.grid.size / 1000, out = [];
   if (!p0 || !pc) return out;
   for (let c = 0; c < GX * GY; c++) { const i = c % GX, j = Math.floor(c / GX); if (Math.hypot(i + 0.5 - cx, j + 0.5 - cy) * km > R || cellPlace[c] === -1) continue;
     if (ru ? (p0[c] < 0.45 && pc[c] > 0.55) : (p0[c] > 0.55 && pc[c] < 0.45)) out.push(proj.invert([gAff[0] + (i + 0.5) * gAff[2], gAff[1] + (j + 0.5) * gAff[2]]).map(v => +v.toFixed(3))); }
@@ -850,30 +857,31 @@ window.__uafState = () => ({k: tr.k, x: tr.x, y: tr.y, tip: tip.style.display, s
 // diagnostic (headless) : recadrage et mois
 window.__uafGoto = (month, lon, lat, k) => { const i = D.months.indexOf(month); if (i >= 0) setMonth(i); zoomTo(lon, lat, k); };
 // diagnostic (headless) : flèches d'un mois en coordonnées géographiques
-window.__uafArrows = (fi, L) => (L === "overview" ? overviewArrows(fi, "equilibre") : computeArrows(fi, L, "equilibre")).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)], vm: a.vm, uncertain: !!a.uncertain}; });
+window.__uafArrows = (fi, L, v) => (L === "overview" ? overviewArrows(fi, v || CKV()) : computeArrows(fi, L, v || CKV())).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)], vm: a.vm, uncertain: !!a.uncertain}; });
 // diagnostic (headless) : p(contrôle russe) en un point, km² russes et sommets de la ligne 50 % dans une boîte
 const cellOf = (lon, lat) => { const q = proj([lon, lat]); return Math.floor((q[1] - gAff[1]) / gAff[2]) * GX + Math.floor((q[0] - gAff[0]) / gAff[2]); };
 const inBox = (gx, gy, b) => { const ll = proj.invert([gAff[0] + gx * gAff[2], gAff[1] + gy * gAff[2]]); return ll[0] >= b[0] && ll[0] <= b[1] && ll[1] >= b[2] && ll[1] <= b[3]; };
 // diagnostic (headless) : déplacement du dernier mois (km, signé) de tous les tronçons de L km, sans aucun seuil
 window.__uafMoves = (fi, L) => { const save = {...ARROW_PARAMS}; Object.assign(ARROW_PARAMS, {vmin: 0, need: 0, vstrong: 0, jump: 1e9, hl: 0, jumpHl: 0}); arrowCache = {};
-  const out = computeArrows(fi, L || 20, "equilibre").map(a => a.vm[0]); Object.assign(ARROW_PARAMS, save); arrowCache = {}; return out; };
+  const out = computeArrows(fi, L || 20, CKV()).map(a => a.vm[0]); Object.assign(ARROW_PARAMS, save); arrowCache = {}; return out; };
 // diagnostic (headless) : part des mailles d'une boîte situées dans la zone grise de contact
 window.__uafContactShare = (fi, b) => { const F = viewFields("contact"); if (!F || !F[fi]) return null; let n = 0, z = 0;
   for (let u = 0; u < UCELLS.length; u++) { const c = UCELLS[u]; if (cellPlace[c] < 0 || !inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) continue; n++; z += F[fi][u] / 63; } return n ? z / n : null; };
 // diagnostic (headless) : P(contact au sol) maximale à moins de 4 km d'un point
 window.__uafContactAt = (fi, lon, lat) => { const F = viewFields("contact"); if (!F || !F[fi]) return null; const k = cellOf(lon, lat), j0 = Math.floor(k / GX), i0 = k % GX; let best = 0;
   for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) { const u = d3.bisectLeft(UCELLS, (j0 + dj) * GX + i0 + di); if (UCELLS[u] === (j0 + dj) * GX + i0 + di) best = Math.max(best, F[fi][u] / 63); } return best; };
-window.__uafP = (fi, lon, lat) => { const g = fullField("equilibre", fi); return g ? g[cellOf(lon, lat)] : null; };
-window.__uafArea = (fi, b, band) => { const g = fullField("equilibre", fi), a = (FR.grid.size / 1000) ** 2; let s = 0; for (let c = 0; c < GX * GY; c++) if ((band ? cellPlace[c] === -2 : cellPlace[c] >= 0) && inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) s += (band ? 1 - g[c] : g[c]) * a; return s; };
-window.__uafLine = (fi, b) => lines50("equilibre", fi).flat().filter(p => inBox(p[0], p[1], b)).length;
+window.__uafP = (fi, lon, lat, v) => { const g = fullField(v || CKV(), fi); return g ? g[cellOf(lon, lat)] : null; };
+window.__uafArea = (fi, b, band, v) => { const g = fullField(v || CKV(), fi), a = (FR.grid.size / 1000) ** 2; let s = 0; for (let c = 0; c < GX * GY; c++) if ((band ? cellPlace[c] === -2 : cellPlace[c] >= 0) && inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) s += (band ? 1 - g[c] : g[c]) * a; return s; };
+window.__uafLine = (fi, b, v) => lines50(v || CKV(), fi).flat().filter(p => inBox(p[0], p[1], b)).length;
 // contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
 window.__uafArrowCheck = function(){
   const fails = [], km = FR.grid.size / 1000; let total = 0, reoriented = 0, evN = 0, late = 0, flipChecked = 0, redir = 0, border = 0;
   const redirList = [], llg = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(v => +v.toFixed(2));
+  const VW = CKV();   // vue affichée (fusion par défaut)
   for (let fi = 3; fi < FR.months.length; fi++) {
     if (!FR.months[fi]) continue;
-    const runs = lines50("equilibre", fi), pts = runs.flat(), fpv = frameAt(fi, 30), p0 = fpv >= 0 ? fullField("equilibre", fpv) : null;
-    for (const L of [100, 50, 20, 10]) for (const a of computeArrows(fi, L, "equilibre")) {
+    const runs = lines50(VW, fi), pts = runs.flat(), p0 = PREVOF(fi, VW);
+    for (const L of [100, 50, 20, 10]) for (const a of computeArrows(fi, L, VW)) {
       total++;
       // garde-fou de direction (bloquant) : jamais vers une zone déjà tenue par le camp qui avance ni à travers la
       // frontière d'État vers son propre territoire ; les flèches réorientées le long de la limite sont listées
@@ -890,7 +898,7 @@ window.__uafArrowCheck = function(){
       }
       if (bd * km >= 2 || ang >= 30) fails.push({mois: FR.months[fi].date, L, dist_km: +(bd * km).toFixed(2), angle: +ang.toFixed(1)});
       // sens : avancée russe vers −∇p, ukrainienne vers +∇p (p = contrôle russe partout), à la base
-      const g = fullField("equilibre", fi), [gx, gy] = gradAt(g, a.gx, a.gy), s = a.ru ? -1 : 1;
+      const g = fullField(VW, fi), [gx, gy] = gradAt(g, a.gx, a.gy), s = a.ru ? -1 : 1;
       if (s * (a.dx * gx + a.dy * gy) <= 0) fails.push({mois: FR.months[fi].date, L, sens: "gradient à rebours"});
     }
     const ge = fullField(fieldName(), fi);
@@ -928,8 +936,8 @@ window.__uafArrowCheck = function(){
   // longueur : jamais au-delà du plafond des flèches pleines
   let heads = 0, headMoved = 0, headDropped = 0, headHard = 0;
   for (let fi = 3; fi < FR.months.length; fi++) { if (!FR.months[fi]) continue;
-    const F = headFields(fi, "equilibre");
-    for (const k of [1, 1.5, 2, 3, 4, 6, 8]) for (const d of drawnArrows(fi, k, "equilibre")) {
+    const F = headFields(fi, VW);
+    for (const k of [1, 1.5, 2, 3, 4, 6, 8]) for (const d of drawnArrows(fi, k, VW)) {
       heads++; if (!d.g) { headDropped++; continue; } if (d.g.moved) headMoved++; if (d.hard) headHard++;
       // barrière dure (bloquant) : la flèche dessinée ne la franchit pas
       if (window.hardTruncate && window.hardTruncate([d.ax, d.ay], [d.ax + d.g.ux * d.Lg, d.ay + d.g.uy * d.Lg], 0.5).code) fails.push({mois: FR.months[fi].date, barriere: "franchie", type: d.type, zoom: k, base: llg(d.ax, d.ay)});
@@ -942,7 +950,7 @@ window.__uafArrowCheck = function(){
     } }
   const unc = {};
   for (let fi = 3; fi < FR.months.length; fi++) { if (!FR.months[fi]) continue;
-    const o = overviewArrows(fi, "equilibre").filter(a => a.uncertain).length, z = computeArrows(fi, 20, "equilibre").filter(a => a.uncertain).length + computeArrows(fi, 10, "equilibre").filter(a => a.uncertain).length,
+    const o = overviewArrows(fi, VW).filter(a => a.uncertain).length, z = computeArrows(fi, 20, VW).filter(a => a.uncertain).length + computeArrows(fi, 10, VW).filter(a => a.uncertain).length,
       e = eventArrows(fi).filter(a => a.uncertain).length;
     if (o + z + e) unc[FR.months[fi].date.slice(0, 7)] = [o, z, e]; }
   // missiles et drones (bloquant) : aucun lieu de lancement en territoire ukrainien contrôlé (p < 0,5 au mois du lancement)
@@ -950,9 +958,9 @@ window.__uafArrowCheck = function(){
   const pl = O.launch.places;
   for (const [mi, li] of O.launch.arcs) { const fl = FR.months.findIndex(m => m && m.date.startsWith(D.months[mi])); if (fl < 0) continue;
     const c = cellOf(pl[li][1], pl[li][2]); if (!(c >= 0 && c < GX * GY) || cellPlace[c] < 0) continue;
-    launches++; const g = fullField("equilibre", fl);
+    launches++; const g = fullField(VW, fl);
     if (g && g[c] < 0.5) fails.push({mois: D.months[mi], lancement: pl[li][0], p: +g[c].toFixed(2)}); }
-  return {total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc, heads, headMoved, headDropped, headHard, launches};
+  return {view: VW, total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc, heads, headMoved, headDropped, headHard, launches};
 };
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
@@ -1208,7 +1216,7 @@ function buildAsym(fi){
   cx.putImageData(img, 0, 0); asymPat = cv;
 }
 // « secteurs susceptibles de bouger » : P(la ligne bouge d'au moins 0,5 km d'ici t+2) par tronçon de 24 km, sans sens,
-// liseré ambre du côté où le mouvement est attendu (modèle de sens), mailles à ≤ 3 km de la ligne (q = 1 + P × 62), opacité selon P
+// liseré ambre centré sur la ligne affichée, des deux côtés (sans sens : le sens est porté par les flèches), opacité selon P
 let pmFor = -2, pmImg = null, showPm = !!(document.getElementById("lyrPm") && document.getElementById("lyrPm").checked);
 function buildPm(fi, k){
   // liseré AMBRE (distinct des hachures grises de contact, du rouge et du bleu) ;
@@ -1216,22 +1224,27 @@ function buildPm(fi, k){
   const r = k < 1.6 ? 5 : k < 3 ? 2 : 1, key = fi + ":" + r + ":" + fieldName();
   if (pmFor === key) return;
   pmFor = key; pmImg = null;
-  const F = viewFields("pmove"), g = fullField(fieldName(), fi); if (!F || !F[fi] || !g) return;
+  const pmt = FR.months[fi] && FR.months[fi].pm, g = fullField(fieldName(), fi); if (!pmt || !pmt.length || !g) return;
   const cv = document.createElement("canvas"); cv.width = GX; cv.height = GY;
-  const cx = cv.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data, q = F[fi];
-  // côté du liseré selon le sens prévu (modèle de sens, tronçon de 24 km) : côté ukrainien si avancée russe nettement
-  // probable (P(sens RU) ≥ 80 %), côté russe si reprise ukrainienne nettement probable (≤ 20 %), des deux côtés sinon
-  const SR = new Map(), sr = sensRows(fi), T = (SENS && SENS.tileCells) || 12;
-  if (sr) for (const row of sr) if (row[3] != null) SR.set(Math.floor(row[1] / T) * 1000 + Math.floor(row[0] / T), row[3]);
-  for (let u = 0; u < UCELLS.length; u++) {
-    if (!q[u]) continue;
-    const p = (q[u] - 1) / 62, a = Math.max(0, Math.min(1, (p - 0.1) / 0.4));   // sous 10 % : rien (taux de base 13 %)
+  const cx = cv.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data;
+  // liseré CENTRÉ sur la ligne AFFICHÉE (fieldName() : la fusion par défaut), des deux côtés, toujours (décision du
+  // 20/10/2026) : il dit OÙ la ligne peut bouger, pas dans quel sens ; le sens n'est porté que par les flèches.
+  // P par tronçon de 24 km (FR.months[].pm : centre du tronçon, P %) ; tronçon absent : le voisin le plus probable
+  // (la ligne affichée peut traverser un tronçon que la ligne des cartes, qui définit les tronçons, ne traverse pas)
+  const T = 12, TP = new Map(); for (const [ci, cj, p] of pmt) TP.set(Math.floor(cj / T) * 1000 + Math.floor(ci / T), p / 100);
+  const tileP = (i, j) => { const ti = Math.floor(i / T), tj = Math.floor(j / T), own = TP.get(tj * 1000 + ti); if (own != null) return own;
+    let best = null; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const v = TP.get((tj + dj) * 1000 + ti + di); if (v != null && (best == null || v > best)) best = v; } return best; };
+  for (let c0 = 0; c0 < GX * GY; c0++) {
+    // mailles de part et d'autre de la ligne 50 % (voisine de droite ou du dessous de l'autre côté)
+    const i0 = c0 % GX, j0 = Math.floor(c0 / GX); if (cellPlace[c0] === -1 || i0 >= GX - 1 || j0 >= GY - 1) continue;
+    const s0 = g[c0] >= 0.5; if ((g[c0 + 1] >= 0.5) === s0 && (g[c0 + GX] >= 0.5) === s0) continue;
+    const p = tileP(i0, j0); if (p == null) continue;
+    const a = Math.max(0, Math.min(1, (p - 0.1) / 0.4));   // sous 10 % : rien (taux de base 13 %)
     if (a <= 0) continue;
-    const c0 = UCELLS[u], i0 = c0 % GX, j0 = Math.floor(c0 / GX), al = Math.round(255 * (0.2 + 0.75 * a));
-    const ps = SR.get(Math.floor(j0 / T) * 1000 + Math.floor(i0 / T)), uaSide = ps == null || ps >= 20, ruSide = ps == null || ps <= 80;   // un seul côté seulement si le sens est net (≥ 80 %)
+    const al = Math.round(255 * (0.2 + 0.75 * a));
     for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
       if (di * di + dj * dj > r * r || i0 + di < 0 || i0 + di >= GX || j0 + dj < 0 || j0 + dj >= GY) continue;
-      const c = (j0 + dj) * GX + i0 + di; if (cellPlace[c] < 0) continue; const isUa = g[c] < 0.5; if (isUa ? !uaSide : !ruSide) continue;
+      const c = (j0 + dj) * GX + i0 + di; if (cellPlace[c] < 0) continue;
       const o = c * 4; if (d[o + 3] < al) { d[o] = 232; d[o+1] = 162; d[o+2] = 0; d[o+3] = al; } }
   }
   cx.putImageData(img, 0, 0); pmImg = cv;
@@ -1453,7 +1466,6 @@ function drawAdv(k){
 function drawPm(k){
   const fp = frontIdx(); if (fp < 0) return;
   if (!window.FRONT_ADVANCE) loadAdv();
-  if (!window.FRONT_SENS) loadSens(() => { pmFor = -2; draw(); });
   buildPm(fp, k); if (!pmImg) return;
   ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(tr.x, tr.y); ctx.scale(k, k);
   ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]); ctx.clip(domainPath);
@@ -2244,14 +2256,8 @@ function hover(e){
       ctxt += pmLine + `<div style="color:var(--faint)">${_t("tronçon de 24 km, ≥ 0,5 km dans un sens ou l'autre ; moyenne {b} %", {b: Math.round(((FR.pmove && FR.pmove.base) || 0) * 100)})}</div>`; }
     { const at = advText(fi, i, j); if (at) { ctxt += `<div>${at}</div>`; pmLine += `<div style="color:var(--faint)">${at}</div>`; } }
   }
-  { const sr = sensRows(fi); let sb = null, sd = 1e9;
-    if (sr) for (const r of sr) { const dd = Math.hypot(r[0] - i, r[1] - j); if (dd < sd) { sd = dd; sb = r; } }
-    if (sb && sb[3] != null && sb[2] >= 10 && sd * FR.grid.size / 1000 < 20) {
-      ctxt += `<div class="r"><span>${_t("sens probable s'il bouge")}</span><b>${sb[3] >= 50 ? _t("avancée russe ({p} %)", {p: sb[3]}) : _t("reprise ukrainienne ({p} %)", {p: 100 - sb[3]})}</b></div>`;
-      const CUE = [[1, "Telegram : activité russe signalée en excès"], [2, "Telegram : activité ukrainienne signalée en excès"], [4, "impacts plus denses côté ukrainien"], [8, "impacts plus denses côté russe"], [16, "combats derrière la ligne ukrainienne"], [32, "combats derrière la ligne russe"], [64, "gain russe récent"], [128, "reprise ukrainienne récente"]];
-      const cs = CUE.filter(([b]) => sb[5] & b).map(([, t]) => _t(t));
-      if (cs.length) ctxt += `<div style="color:var(--faint)">${_t("indices : {l}", {l: cs.join(" · ")})}</div>`; }
-  }
+  // pas de ligne « sens probable » dans l'info-bulle (décision du 20/10/2026) : le sens n'est porté que par les flèches,
+  // son explication (modèle de sens, sens de la fusion) est sur la page méthode
   if (amode() === "fusion" && FUSX && FUSX.months[fi]) {
     const T = FUSX.tileCells || 12, row = FUSX.months[fi].find(r => i >= r[0] && i < r[0] + T && j >= r[1] && j < r[1] + T);
     if (row) { const km = v => dec(Math.round(Math.abs(v)) / 10), dir = v => v > 0 ? _t("vers le côté ukrainien") : v < 0 ? _t("vers le côté russe") : "";
