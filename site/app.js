@@ -1219,8 +1219,8 @@ function buildPm(fi, k){
   const F = viewFields("pmove"), g = fullField(fieldName(), fi); if (!F || !F[fi] || !g) return;
   const cv = document.createElement("canvas"); cv.width = GX; cv.height = GY;
   const cx = cv.getContext("2d"), img = cx.createImageData(GX, GY), d = img.data, q = F[fi];
-  // côté du liseré selon le sens prévu (modèle de sens, tronçon de 24 km) : côté ukrainien si avancée russe probable
-  // (P(sens RU) ≥ 60 %), côté russe si reprise ukrainienne probable (≤ 40 %), des deux côtés sinon ou sans modèle
+  // côté du liseré selon le sens prévu (modèle de sens, tronçon de 24 km) : côté ukrainien si avancée russe nettement
+  // probable (P(sens RU) ≥ 80 %), côté russe si reprise ukrainienne nettement probable (≤ 20 %), des deux côtés sinon
   const SR = new Map(), sr = sensRows(fi), T = (SENS && SENS.tileCells) || 12;
   if (sr) for (const row of sr) if (row[3] != null) SR.set(Math.floor(row[1] / T) * 1000 + Math.floor(row[0] / T), row[3]);
   for (let u = 0; u < UCELLS.length; u++) {
@@ -1228,7 +1228,7 @@ function buildPm(fi, k){
     const p = (q[u] - 1) / 62, a = Math.max(0, Math.min(1, (p - 0.1) / 0.4));   // sous 10 % : rien (taux de base 13 %)
     if (a <= 0) continue;
     const c0 = UCELLS[u], i0 = c0 % GX, j0 = Math.floor(c0 / GX), al = Math.round(255 * (0.2 + 0.75 * a));
-    const ps = SR.get(Math.floor(j0 / T) * 1000 + Math.floor(i0 / T)), uaSide = ps == null || ps >= 40, ruSide = ps == null || ps <= 60;
+    const ps = SR.get(Math.floor(j0 / T) * 1000 + Math.floor(i0 / T)), uaSide = ps == null || ps >= 20, ruSide = ps == null || ps <= 80;   // un seul côté seulement si le sens est net (≥ 80 %)
     for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
       if (di * di + dj * dj > r * r || i0 + di < 0 || i0 + di >= GX || j0 + dj < 0 || j0 + dj >= GY) continue;
       const c = (j0 + dj) * GX + i0 + di; if (cellPlace[c] < 0) continue; const isUa = g[c] < 0.5; if (isUa ? !uaSide : !ruSide) continue;
