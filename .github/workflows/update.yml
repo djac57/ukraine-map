@@ -84,12 +84,24 @@ jobs:
         run: python scripts/build_telegram_layer.py raw raw/viina
         timeout-minutes: 15
         continue-on-error: true
+      - name: "Telegram quotidien par maille de 2 km (data/daily : seuls les jours couverts par la collecte des 45 derniers jours sont recalculés)"
+        run: python scripts/build_daily_telegram.py raw raw/viina
+        timeout-minutes: 15
+        continue-on-error: true
       - name: Extraire et géocoder les annonces (faits seulement)
         run: python scripts/build_claims.py raw raw/viina
         timeout-minutes: 15
         continue-on-error: true
       - name: "Faits des bilans quotidiens (état-major UA, MoD RF) : agrégats par maille et par mois"
         run: python scripts/build_official_signals.py raw raw/viina
+        timeout-minutes: 10
+        continue-on-error: true
+      - name: "Bilans officiels quotidiens par maille de 2 km (data/daily : 90 derniers jours recalculés)"
+        run: python scripts/build_daily_officiels.py raw/viina raw/claims
+        timeout-minutes: 10
+        continue-on-error: true
+      - name: "UCDP et WarSpotting quotidiens par maille de 2 km (data/daily : 90 derniers jours recalculés)"
+        run: python scripts/build_daily_osint.py raw
         timeout-minutes: 10
         continue-on-error: true
       - name: "Ookla : débits fixes et mobiles par bloc, dernier trimestre (S3 public, CC BY-NC-SA 4.0)"

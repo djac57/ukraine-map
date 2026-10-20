@@ -48,6 +48,8 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `fetch_claims.py` | Aperçu public Telegram : MoD RF et état-major UA (annonces de prise, bilans quotidiens). Messages gardés en local, jamais publiés. |
 | `fetch_dsmlog.py` | Journal public de DeepStateMap (déclarations datées). |
 | `fetch_telegram.py`, `tglib.py`, `tg_sens.py`, `build_telegram_layer.py` | Signaux Telegram (15 canaux, aperçu public t.me/s sans compte) : relecture des 45 derniers jours (même pas d'échantillonnage que l'historique), messages de combat ou de présence gardés avec leur texte dans `raw/telegram/` (cache Actions, jamais versionné) ; construction : lieux (GeoNames UA + `data/ru_border.tsv`) ; deux attributions (§ 6) : au MESSAGE pour le modèle (`data/telegram_troncons.csv`, `tglib.events_message`), à la PHRASE pour l'affichage (mailles et `site/telegram_troncons.js`, `tglib.events`) ; « qui attaque » (`tg_sens.classify_strict`) et « présence signalée », comptes par tronçon de 24 km × mois et décade et par maille de 2 km × mois et 30 derniers jours, fusion incrémentale (une période n'est remplacée que si elle est entièrement relue et pas plus pauvre), coupure J-7. Sorties `data/telegram_troncons.csv`, `data/telegram_cells.csv`, `site/telegram_troncons.js`, `site/telegram_cells.js`. Historique reconstruit avec `--seed ukraine-recherche/signals3/internal` (avec l'ancienne attribution au message entier, il reproduisait exactement `sens_troncons_month.csv`). |
+| `backfill_telegram.py` | Collecte historique COMPLÈTE des 15 canaux (24/02/2022 → aujourd'hui), en LOCAL seulement (nohup, reprise à tout moment) : aperçu t.me/s, pause ≥ 2 s, User-Agent de tglib, 403 = arrêt total. Phase O : bilans officiels (GeneralStaffZSU avant 2024-06, mod_russia avant 2024-02, mêmes mots-clés que fetch_claims) ; phase 0 : pages récentes ; phase 1 : pages sautées par la graine signals3 pour les 5 canaux au pas 40 ; phase 2 : relecture complète (géocodage v2, trous). Textes dans `ukraine-recherche/signals3/internal/hist/` (jamais versionnés). Voir « Agrégats quotidiens ». |
+| `dailylib.py`, `build_daily_telegram.py`, `build_daily_officiels.py`, `build_daily_osint.py` | Agrégats QUOTIDIENS par maille de 2 km dans `data/daily/` (voir la section dédiée) ; en CI, seuls les jours récents sont recalculés. |
 | `fetch_alerts_in_ua.py` | alerts.in.ua (menaces d'artillerie), sauté sans `ALERTS_IN_UA_TOKEN`. Identifiants d'oblast 3-31 à vérifier au premier passage. |
 | `fetch_ookla.py` | Ookla Open Data (Speedtest®, CC BY-NC-SA 4.0) : bucket S3 public, lecture ANONYME (aucune clé), dépendance `pyarrow` ; ajoute les trimestres publiés absents de `data/ookla_blocs_trimestre.csv` (tests mobile + fixe par bloc de 10 km × trimestre, ~3 s par trimestre ; aucune tuile écrite). Amorcé le 19/10/2026 depuis `signals4/ookla` (`--seed`), identique au téléchargement direct (2026-Q3 : 1 859 blocs sur 1 859). **Étape CI à ajouter** (voir § 8). |
 | `fetch_infra.py`, `build_infra.py` | Couche infrastructures (Natural Earth, WRI, OurAirports, OSM/Overpass), toute l'Ukraine. À relancer à la main de loin en loin. |
@@ -82,6 +84,49 @@ troncon, i0, j0, camp_source, n_localises, n_combat, n_att_ua, n_att_ru, n_sq, n
 7/9/2026 ; agrégats de `signals/alerts_cells_month.csv`) ; `ookla_blocs_trimestre.csv` (Speedtest® by Ookla®, tests par
 bloc de 10 km × trimestre, **CC BY-NC-SA 4.0**, mention en première ligne ; `fetch_ookla.py`).
 
+### Agrégats quotidiens (`data/daily/`, depuis le 20/10/2026)
+
+But : donner à chaque source un historique QUOTIDIEN du 24/02/2022 à J-1 pour entraîner les moteurs sur l'axe de temps
+quotidien, sans dépendre de `raw/` (jamais versionné, cache CI impossible à remplir depuis le Mac).
+
+- **Fichiers** : `data/daily/<source>_<année>.csv.gz` (gzip déterministe, mtime 0 : git ne voit un changement que si les
+  comptes changent), triés par date puis maille ; colonnes `date, [date_pub,] maille, i, j, camp_source, <comptes>` ;
+  maille = j × 700 + i (grille LAEA 700 × 470 de `build_front.py`, = `tglib.cell_of`). Un fichier de couverture par
+  source `data/daily/<source>_couverture.csv` (`date, lu, n_messages, …`) : **un jour non lu ne vaut pas zéro**.
+- **Causalité** : `date` = jour de l'événement, `date_pub` = jour de publication ; un lecteur au jour d ne lit que
+  `date_pub ≤ d`. Telegram et MoD RF : date = date_pub (jour de publication UTC). État-major : bilan du matin → date =
+  veille, date_pub = jour du message. WarSpotting : `date_pub_min` = borne INFÉRIEURE (l'API ne donne pas la mise en
+  ligne ; ordre d'ajout des fiches, 90e centile glissant ; médiane du retard 1 jour, 25 % des fiches > 60 jours, ajouts
+  tardifs). UCDP : `date_pub` = dernier jour du mois suivant (rythme des versions candidate) ; comptes de la version finale.
+- **Sources** :
+
+| Source | Fichiers | Comptes | Historique |
+|---|---|---|---|
+| Telegram, MODÈLE (attribution au message) | `telegram_<a>`, `telegram_troncons_<a>` (tronçon de 24 km : troncon, i0, j0) | n_localises, n_combat, n_att_ua, n_att_ru, n_sq, n_presence_ua, n_presence_ru | 24/02/2022 → J-1 |
+| Telegram, AFFICHAGE (attribution à la phrase) | `telegram_phrase_<a>` | n_localises, att_ua, att_ru, pres_ua, pres_ru | idem |
+| État-major UA | `etatmajor_<a>` | assauts (fractionnaires, répartis entre les localités du paragraphe ; repli causal sur les 30 j précédents), frappes_aeriennes | voir couverture |
+| MoD RF (Telegram + Interfax/RIA) | `modru_<a>` | localites (citations des bilans de groupements) | voir couverture |
+| UCDP GED | `ucdp_<a>` | n_evenements, n_sol, morts_best, morts_ru, morts_ua, morts_civils, morts_inconnus, n_multijour | 24/02/2022 → dernier mois candidate |
+| WarSpotting (pertes RUSSES seulement) | `warspotting_<a>` | n_pertes, n_detruits, n_endommages, n_abandonnes, n_captures, n_chars, n_blindes, n_artillerie, n_autres | 24/02/2022 → J-1 |
+
+- **Couverture Telegram** (`telegram_couverture.csv`) : `lu` = tous les canaux actifs ce jour-là entièrement lus ;
+  `n_graine_seule` = canaux lus seulement par la graine signals3 (filtre de géocodage v1 à la collecte : ~8 % de
+  messages localisés v2 en moins, mesuré sur la collecte CI) ; `source` = graine | hist | ci. Fusion par canal et par
+  identifiant : collecte `backfill_telegram.py` > collecte CI > graine. Tant que la phase 1 n'est pas finie, les jours
+  des 5 canaux au pas 40 (Tsaplienko, boris_rozhin, milinfolive, operativnoZSU, rvvoenkor) sont non lus (la graine n'a
+  qu'une page sur deux). Contrôle : les sommes mensuelles du quotidien reproduisent exactement `telegram_troncons.csv`.
+- **Reconstruction locale** (après la collecte) :
+  `python3 scripts/build_daily_telegram.py --full --graine ../ukraine-recherche/signals3/internal --hist ../ukraine-recherche/signals3/internal/hist --ci <copie de raw> --gaz <gn_UA_tess.geojson>` ;
+  `python3 scripts/build_daily_officiels.py <viina> <claims…> --tout` (plusieurs dossiers claims fusionnés par identifiant,
+  dont `internal/hist/claims`) ; `python3 scripts/build_daily_osint.py <brut> --tout`.
+- **CI** (`update.yml`) : Telegram : seuls les jours de la fenêtre commune des 15 canaux de la collecte des 45 jours
+  (veille du dernier passage incluse) sont remplacés, et seulement si la nouvelle version n'est pas plus pauvre (95 % des
+  messages localisés) ; officiels, UCDP, WarSpotting : 90 derniers jours (garde-fou à 90 %). Seules les années touchées
+  sont réécrites ; brut absent = fichiers publiés gardés.
+- **Limites** : textes Telegram lus APRÈS coup (messages édités : texte final ; messages supprimés : absents) ; canaux
+  ouverts après le 24/02/2022 (dva_majors 06/2022, noel_reports 07/2023) : jours antérieurs « non actifs » ; WarSpotting
+  sans pertes ukrainiennes ; aucun texte ni nom de canal dans `data/`.
+
 ### Site (`site/`)
 
 `i18n.js` (chaînes de la carte en FR/EN/UK/RU, `window.tr`), `toponyms.js` (toponymes), `methode_i18n.js` (titres de la
@@ -92,7 +137,8 @@ variantes `sans_*`), `data.js` (feux), `osint.js`, `geo.js`, `basemap.js`, `infr
 
 ### Workflows (`.github/workflows/`)
 
-- `update.yml` : quotidien. Collecte (FIRMS, OSINT, annonces, alerts.in.ua si secret, journal DeepState, Telegram 45 j), construction,
+- `update.yml` : quotidien. Collecte (FIRMS, OSINT, annonces, alerts.in.ua si secret, journal DeepState, Telegram 45 j), construction
+  (dont les agrégats quotidiens `data/daily/`, jours récents seulement),
   `stamp.py`, `check_arrows.py` ; les sorties ne sont versionnées que si les contrôles passent ; déploiement Pages.
 - `sar.yml` : le 9 de chaque mois à 02:00, `sar_update.py` (45-60 min), écrit `data/sar_cells.csv`.
 - **Tout YAML est validé** (`yaml.safe_load`) par `check_arrows.py` (bloquant). Un « : » non protégé dans un nom
