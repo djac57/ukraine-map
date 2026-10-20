@@ -161,7 +161,7 @@ def name_key(n):
     return re.sub(r"(.)\1+", r"\1", n)
 
 
-def carry_forward(status):
+def carry_forward(status, verbose=True):
     """Une carte dont la série s'arrête (l'ISW fin juin 2026) n'est pas retirée d'un coup : son dernier statut connu
     est prolongé, et son âge (σ0 + v · âge) le fait s'effacer progressivement. La retirer brutalement faisait sauter
     le champ (≈ +1,5 km en moyenne sur tout le front en juillet 2026)."""
@@ -179,13 +179,13 @@ def carry_forward(status):
                     for g, code in keep.items():
                         if g in st:
                             st[g] = st[g][:n] + (code,) + st[g][n + 1:]
-    if ended:
+    if ended and verbose:
         print("séries arrêtées, prolongées par leur dernier statut (vieillissement progressif) : "
               + ", ".join(f"{s} ({d[:4]}-{d[4:6]}-{d[6:]})" for s, d in ended.items()), flush=True)
     return ended
 
 
-def apply_dsm_log(status, places):
+def apply_dsm_log(status, places, write=True):
     """Corrige la colonne DeepState de VIINA par les déclarations datées de DeepState (« X libérée le jour J »).
 
     Une déclaration prime sur le statut VIINA tant que VIINA n'a pas changé depuis (sinon VIINA est plus récent) et
@@ -257,12 +257,13 @@ def apply_dsm_log(status, places):
     events = defaultdict(list)
     for day, camp, k in sorted(set(resolved)):
         events[places[k]["id"]].append((day, 1 if camp == "ua" else 2))
-    with open(os.path.join(ROOT, "data", "dsm_log.csv"), "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(["date", "geonameid", "nom", "lon", "lat", "camp"])
-        for day, camp, k in sorted(set(resolved)):
-            p = places[k]
-            w.writerow([f"{day[:4]}-{day[4:6]}-{day[6:]}", p["id"], p["name"], round(p["lon"], 4), round(p["lat"], 4), camp])
+    if write:   # (False : passage des décades, sur une séquence de dates plus dense ; le journal publié reste celui des mois)
+        with open(os.path.join(ROOT, "data", "dsm_log.csv"), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["date", "geonameid", "nom", "lon", "lat", "camp"])
+            for day, camp, k in sorted(set(resolved)):
+                p = places[k]
+                w.writerow([f"{day[:4]}-{day[4:6]}-{day[6:]}", p["id"], p["name"], round(p["lon"], 4), round(p["lat"], 4), camp])
     # correction, instantané par instantané (VIINA garde la main s'il a changé après la déclaration)
     fixed, last, since, prev_day = {}, {}, {}, None
     for day in days:
@@ -288,6 +289,8 @@ def apply_dsm_log(status, places):
                 n += 1
         fixed[day] = n
         prev_day = day
+    if not write:
+        return fixed, sorted(set(resolved))
     print(f"journal DeepState : {len(rows)} déclarations, {len(set(resolved))} localités situées, "
           f"{sum(fixed.values())} corrections de la colonne DeepState de VIINA (instantanés cumulés)", flush=True)
     return fixed, sorted(set(resolved))
@@ -422,9 +425,37 @@ def rasterize(tess_path):
     return cell, places
 
 
-def read_status(dates_needed):
+def read_status(dates_needed, extra=None):
+    """extra (historique HIST) : {AAAAMMJJ: None} rempli de tableaux compacts (localités × 4 codes, 255 = absente) sur
+    l'index read_status.gidx ; `status` ne contient que dates_needed (+ PRE_DATE), comme sans historique."""
     want = {d.strftime("%Y%m%d") for d in dates_needed} | {PRE_DATE}
     status, seen_dates = defaultdict(dict), set()
+    if extra is not None:
+        import numpy as np
+        rows = defaultdict(bytearray)     # par date : (localité sur 3 octets, 4 codes) = 7 octets par ligne
+        gidx = read_status.gidx = {}
+        for path in sorted(f for f in os.listdir(SRC_DIR) if f.startswith("control_") and f.endswith(".zip")):
+            with zipfile.ZipFile(os.path.join(SRC_DIR, path)) as z:
+                with z.open(z.namelist()[0]) as fh:
+                    head = fh.readline().decode().strip().split(",")
+                    cl = [head.index(f"status_{c}") for c in VIINA]
+                    for line in io.TextIOWrapper(fh, encoding="utf-8"):
+                        a = line.split(",", 2)
+                        if a[1] not in extra:
+                            continue
+                        r = line.rstrip("\n").split(",")
+                        g = gidx.setdefault(r[0], len(gidx))
+                        rows[a[1]] += g.to_bytes(3, "little") + bytes((CODE.get(r[cl[0]], 0), CODE.get(r[cl[1]], 0),
+                                                                       CODE.get(r[cl[2]], 0), CODE.get(r[cl[3]], 0)))
+        for d in list(rows):
+            x = np.frombuffer(bytes(rows.pop(d)), np.uint8).reshape(-1, 7)
+            gi = x[:, 0].astype(np.int64) | x[:, 1].astype(np.int64) << 8 | x[:, 2].astype(np.int64) << 16
+            arr = np.full((len(gidx), 4), 255, np.uint8)
+            arr[gi] = x[:, 3:]
+            extra[d] = arr
+        rows = None
+        for d in [d for d, v in extra.items() if v is None]:
+            del extra[d]
     for path in sorted(f for f in os.listdir(SRC_DIR) if f.startswith("control_") and f.endswith(".zip")):
         with zipfile.ZipFile(os.path.join(SRC_DIR, path)) as z:
             with z.open(z.namelist()[0]) as fh:
@@ -710,6 +741,17 @@ LOCAL_MIN = 0.5      # σ local : rétrécissement maximal (0,2 rendait les sect
 DAILY_DAYS = int(os.environ.get("DAILY_DAYS", "0"))   # période récente en pas de quelques jours (90 prévu ; 0 : tout mensuel)
 STEP_DAYS = 3        # pas de la période récente
 WINDOW_DAYS = 14     # fenêtre glissante des indicateurs de combat d'un pas récent
+# historique infra-mensuel (20/10/2026, voir HistSide et docs/ETAT.md § 6) : instantanés EN BRANCHE de la chaîne
+# mensuelle (sorties mensuelles et pas récents inchangés), publiés à part, un fichier par année (site/front_hist_*.js).
+# HIST = "" : éteint ; "jours" : chaque jour ; "decades" : les 10 et 20 ; HIST_FROM = "AAAA-MM" : depuis ce mois.
+HIST = os.environ.get("HIST", "").strip().lower()
+HIST_FROM = os.environ.get("HIST_FROM", "").strip()
+HIST_VIEWS = ("equilibre", "ua", "ru", "tiers")     # vues calculées (+ nowcast) ; variantes « sans X » : non
+HIST_PUBLISH = ("equilibre", "nowcast", "ua", "ru", "tiers")
+HIST_CACHE = os.environ.get("HIST_CACHE", os.path.join(ROOT, "raw", "front_hist_cache"))   # "" : pas de cache brut
+HIST_FREEZE = int(os.environ.get("HIST_FREEZE", "45"))      # jours : plus anciens que limite − 45 j = historique figé
+HIST_BUDGET_MIN = float(os.environ.get("HIST_BUDGET_MIN", "0"))   # minutes de recalcul des jours figés périmés (0 : sans limite)
+HIST_ADOPT = os.environ.get("HIST_ADOPT") == "1"     # adopter les entrées sans empreinte (migration, mêmes entrées)
 
 
 class WindowLayers:
@@ -756,17 +798,23 @@ class WindowLayers:
                 out.append(((c[1] + 0.5) * self.cell, (c[0] + 0.5) * self.cell, w * 30.0 / WINDOW_DAYS))  # ramené au mois
         return out
 
-    def get(self, date):
-        """(combats, présence russe, présence ukrainienne) du pas, au format de load_layers."""
+    def get(self, date, strict=False):
+        """(combats, présence russe, présence ukrainienne) du pas, au format de load_layers.
+        strict (historique infra-mensuel, HIST) : feux de la fenêtre à l'échelle de load_layers (× 0,1, comme les mois ;
+        les pas récents gardent leur échelle d'origine) ; UCDP et pertes du DERNIER MOIS ÉCOULÉ (publiés au mois : le
+        mois en cours n'est pas connu à la date de la décade)."""
         mi = self.months.index(date.strftime("%Y-%m"))
         _, pres, _, ucdp = self.layers
         pu = [(lon, lat, 3.0) for d, lon, lat in self.claims if date - dt.timedelta(days=75) < d <= date + dt.timedelta(days=45)]
+        if strict:
+            return [(x, y, w * 0.1) for x, y, w in self.fires(date)] + list(ucdp.get(mi - 1, [])), pres.get(mi - 1, []), pu
         return self.fires(date) + list(ucdp.get(mi, [])), pres.get(mi, []), pu
 
-    def indicators(self, date):
-        """Indicateurs bruts du nowcast pour le pas : feux (fenêtre), UCDP (mois), pertes (mois), sur la grille."""
+    def indicators(self, date, strict=False):
+        """Indicateurs bruts du nowcast pour le pas : feux (fenêtre), UCDP (mois), pertes (mois), sur la grille.
+        strict (décades) : UCDP et pertes du dernier mois écoulé."""
         import numpy as np
-        mi = self.months.index(date.strftime("%Y-%m"))
+        mi = self.months.index(date.strftime("%Y-%m")) - (1 if strict else 0)
         _, pres, _, ucdp = self.layers
         grids = []
         for pts in (self.fires(date), ucdp.get(mi, []), pres.get(mi, [])):
@@ -1071,7 +1119,10 @@ class Model:
             state["key"][s] = key
         state["prev_day"] = d
         dist = {}
-        offs = (getattr(self, "offsets", None) or {}).get(m if len(m) == 7 else m[:7], {}) if OFFSET_ON else {}
+        # historique (HIST) : réglages appris du mois de RÉFÉRENCE (dernier mois écoulé), pas du mois en cours
+        dref = getattr(self, "dec_ref", None) or {}
+        okey = m if len(m) == 7 else dref.get(m, m[:7])
+        offs = (getattr(self, "offsets", None) or {}).get(okey, {}) if OFFSET_ON else {}
         for s, arr in signs.items():
             dd = signed_distance(arr, self.U, self.inU, P["cap_km"])
             b = offs.get(s)
@@ -1102,8 +1153,8 @@ class Model:
             mi = self.months.index(m)
             combat, pres, pres_ua = layers[:3]
             cb, pp, pq = combat.get(mi, []), pres.get(mi, []), pres_ua.get(mi, [])
-        else:  # pas récent : fenêtre glissante (voir WindowLayers)
-            cb, pp, pq = self.window.get(d)
+        else:  # pas récent ou décade : fenêtre glissante (voir WindowLayers)
+            cb, pp, pq = self.window.get(d, strict=m in dref)
         h = density_field(cb, P["h0"]) if P["alpha"] > 0 else None
         pr = density_field(pp, P["h0"]) if P["gamma"] > 0 else None
         pu = density_field(pq, P["h0"]) if P["gamma"] > 0 else None
@@ -1189,7 +1240,7 @@ class Model:
                          for u in range(self.nU)]
         return {"day": day, "ndays": ndays or 30, "base": base, "dist": dist, "sigma": sigma, "extra": extra, "widen": widen, "lv": lv, "ker": ker, "h": h, "pr": pr, "pu": pu,
                 "flags": dict(flags), "age": {s: state["age"][s] for s in dist}, "xy_active": xy_active, "band_ev": band_ev,
-                "wm": {s: v for s, v in (getattr(self, "wmult", None) or {}).get(m if len(m) == 7 else m[:7], {}).items() if s in dist}}
+                "wm": {s: v for s, v in (getattr(self, "wmult", None) or {}).get(okey, {}).items() if s in dist}}
 
     def band_evidence(self, d, P, kstrength):
         """Bande russe : somme des preuves (logits) par maille.
@@ -1303,8 +1354,10 @@ class Model:
             out[u] = (1 - P["beta"]) * obs[u] + P["beta"] * pr
         return out
 
-    def run(self, P, sigma0, v_km, layers, kstrength, month_list, fields, on_month=None, mc=False):
-        """fields : {nom: (camps, drop, changements de P)}. on_month(m, inp, {nom: p sur U}, mc)."""
+    def run(self, P, sigma0, v_km, layers, kstrength, month_list, fields, on_month=None, mc=False, side=None):
+        """fields : {nom: (camps, drop, changements de P)}. on_month(m, inp, {nom: p sur U}, mc).
+        side (HIST) : objet HistSide ; après l'instantané m, les jours side.after[m] sont calculés EN BRANCHE
+        (copie de l'état, filtre depuis prev du mois m) : rien de ce qui suit dans la chaîne n'en dépend."""
         state = {"age": {}, "key": {}, "official": {}}
         prev = {f: None for f in fields}
         base_inp = None
@@ -1352,6 +1405,9 @@ class Model:
                     mcres = self.monte_carlo(inp, P, *views_mc["equilibre"])
             if on_month:
                 on_month(m, inp, ps, mcres)
+            if side is not None and m in side.after:
+                for key in side.after[m]:
+                    side.step(self, key, P, sigma0, v_km, layers, kstrength, state, prev)
         return prev
 
     def rewiden(self, inp, P):
@@ -1601,6 +1657,505 @@ class Model:
             res["sectors"] = {n: [round(a * a2), round(a * a2 / (e * CELL_KM), 2) if e >= 12 else None]  # largeur seulement sur ≥ 24 km de ligne
                               for n, (a, e) in sec.items() if n in FRONT_ADM1 and (a or e)}
         return res
+
+    def metrics_np(self, p, crimea, pre, sectors=False):
+        """metrics vectorisé (numpy), mêmes définitions ; sommes en float64 (à l'arrondi près des sommes Python).
+        Utilisé pour le seul historique infra-mensuel (HIST) : les instantanés mensuels et les pas récents gardent metrics."""
+        import numpy as np
+        if getattr(self, "_mnp", None) is None:
+            cu = np.array([self.cell[k] for k in self.U], np.int64)
+            nbm = np.full((self.nU, 4), self.nU, np.int64)
+            for u, q in enumerate(self.nb):
+                nbm[u, :len(q)] = q
+            names = sorted(set(self.sector))
+            sid = {n: i for i, n in enumerate(names)}
+            self._mnp = (cu, nbm, names, np.array([sid[s] for s in self.sector], np.int64))
+        cu, nbm, names, secu = self._mnp
+        crim = np.asarray(crimea, bool)
+        prez = np.asarray(pre, bool)
+        p = np.asarray(p, np.float64)
+        pe = np.append(p, 1.0)
+        edge = (p >= 0.5) & (pe[nbm] < 0.5).any(1)
+        band = cu == -2
+        ua = ~band
+        pl = np.where(ua, cu, 0)
+        hc = ua & ~crim[pl]
+        d22 = hc & ~prez[pl]
+        rows = (p, (p >= 0.5).astype(float), ((p >= 0.05) & (p <= 0.95)).astype(float), (p > 0.95).astype(float))
+        a2 = CELL_KM ** 2
+        res = {per: [round(float(r[m].sum()) * a2) for r in rows] for per, m in (("tout", ua), ("horsCrimee", hc), ("depuis2022", d22))}
+        ru_exp = float(np.where(p < 0.95, 1 - p, 0.0)[band].sum())
+        ru_med = float((p[band] < 0.5).sum())
+        res["russie_ua"] = [round(ru_exp * a2), round(ru_med * a2)]
+        L_km = int(edge.sum()) * CELL_KM
+        grey = res["tout"][2]
+        res["front_km"] = round(L_km)
+        res["grey_width_km"] = round(grey / L_km, 2) if L_km else None
+        if sectors:
+            ga = np.bincount(secu[ua], weights=rows[2][ua], minlength=len(names))
+            ge = np.bincount(secu[ua], weights=edge[ua].astype(float), minlength=len(names))
+            res["sectors"] = {n: [round(float(ga[i]) * a2), round(float(ga[i]) * a2 / (ge[i] * CELL_KM), 2) if ge[i] >= 12 else None]
+                              for i, n in enumerate(names) if n in FRONT_ADM1 and (ga[i] or ge[i])}
+        return res
+
+
+# ---------- historique infra-mensuel (HIST : jours ou décades, 20/10/2026) ----------
+def _copy_state(st):
+    """Copie de l'état persistant de month_inputs (âges, clés, changements, codes, annonces actives) : les valeurs sont
+    immuables, une copie des dictionnaires suffit."""
+    out = {k: (dict(v) if isinstance(v, dict) else v) for k, v in st.items()}
+    out["official"] = {s: dict(v) for s, v in st.get("official", {}).items()}
+    return out
+
+
+class HistStatus:
+    """Statuts VIINA des jours de l'historique, dérivés SANS retraiter la chaîne mensuelle : pour chaque localité et
+    chaque carte, si le statut brut du jour est celui du brut du mois de référence M, on reprend le statut TRAITÉ de M
+    (prolongation des séries arrêtées, barrières dures, journal DeepState) ; sinon (VIINA a changé depuis M), le statut
+    brut du jour ; enfin les déclarations datées de DeepState postérieures à M et au plus tard le jour s'appliquent à la
+    colonne DeepState si VIINA-DeepState n'a pas changé depuis M (règle de apply_dsm_log : VIINA plus récent garde la main)."""
+
+    def __init__(self, raw_c, gidx, status, refday, day, dsm_events, places, ended=None):
+        import numpy as np
+        n = len(gidx)
+        # séries arrêtées (carry_forward) : après leur dernier jour, la colonne reprend celle du mois traité (prolongée)
+        self.ended = {VIINA.index(s): d for s, d in (ended or {}).items()}
+        self.gid = [None] * n
+        for g, i in gidx.items():
+            self.gid[i] = g
+        self.refday, self.day = refday, day
+        need = set(refday.values()) | set(day.values())
+        self.raw = {d: v for d, v in raw_c.items() if d in need}
+        self.proc = {}
+        for rd in set(refday.values()):
+            arr = np.full((n, 4), 255, np.uint8)
+            for g, c in status[rd].items():
+                i = gidx.get(g)
+                if i is not None:
+                    arr[i] = c
+            self.proc[rd] = arr
+        self.ev = sorted((d, gidx[places[k]["id"]], 1 if camp == "ua" else 2) for d, camp, k in dsm_events if places[k]["id"] in gidx)
+
+    def compact(self, key):
+        import numpy as np
+        d, rd = self.day[key], self.refday[key]
+        a, rM, pM = self.raw[d], self.raw[rd], self.proc[rd]
+        out = np.where(a == rM, pM, a)
+        for n, dl in self.ended.items():
+            if d > dl and rd >= dl:
+                out[:, n] = np.where(a[:, 0] == 255, 255, np.where(pM[:, n] == 255, 0, pM[:, n]))
+        last = {}
+        for ed, i, code in self.ev:
+            if rd < ed <= d:
+                last[i] = code
+        if last:
+            ii = np.fromiter(last, np.int64)
+            cc = np.fromiter(last.values(), np.uint8)
+            ok = (a[ii, 0] == rM[ii, 0]) & (a[ii, 0] != 255)
+            out[ii[ok], 0] = cc[ok]
+        return out
+
+    def dict_for(self, key):
+        g = self.gid
+        return {g[i]: tuple(r) for i, r in enumerate(self.compact(key).tolist()) if r[0] != 255}
+
+
+class HistHash:
+    """Empreinte des ENTRÉES d'un jour de l'historique (sha1, 16 caractères) : VERSION du code, réglages globaux arrondis
+    (σ0, v, force des noyaux à 0,01 près ; demi-vie au jour ; autres réglages exacts), statuts VIINA dérivés du jour,
+    statuts traités de tous les mois de référence jusqu'à M (état de la chaîne), annonces officielles datées jusqu'au jour
+    + 46 jours (bande russe, comme band_evidence), annonces des médias de la fenêtre de 90 jours, feux de la fenêtre de
+    14 jours et normales de leurs mois, UCDP et pertes du mois M, reprises annoncées par le MoD RF de la fenêtre
+    −75 / +45 jours, décalages par carte de M. Une entrée qui arrive en retard (rétro-collecte, révision de VIINA, nouveau
+    réglage) change l'empreinte des jours concernés, qui sont recalculés."""
+
+    def __init__(self, model, hstat, months, layers, P, sigma0, v_km, kstrength):
+        import bisect
+        import numpy as np
+        self.bisect = bisect
+        self.model, self.hstat, self.months, self.layers = model, hstat, months, layers
+        glob = (HistSide.VERSION, sorted((k, round(v, 3) if isinstance(v, float) else v) for k, v in P.items() if k != "official_half_life"),
+                round(P["official_half_life"]), sorted((s, round(v, 2)) for s, v in sigma0.items()), round(v_km, 2),
+                sorted((s, round(v, 2)) for s, v in kstrength.items()), HIST_VIEWS, OFFSET_ON, WMULT_ON)
+        self.glob = hashlib.sha1(repr(glob).encode()).digest()
+        # états traités des mois de référence, en préfixe chronologique
+        self.pref = {}
+        h = hashlib.sha1()
+        for rd in sorted(hstat.proc):
+            h.update(hstat.proc[rd].tobytes())
+            self.pref[rd] = h.digest()
+        off = sorted((d, src, repr(k)) for src in ("modru", "gsua") for k, dates in model.official.get(src, {}).items() for d in dates)
+        self.off_d = [x[0] for x in off]
+        self.off_h = []
+        h = hashlib.sha1()
+        for x in off:
+            h.update(repr(x).encode())
+            self.off_h.append(h.digest())
+        cl = sorted((d, g, s) for g, lst in model.claims.items() for d, s in lst)
+        self.cl_d, self.cl = [x[0] for x in cl], cl
+        W_ = model.window
+        self.det = {d: hashlib.sha1(repr(sorted(v.items())).encode()).digest() for d, v in W_.det.items()}
+        mu = defaultdict(list)
+        for (i, j, m), v in W_.mu.items():
+            mu[m].append((i, j, v))
+        self.mu = {m: hashlib.sha1(repr(sorted(v)).encode()).digest() for m, v in mu.items()}
+        self.ru = sorted(W_.claims)
+        self.ru_d = [x[0] for x in self.ru]
+        self.np = np
+
+    def __call__(self, key):
+        b = self.bisect
+        model, hs = self.model, self.hstat
+        d = model.snap[key]
+        rd = hs.refday[key]
+        M = model.dec_ref[key]
+        h = hashlib.sha1(self.glob)
+        h.update(key.encode())
+        h.update(hs.compact(key).tobytes())
+        h.update(self.pref[rd])
+        i = b.bisect_right(self.off_d, (d + dt.timedelta(days=46)).strftime("%Y%m%d"))
+        h.update(self.off_h[i - 1] if i else b"")
+        lo, hi = b.bisect_right(self.cl_d, (d - dt.timedelta(days=91)).strftime("%Y%m%d")), b.bisect_right(self.cl_d, d.strftime("%Y%m%d"))
+        h.update(repr(self.cl[lo:hi]).encode())
+        mos = set()
+        for j in range(WINDOW_DAYS):
+            x = d - dt.timedelta(days=j)
+            mos.add(x.strftime("%Y-%m"))
+            h.update(self.det.get(x.isoformat(), b""))
+        for m in sorted(mos):
+            h.update(self.mu.get(m, b""))
+        mi = self.months.index(M)
+        h.update(repr((self.layers[3].get(mi, []), self.layers[1].get(mi, []))).encode())
+        lo, hi = b.bisect_right(self.ru_d, d - dt.timedelta(days=75)), b.bisect_right(self.ru_d, d + dt.timedelta(days=45))
+        h.update(repr(self.ru[lo:hi]).encode())
+        offs = (getattr(model, "offsets", None) or {}).get(M, {}) if OFFSET_ON else {}
+        for s in sorted(offs):
+            h.update(s.encode() + self.np.asarray(offs[s], self.np.float32).tobytes())
+        return h.hexdigest()[:16]
+
+
+class HistSide:
+    """Instantanés HISTORIQUES infra-mensuels (HIST : tous les jours, ou les 10 et 20 ; la fin de mois est l'instantané
+    mensuel), calculés EN BRANCHE depuis l'état du dernier mois écoulé M : filtre temporel depuis le champ de M (pas de
+    1 à 30 jours), persistance des sources copiée, réglages appris de M (décalages par carte, β du nowcast, bande
+    locale), indicateurs publiés au mois (UCDP, pertes) de M, feux de la fenêtre de 14 jours finissant à la date. La
+    chaîne mensuelle n'est pas touchée (sorties mensuelles et pas récents identiques) ; les réglages sont réappris sur
+    tout l'historique à chaque build, seul le calcul coûteux du champ de chaque jour est gardé.
+
+    Gel PAR EMPREINTE (HistHash) : un jour antérieur à limite − HIST_FREEZE jours (45) est repris tel quel si son
+    empreinte d'entrées est inchangée, (1) des fichiers PUBLIÉS site/front_hist_<année>*.js (champ « h » de chaque jour ;
+    aucun calcul), ou (2) du cache brut HIST_CACHE (défaut raw/front_hist_cache/, une entrée par jour : champs des 4 vues
+    avant bande locale sur 16 bits et codes des cartes ; points de reprise d'un premier calcul long). Sinon il est
+    recalculé, du plus ancien au plus récent, dans la limite de HIST_BUDGET_MIN minutes de calcul (0 : sans limite) ;
+    au-delà, l'ancienne version (périmée) est gardée et le recalcul reprend au passage suivant. Les 45 derniers jours
+    sont toujours recalculés. Changer VERSION recalcule tout (changement du modèle). HIST_ADOPT=1 : les entrées SANS
+    empreinte (calcul antérieur à l'empreinte, mêmes entrées) sont adoptées avec l'empreinte du jour."""
+    VERSION = "1"
+
+    def __init__(self, model, keys, ref, frozen, published, hstat, hashes, stale_pub):
+        self.model, self.keys, self.ref, self.hstat = model, keys, ref, hstat
+        self.frozen, self.published, self.hashes = frozen, published, hashes   # published : repris tels quels
+        self.stale_pub = stale_pub        # jours publiés d'empreinte périmée (gardés si le budget est épuisé)
+        self.after = defaultdict(list)
+        for k in sorted(keys):
+            if k not in published:
+                self.after[ref[k]].append(k)
+        self.res = {}           # clé → données en mémoire, ou "disk" (cache brut), ou "stale" (version publiée périmée)
+        self.n_cache = self.n_new = self.n_skip = self.n_stale = self.n_redo = 0
+        self.t_cmp = 0.0
+        self.dir = HIST_CACHE
+
+    def _path(self, key):
+        return os.path.join(self.dir, f"{key}.pkl")
+
+    def _entry(self, key):
+        import pickle
+        import zlib
+        if not self.dir or not os.path.exists(self._path(key)):
+            return None
+        try:
+            e = pickle.loads(zlib.decompress(open(self._path(key), "rb").read()))
+        except Exception:  # noqa: BLE001 (entrée illisible : recalculée)
+            return None
+        return e if e.get("version") == self.VERSION else None
+
+    def load(self, key, h=None, any_hash=False):
+        e = self._entry(key)
+        if e is None:
+            return None
+        eh = e.get("h") or e["data"].get("h")
+        if any_hash or eh == h or (eh is None and HIST_ADOPT):
+            e["data"]["h"] = eh if any_hash else h
+            return e["data"]
+        return None
+
+    def save(self, key, data):
+        import pickle
+        import zlib
+        os.makedirs(self.dir, exist_ok=True)
+        blob = zlib.compress(pickle.dumps({"version": self.VERSION, "h": data.get("h"), "created": dt.date.today().isoformat(),
+                                           "data": data}, protocol=4), 6)
+        tmp = self._path(key) + ".tmp"
+        open(tmp, "wb").write(blob)
+        os.replace(tmp, self._path(key))
+
+    def get(self, key):
+        r = self.res.get(key)
+        if r == "disk":
+            return self.load(key, self.hashes.get(key))
+        if r == "disk-stale":
+            return self.load(key, any_hash=True)
+        return r
+
+    def step(self, model, key, P, sigma0, v_km, layers, kstrength, state, prev):
+        import time
+        import numpy as np
+        h = self.hashes.get(key)
+        if key in self.frozen:
+            if self.load(key, h) is not None:
+                self.res[key] = "disk"
+                self.n_cache += 1
+                return
+            self.n_redo += 1
+            if HIST_BUDGET_MIN and self.t_cmp > HIST_BUDGET_MIN * 60:
+                # budget épuisé : version périmée gardée (publiée, sinon cache), recalcul au passage suivant
+                if key in self.stale_pub:
+                    self.res[key] = "stale"
+                    self.n_stale += 1
+                elif self.load(key, any_hash=True) is not None:
+                    self.res[key] = "disk-stale"
+                    self.n_stale += 1
+                else:
+                    self.n_skip += 1
+                return
+        t1 = time.time()
+        st = _copy_state(state)
+        dkey = model.snap[key].strftime("%Y%m%d")
+        old = model.status.get(dkey)
+        model.status[dkey] = self.hstat.dict_for(key)
+        try:
+            inp = model.month_inputs(key, P, sigma0, v_km, layers, st, kstrength)
+        finally:
+            if old is None:
+                model.status.pop(dkey, None)
+            else:
+                model.status[dkey] = old
+        ps = {}
+        for name in HIST_VIEWS:
+            obs = model.pool(inp, VIEWS[name], P)
+            L = model.filter(obs, prev[name], P, v_km, inp["ndays"])
+            ps[name] = np.round(1.0 / (1.0 + np.exp(-np.clip(np.asarray(L, np.float64), -40, 40))) * 65535).astype(np.uint16)
+        cur = {}
+        for k, b in enumerate(inp["base"]):
+            fl = inp["flags"].get(k, 0)
+            if any(c > 1 for c in b) or fl:
+                cur[k] = b[0] | b[1] << 2 | b[2] << 4 | b[3] << 6 | fl
+        data = {"ps": ps, "cur": cur, "ndays": inp["ndays"], "sigma": {s: round(v, 2) for s, v in inp["sigma"].items()},
+                "age": {s: round(v) for s, v in inp["age"].items()}, "h": h}
+        if self.dir:
+            self.save(key, data)
+            self.res[key] = "disk"
+        else:
+            self.res[key] = data
+        self.n_new += 1
+        self.t_cmp += time.time() - t1
+        if self.n_new % 25 == 1:
+            print(f"  historique {key} (branche depuis {self.ref[key]}, {data['ndays']} j) : calculé en {time.time() - t1:.1f} s ; "
+                  f"{self.n_new} calculés, {self.n_cache} relus du cache", flush=True)
+
+
+def _encode_np(q, prevq):
+    """encode_field vectorisé (mêmes octets) : valeurs 0-63, 255 = inchangé, longueurs en varint, base 64."""
+    import numpy as np
+    v = np.frombuffer(bytes(q), np.uint8).astype(np.int16)
+    if prevq is not None:
+        v = np.where(np.frombuffer(bytes(prevq), np.uint8).astype(np.int16) == v, 255, v)
+    cut = np.flatnonzero(np.diff(v)) + 1
+    starts, ends = np.r_[0, cut], np.r_[cut, len(v)]
+    out = bytearray()
+    for a, b in zip(starts.tolist(), ends.tolist()):
+        out.append(int(v[a]))
+        n = b - a
+        while True:
+            c = n & 0x7F
+            n >>= 7
+            out.append(c | 0x80 if n else c)
+            if not n:
+                break
+    return base64.b64encode(bytes(out)).decode()
+
+
+def _decode_seq(enc, n):
+    """Décodage d'une suite encodée (différences d'une entrée à la précédente) : liste de bytes ou None."""
+    out, prev = [], bytes(n)
+    for e in enc:
+        if not e:
+            out.append(None)
+            continue
+        b, q, o, i = base64.b64decode(e), bytearray(n), 0, 0
+        while i < len(b):
+            v = b[i]
+            i += 1
+            k = sh = 0
+            while True:
+                c = b[i]
+                i += 1
+                k |= (c & 127) << sh
+                sh += 7
+                if not c & 128:
+                    break
+            q[o:o + k] = prev[o:o + k] if v == 255 else bytes([v]) * k
+            o += k
+        out.append(bytes(q))
+        prev = out[-1]
+    return out
+
+
+def _hist_path(Y, f=None):
+    return os.path.join(ROOT, "site", f"front_hist_{Y}.js" if f is None else f"front_hist_{Y}_{f}.js")
+
+
+def _after_eq(path):
+    s = open(path, encoding="utf-8").read()
+    return json.loads(s[s.index("]=") + 2:].strip().rstrip(";"))
+
+
+def read_published_hist():
+    """Métadonnées des fichiers publiés site/front_hist_<année>.js de même VERSION et même cadence : {date ISO: méta}."""
+    import glob as _glob
+    out = {}
+    for path in sorted(_glob.glob(os.path.join(ROOT, "site", "front_hist_[0-9][0-9][0-9][0-9].js"))):
+        try:
+            H = _after_eq(path)
+        except (OSError, ValueError):
+            continue
+        if H.get("version") != HistSide.VERSION or H.get("cadence") != HIST:
+            continue
+        if not all(os.path.exists(path[:-3] + f"_{f}.js") for f in HIST_PUBLISH):
+            continue
+        for k, mo in zip(H["keys"], H["months"]):
+            out[k] = mo
+    return out
+
+
+def published_hist_fields(Y, nU):
+    """Champs publiés (6 bits) d'une année : {date ISO: {vue: bytes}}."""
+    H = _after_eq(_hist_path(Y))
+    F = {f: _decode_seq(_after_eq(_hist_path(Y, f)), nU) for f in HIST_PUBLISH}
+    return {k: {f: F[f][j] for f in HIST_PUBLISH} for j, k in enumerate(H["keys"]) if all(F[f][j] is not None for f in HIST_PUBLISH)}
+
+
+def write_hist(side, hist, hist_ref, pub_hist, months, fm, snap, months_out, codes_store, ncast, ind, lbs, model, crimea,
+               pre, today, limit):
+    """Historique (HIST) : nowcast en branche (β du mois de référence, champ des cartes du dernier mois ≤ date − 60 jours
+    pour la tendance, indicateurs de la fenêtre stricte), bande locale du mois de référence, surfaces, intervalle Monte
+    Carlo du mois de référence reporté autour de l'espérance du jour, états des cartes en différences par rapport au mois
+    de référence. Un fichier par année : site/front_hist_<année>.js (méta) et site/front_hist_<année>_<vue>.js (champs,
+    même codage que front_<vue>.js, différences d'un jour au précédent dans l'année). Une année dont tous les jours sont
+    figés et déjà publiés n'est pas réécrite. Renvoie l'index publié dans FRONT.hist."""
+    import time
+    import numpy as np
+    from conformal import LN19
+    t0 = time.time()
+    by_year = defaultdict(list)
+    for k in sorted(hist, key=lambda k: hist[k]):
+        by_year[hist[k].year].append(k)
+    bc = {}
+
+    def remap(f, p, t):
+        if bc.get(f, (None,))[0] != t:
+            bc[f] = (t, lbs[f].bounds(t))
+        b = bc[f][1]
+        sd = lbs[f].sd(p) if b is not None else None
+        if sd is None:
+            return p
+        lo, hi = b
+        D = sd + 1.0
+        sc = np.where(D < 0, -lo, hi)
+        q = (1.0 / (1.0 + np.exp(-np.clip(LN19 * D / sc, -40, 40)))).astype(np.float32)
+        return np.where(lbs[f].s.isUA, q, p).astype(np.float32)
+
+    def post(k, data):
+        fd, M = hist[k], hist_ref[k]
+        tM = months.index(M)
+        ps = {f: data["ps"][f].astype(np.float32) / np.float32(65535) for f in HIST_VIEWS}
+        lim60 = fd - dt.timedelta(days=60)
+        cand = [m for m in fm if snap[m] <= lim60 and months.index(m) in ncast.P]
+        p_back = ncast.P[months.index(cand[-1] if cand else fm[0])]
+        ind_d = list(model.window.indicators(fd, strict=True)) + list(ind[tM][3:4])
+        pn, _, _ = ncast.apply_arrays(ps["equilibre"], ind_d, p_back, ncast.beta[tM])
+        ps["nowcast"] = np.asarray(pn, np.float32)
+        mo = {"date": fd.isoformat(), "ref": tM, "ndays": data["ndays"], "a": {}, "beta": ncast.beta[tM],
+              "sigma": data["sigma"], "age": data["age"], "h": data.get("h")}
+        qs = {}
+        for f in HIST_PUBLISH:
+            p1 = remap(f, ps[f], tM)
+            qs[f] = np.clip(np.round(p1 * 63), 0, 63).astype(np.uint8).tobytes()
+            met = model.metrics_np(p1, crimea, pre, sectors=(f == "equilibre"))
+            mo["a"][f] = {kk: met[kk] for kk in ("tout", "horsCrimee", "depuis2022")}
+            mo["a"][f]["russie"] = met["russie_ua"]
+            if f == "equilibre":
+                mo["grey"] = {"km2": met["tout"][2], "width_km": met["grey_width_km"], "front_km": met["front_km"], "sectors": met.get("sectors", {})}
+            elif f == "nowcast":
+                mo["greyNow"] = {"km2": met["tout"][2], "width_km": met["grey_width_km"]}
+        mM = months_out[M]
+        if mM and mM.get("mc"):
+            mo["mc"] = {per: [x - mM["a"]["equilibre"][per][0] + mo["a"]["equilibre"][per][0] for x in mM["mc"][per]] for per in mM["mc"]}
+            d_ = mo["a"]["nowcast"]["tout"][0] - mo["a"]["equilibre"]["tout"][0]
+            mo["mcNow"] = {per: [x + d_ for x in mo["mc"][per]] for per in mo["mc"]}
+        base_c, cur = codes_store.get(M, {}), data["cur"]
+        diff = [[q, c] for q, c in cur.items() if base_c.get(q) != c] + [[q, 0] for q in base_c if q not in cur]
+        mo["d"] = [x for qc in sorted(diff) for x in qc]
+        return mo, qs
+
+    index, n_new, n_pub, n_kept = {}, 0, 0, 0
+    for Y, ks in sorted(by_year.items()):
+        if all(k in pub_hist for k in ks) and os.path.exists(_hist_path(Y)):
+            n_kept += len(ks)
+            sz = sum(os.path.getsize(_hist_path(Y, f)) for f in HIST_PUBLISH) + os.path.getsize(_hist_path(Y))
+            index[str(Y)] = {"n": len(ks), "first": hist[ks[0]].isoformat(), "last": hist[ks[-1]].isoformat(), "ko": sz // 1024}
+            continue
+        old = {k: side.stale_meta[k] for k in ks if side.res.get(k) == "stale"}
+        pubq = published_hist_fields(Y, model.nU) if any(k in pub_hist or k in old for k in ks) else {}
+        metas, enc, prevq = [], {f: [] for f in HIST_PUBLISH}, {f: None for f in HIST_PUBLISH}
+        for k in ks:
+            iso = hist[k].isoformat()
+            if (k in pub_hist or k in old) and iso in pubq:
+                mo, qs = (pub_hist[k] if k in pub_hist else old[k]), pubq[iso]
+                n_pub += 1
+            else:
+                data = side.get(k)
+                if data is None:
+                    continue
+                mo, qs = post(k, data)
+                n_new += 1
+            metas.append(mo)
+            for f in HIST_PUBLISH:
+                enc[f].append(_encode_np(qs[f], prevq[f]))
+                prevq[f] = qs[f]
+        if not metas:
+            continue
+        H = {"version": HistSide.VERSION, "cadence": HIST, "generated": today.isoformat(), "limit": limit.isoformat(), "year": Y,
+             "keys": [mo["date"] for mo in metas], "fields": list(HIST_PUBLISH),
+             "method": "instantanés calculés en BRANCHE depuis l'état du dernier mois écoulé (ref, indice dans FRONT.months) : "
+                       "filtre temporel depuis son champ (pas de ndays jours), décalages par carte, β du nowcast et bande locale "
+                       "de ce mois, feux de la fenêtre de 14 jours, UCDP et pertes du mois écoulé ; fins de mois : FRONT.months ; "
+                       "d = différences de codes des cartes par rapport au mois ref ; mc = intervalle du mois ref reporté",
+             "months": metas}
+        js = f"(window.FRONT_HIST=window.FRONT_HIST||{{}})[{json.dumps(str(Y))}]=" + json.dumps(
+            H, ensure_ascii=False, separators=(",", ":"), default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o)) + ";"
+        open(_hist_path(Y), "w", encoding="utf-8").write(js)
+        sz = len(js)
+        for f in HIST_PUBLISH:
+            fjs = f"(window.FRONTH=window.FRONTH||{{}})[{json.dumps(f'{Y}/{f}')}]=" + json.dumps(enc[f], separators=(",", ":")) + ";"
+            open(_hist_path(Y, f), "w").write(fjs)
+            sz += len(fjs)
+        index[str(Y)] = {"n": len(metas), "first": metas[0]["date"], "last": metas[-1]["date"], "ko": sz // 1024}
+        print(f"historique {Y} : {len(metas)} jours écrits ({sz // 1024} Ko)", flush=True)
+    print(f"historique : {n_new} jours post-traités, {n_pub} repris des fichiers publiés, {n_kept} dans des années inchangées "
+          f"({time.time() - t0:.0f} s)", flush=True)
+    return {"cadence": HIST, "version": HistSide.VERSION, "fields": list(HIST_PUBLISH), "years": index,
+            "files": "front_hist_<année>.js (window.FRONT_HIST[année]) et front_hist_<année>_<vue>.js (window.FRONTH[\"année/vue\"])"}
 
 
 # ---------- calibration ----------
@@ -2209,7 +2764,23 @@ def main():
     # période récente : un pas tous les STEP_DAYS jours sur DAILY_DAYS jours, le dernier pas à J-7 exactement
     recent = [limit - dt.timedelta(days=k * STEP_DAYS) for k in range(DAILY_DAYS // STEP_DAYS)][::-1]
     daily = {d.isoformat(): d for d in recent if d not in snap.values()}
-    status, last_viina = read_status(list(snap.values()) + list(daily.values()))
+    # historique (HIST) : chaque jour (ou les 10 et 20) jusqu'à la date limite, hors fins de mois (instantanés mensuels) ;
+    # clés internes « H » + date (une date peut aussi être un pas récent de la chaîne : deux instantanés distincts)
+    hist = {}
+    if HIST in ("jours", "decades"):
+        for m in months:
+            if HIST_FROM and m < HIST_FROM:
+                continue
+            y, mo = int(m[:4]), int(m[5:])
+            end = (dt.date(y + mo // 12, mo % 12 + 1, 1) - dt.timedelta(days=1)).day
+            for dd in (range(1, end) if HIST == "jours" else (10, 20)):
+                x = dt.date(y, mo, dd)
+                if x <= limit:
+                    hist["H" + x.isoformat()] = x
+    raw_c = None
+    if hist:
+        raw_c = {d.strftime("%Y%m%d"): None for d in list(hist.values()) + list(snap.values()) + list(daily.values())}
+    status, last_viina = read_status(list(snap.values()) + list(daily.values()), extra=raw_c)
     for m, d in list(snap.items()):
         if d.strftime("%Y%m%d") not in status:
             print(f"  {m} : pas de données VIINA au {d} — mois ignoré")
@@ -2220,6 +2791,17 @@ def main():
     fm = [m for m in months if m in snap]
     dk = sorted(daily)
     frames = sorted(fm + dk, key=lambda k: snap.get(k) or daily[k])
+    # historique : mois de référence = dernier mois écoulé, qui doit être un instantané tiré ; statut VIINA du jour requis
+    hist_ref = {}
+    for k, d in sorted(hist.items()):
+        M = (d.replace(day=1) - dt.timedelta(days=1)).strftime("%Y-%m")
+        if d.strftime("%Y%m%d") in raw_c and M in snap:
+            hist_ref[k] = M
+    hist = {k: hist[k] for k in hist_ref}
+    if HIST:
+        print(f"historique ({HIST}) : {len(hist)} instantanés en branche ({min(hist.values()) if hist else '-'} → "
+              f"{max(hist.values()) if hist else '-'}) ; figé avant {limit - dt.timedelta(days=HIST_FREEZE)} ; cache brut "
+              f"{HIST_CACHE or 'aucun'}", flush=True)
     print(f"{len(fm)} instantanés mensuels ({fm[0]} → {fm[-1]}) et {len(dk)} pas récents tous les {STEP_DAYS} jours "
           f"({dk[0] if dk else '-'} → {dk[-1] if dk else '-'}) ; VIINA jusqu'au {last_viina}", flush=True)
     old = guard.published("front.js", "FRONT")
@@ -2238,9 +2820,15 @@ def main():
     # barrières dures (19/10/2026) : ni le pavage ni les statuts VIINA ne passent d'une rive à l'autre (barrier_tiling.py)
     cell, bar = barrier_tiling.apply(cell, places, laea, X0, Y1, SIZE, NX, NY, ROOT, status=status)
     dsm_fixed, dsm_events = apply_dsm_log(status, places)
+    hist_status = None
+    if hist:
+        hist_status = HistStatus(raw_c, read_status.gidx, status, {k: snap[hist_ref[k]].strftime("%Y%m%d") for k in hist},
+                                 {k: d.strftime("%Y%m%d") for k, d in hist.items()}, dsm_events, places, ended=ended)
+        raw_c = None
     official = load_official_claims(pid_index)
     events, ev_rate = control_events(status, places, official, dsm_events)
-    model = Model(months, dict(snap, **daily), status, claims, official, cell, places)
+    model = Model(months, dict(snap, **daily, **hist), status, claims, official, cell, places)
+    model.dec_ref = hist_ref
     model.bar = bar
     model.last_key = frames[-1]
     model.last_month = fm[-1]
@@ -2405,8 +2993,30 @@ def main():
               f"RU {mo['a']['ru']['tout'][0]:,} · UA {mo['a']['ua']['tout'][0]:,} · zone grise {g['km2']:,} km², "
               f"{g['width_km']} km de large · MoD actives {len(mo['modru']['actives'])}", flush=True)
 
+    import time as _time
+    side, pub_hist = None, {}
+    if hist:
+        froz = {k for k, d in hist.items() if d <= limit - dt.timedelta(days=HIST_FREEZE)}
+        t0h = _time.time()
+        hasher = HistHash(model, hist_status, months, layers, P, sig0, v_km, kstrength)
+        hashes = {k: hasher(k) for k in hist}
+        pub_all = {"H" + k: v for k, v in read_published_hist().items() if "H" + k in froz}
+        pub_hist = {k: v for k, v in pub_all.items() if v.get("h") == hashes[k] or (HIST_ADOPT and v.get("h") is None)}
+        for k, v in pub_hist.items():
+            v["h"] = hashes[k]
+        stale_pub = {k: v for k, v in pub_all.items() if k not in pub_hist}
+        side = HistSide(model, hist, hist_ref, froz, set(pub_hist), hist_status, hashes, set(stale_pub))
+        side.stale_meta = stale_pub
+        print(f"historique : {len(froz)} jours figés ; {len(pub_hist)} repris des fichiers publiés (empreinte inchangée), "
+              f"{len(stale_pub)} publiés d'empreinte changée (à recalculer, du plus ancien) ; empreintes en "
+              f"{_time.time() - t0h:.0f} s", flush=True)
     print("modèle principal et variantes…", flush=True)
-    model.run(P, sig0, v_km, layers, kstrength, frames, fields, on_month=on_month, mc=True)
+    t_run = _time.time()
+    model.run(P, sig0, v_km, layers, kstrength, frames, fields, on_month=on_month, mc=True, side=side)
+    if side is not None:
+        print(f"historique : {side.n_new} calculés ({side.t_cmp:.0f} s), {side.n_cache} relus du cache brut, {len(pub_hist)} "
+              f"repris des fichiers publiés, {side.n_redo} figés à recalculer (empreinte changée) dont {side.n_stale} gardés "
+              f"périmés et {side.n_skip} sautés (budget) ; chaîne complète {_time.time() - t_run:.0f} s", flush=True)
 
     # ---------- nowcast : les combats déplacent p (β calibré mois par mois, walk-forward) ----------
     rep = ncast.calibrate()
@@ -2609,7 +3219,7 @@ def main():
     # RETENUE (largeur 22,7 → 23,3 km, P10 +0,6 pt = bruit du placebo ; le −12 % du banc venait de tuiles codées 0, une
     # échelle commune à tout le mois, voir docs/ETAT.md § 6). Pour la réactiver : act = standardize_activity(PMV …).
     act_lb = None
-    local_band = {}
+    local_band, lbs = {}, {}
     for f in list(VIEWS) + ["nowcast"]:
         Pf = {months.index(m): np.frombuffer(qstore[f][m], np.uint8).astype(np.float32) / 63 for m in frames if len(m) == 7 and m in qstore[f]}
         lb = LocalBand(sect, months, truth_lb, TS=TS_LB, name=f, act=act_lb).fit(Pf, strata_lb)
@@ -2654,7 +3264,13 @@ def main():
                 mo["grey"] = {"km2": met["tout"][2], "width_km": met["grey_width_km"], "front_km": met["front_km"], "sectors": met.get("sectors", {})}
                 if m in model.feat:
                     mo["grey"]["strata"] = model.grey_strata(p1, model.feat[m])
+        lbs[f] = lb   # gardée pour l'historique (HIST)
         sect._sd = {k: v for k, v in sect._sd.items() if k[0] not in ("lb", "lbr")}
+    # historique (HIST) : passage en flux, jour par jour, fichiers écrits année par année
+    hist_meta = None
+    if side is not None:
+        hist_meta = write_hist(side, hist, hist_ref, pub_hist, months, fm, snap, months_out, codes_store, ncast, ind, lbs,
+                               model, crimea, pre, today, limit)
     lastm_lb = months_out[fm[-1]]
     print(f"zone grise après bande locale ({fm[-1]}) : {lastm_lb['grey']['km2']:,} km², {lastm_lb['grey']['width_km']} km de large ; par strate {lastm_lb['grey'].get('strata')}", flush=True)
     dmc_meta = change_intervals(model, months, dk, months_out, days_out, fm, cons_area)
@@ -2778,6 +3394,8 @@ def main():
         "nMonths": len(months), "steps": dk, "stepDays": STEP_DAYS, "windowDays": WINDOW_DAYS,
         "months": mlist,
     }
+    if hist_meta:
+        meta["hist"] = hist_meta
     # valeurs numpy (σ local, zone de contact, z) converties en types natifs
     js = "window.FRONT=" + json.dumps(meta, ensure_ascii=False, separators=(",", ":"),
                                       default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o)) + ";"

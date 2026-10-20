@@ -146,6 +146,28 @@ MONTHS = sorted(set(MONTHS))
 LASTM = MONTHS[-1]
 limit = dt.date.fromisoformat(FR.get("limit") or frames[-1][1])
 
+# historique quotidien publié (option SENS_HIST=1, 20/10/2026 ; build_front.py HIST=jours) : profondeur russe du champ des
+# cartes par tronçon À LA DATE DU PAS (et 30 / 91 jours avant) au lieu du dernier instantané mensuel, pour le mouvement
+# récent signé (dy1, dy3) ; fins de mois : instantanés mensuels. Connue à la date du pas (aucune information postérieure).
+YH = {}
+if os.environ.get("SENS_HIST") == "1" and FR.get("hist"):
+    import glob as _glob
+    tl_ = np.unique(tile, return_inverse=True)
+    for path in sorted(_glob.glob(os.path.join(SITE, "front_hist_[0-9][0-9][0-9][0-9]_equilibre.js"))):
+        Y_ = os.path.basename(path)[11:15]
+        Hh = json.loads(open(os.path.join(SITE, f"front_hist_{Y_}.js"), encoding="utf-8").read().split("]=", 1)[1].strip().rstrip(";"))
+        for dd, q in zip(Hh["keys"], decode_field(os.path.basename(path), nU)):
+            if q is None:
+                continue
+            ys = np.bincount(tl_[1], weights=(q / 63.0 > 0.5), minlength=len(tl_[0])) * 4.0 / (TILE * 2.0)
+            d_ = dt.date.fromisoformat(dd)
+            for j, k in enumerate(tl_[0]):
+                YH[(d_, int(k))] = float(ys[j])
+    for (m_, k), r_ in MON.items():
+        y_, mo_ = int(m_[:4]), int(m_[5:])
+        YH[(dt.date(y_ + mo_ // 12, mo_ % 12 + 1, 1) - dt.timedelta(days=1), k)] = r_["y"]
+    say(f"historique quotidien : profondeur par tronçon sur {len({d for d, _ in YH})} dates")
+
 # ---------------------------------------------------------------- Telegram (agrégats par tronçon)
 COLS = ("ru_combat", "ru_attUA", "ru_attRU", "ru_presUA", "ua_combat", "ua_attUA", "ua_attRU", "ua_presRU")
 TG_DAY = defaultdict(dict)    # k -> {date: vecteur 8} (résolution jour/décade)
@@ -353,10 +375,16 @@ def zpast(series, s, gap, n=12 * SPM, minn=6, floor=0.5):
 F, S2V = {}, {}
 for (s, k), r in ROWS.items():
     mf = mfs[s]
+    y0 = r["y"]
     y1 = MON.get((month_add(mf, -1), k), r)["y"]
     y3 = MON.get((month_add(mf, -3), k), r)["y"]
+    if YH and (steps[s], k) in YH:
+        d_ = steps[s]
+        y0 = YH[(d_, k)]
+        y1 = YH.get((d_ - dt.timedelta(days=30), k), y1)
+        y3 = YH.get((d_ - dt.timedelta(days=91), k), y3)
     gap = ZGAP if TG_RES == "jour" else SPM      # au pas mensuel, la valeur se répète 3 fois : passé strict
-    F[(s, k)] = np.array([r["fa_ru"] - r["fa_ua"], r["fa_ru"], r["fa_ua"], r["y"] - y1, r["y"] - y3,
+    F[(s, k)] = np.array([r["fa_ru"] - r["fa_ua"], r["fa_ru"], r["fa_ua"], y0 - y1, y0 - y3,
                           ser[(k, "d30")].get(s, 0.0), zpast(ser[(k, "d30")], s, gap), zpast(ser[(k, "u30")], s, gap),
                           zpast(ser[(k, "r30")], s, gap), zpast(ser[(k, "d10")], s, gap)])
     zr, zu = s2z(steps[s], k, "RU", 3, 20), s2z(steps[s], k, "UA", 3, 20)

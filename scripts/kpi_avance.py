@@ -41,7 +41,10 @@ Détection : délai (jours) entre le moment où une source passe du nouveau côt
 Variables : KPI_RAW (dossier VIINA, défaut ukraine-recherche/front/raw), KPI_OUT (défaut
 ukraine-recherche/analyses/kpi_avance), KPI_SEEDS (placebos, défaut 20), KPI_BOOT (tirages, défaut 2000),
 KPI_CHAMP (champ évalué comme « nous : champ publié », défaut nowcast ; fusion = site/front_fusion.js),
-KPI_CAD (pas : mois,decade ; « mois » seul pour un passage rapide).
+KPI_CAD (pas : mois,decade ; « mois » seul pour un passage rapide ; jour3 avec KPI_PAS=jour).
+20/10/2026 : KPI_PAS=jour (frise quotidienne, cache etats_jour.npz ; h = 30 jours par mois), KPI_HIST=1 (champs
+quotidiens publiés site/front_hist_*, à défaut le dernier mois ≤ t), KPI_H (horizons en mois, défaut 1,2), KPI_FROM
+(début de l'évaluation, défaut 2023-01-01), KPI_CACHE (dossier du cache des états).
 Écrit : resultats.json, resultats.md (tableaux), mensuel.csv, secteurs.csv, tuiles.csv, detection.csv.
 """
 import contextlib
@@ -63,7 +66,8 @@ SITE = os.path.join(ROOT, "site")
 RECH = "/Users/douglas.comin/Desktop/perso/ukraine-recherche"
 RAW = os.environ.get("KPI_RAW", os.path.join(RECH, "front", "raw"))
 OUT = os.environ.get("KPI_OUT", os.path.join(RECH, "analyses", "kpi_avance"))
-CACHE = os.path.join(OUT, "cache")
+CACHE = os.environ.get("KPI_CACHE") or os.path.join(OUT, "cache")
+ETATS = "etats_jour.npz" if os.environ.get("KPI_PAS") == "jour" else "etats.npz"
 NOWCAST_CACHE = os.path.join(RECH, "terrain", "base_nowcast", "data", "cache.npz")
 SEEDS = int(os.environ.get("KPI_SEEDS", "20"))
 SEEDS_STACK = int(os.environ.get("KPI_SEEDS_EMPILE", "5"))
@@ -74,7 +78,12 @@ STACK = [("nowcast", "nous : champ publié (nowcast)"), ("pool", "nous : pool (c
 NBOOT = int(os.environ.get("KPI_BOOT", "2000"))
 # champ évalué à la place du nowcast publié (ex. KPI_CHAMP=fusion lit site/front_fusion.js ; libellés inchangés)
 CHAMP = os.environ.get("KPI_CHAMP", "nowcast")
-EVAL_FROM = "2023-01-01"
+# 20/10/2026 : frise QUOTIDIENNE (KPI_PAS=jour : toutes les dates depuis mars 2022 ; cadences mois, decade, jour3 = un jour
+# sur trois) et champs quotidiens de l'historique publié (KPI_HIST=1 : site/front_hist_<année>_<vue>.js, à défaut le
+# dernier instantané mensuel ≤ t). Sans ces variables : frise des décades, comportement d'origine.
+PAS = os.environ.get("KPI_PAS", "decade")
+HISTF = os.environ.get("KPI_HIST") == "1"
+EVAL_FROM = os.environ.get("KPI_FROM", "2023-01-01")
 EPS = 0.01
 CAP_KM = 30.0
 D30 = 30.0
@@ -134,6 +143,22 @@ class Site:
             self.fields[view] = {d: (seq[k].astype(np.float32) / 63.0) for k, d in self.mdates if k < len(seq) and seq[k] is not None}
         self.generated = FR.get("generated")
         self.tile = (self.jj // TILE) * 1000 + self.ii // TILE
+        # historique quotidien publié (6 bits, gardé en octets) : nowcast (ou KPI_CHAMP s'il est publié) et pool
+        self.hfields = {}
+        if HISTF:
+            import glob as _glob
+            for view in ("nowcast", "equilibre"):
+                fv = CHAMP if view == "nowcast" else view
+                acc = {}
+                for path in sorted(_glob.glob(os.path.join(SITE, f"front_hist_[0-9][0-9][0-9][0-9]_{fv}.js"))):
+                    Y = os.path.basename(path)[11:15]
+                    H = json.loads(open(os.path.join(SITE, f"front_hist_{Y}.js"), encoding="utf-8").read().split("]=", 1)[1].strip().rstrip(";"))
+                    enc = json.loads(open(path, encoding="utf-8").read().split("]=", 1)[1].strip().rstrip(";"))
+                    for k, q in zip(H["keys"], decode_seq(enc, self.nU)):
+                        if q is not None:
+                            acc[k] = np.asarray(q, np.uint8)
+                self.hfields[view] = acc
+            log(f"historique quotidien : {', '.join(f'{v} {len(a)} jours' for v, a in self.hfields.items())}")
         self.inv_grid = None
 
     def grid(self, v, fill=np.nan):
@@ -144,6 +169,12 @@ class Site:
 
 # ---------------------------------------------------------------- états VIINA par décade
 def decade_dates(last):
+    if PAS == "jour":
+        d, out = dt.date(2022, 3, 1), []
+        while d <= last:
+            out.append(d)
+            d += dt.timedelta(days=1)
+        return out
     out, y, m = [], 2022, 3
     while True:
         end = dt.date(y + m // 12, m % 12 + 1, 1) - dt.timedelta(days=1)
@@ -156,7 +187,7 @@ def decade_dates(last):
 
 
 def build_states(S):
-    path = os.path.join(CACHE, "etats.npz")
+    path = os.path.join(CACHE, ETATS)
     if os.path.exists(path) and os.environ.get("KPI_REBUILD") != "1":
         Z = np.load(path, allow_pickle=False)
         return [dt.date.fromisoformat(str(x)) for x in Z["dates"]], Z["codes"], json.loads(str(Z["meta"]))
@@ -326,19 +357,45 @@ class Moteur:
         return np.where(v == 1, 1.0, np.where(v == 0, 0.0, 0.5)).astype(np.float32)
 
     def our(self, view, d):
+        if HISTF:
+            q = self.S.hfields.get(view, {}).get(self.dates[d].isoformat())
+            if q is not None:
+                return q.astype(np.float32) / 63.0
         sn = self.snap_of[d]
         f = self.S.fields.get(view, {})
         return f.get(sn) if sn else None
 
+    def field_date(self, d):
+        """Date du champ « nous » utilisé à d (graine des placebos)."""
+        if HISTF and self.dates[d].isoformat() in self.S.hfields.get("nowcast", {}):
+            return self.dates[d].isoformat()
+        return self.snap_of[d]
+
     def step(self, cad):
+        if PAS == "jour":
+            return {"mois": 30, "decade": 10, "jour3": 3}[cad]
         return 3 if cad == "mois" else 1
+
+    def hsteps(self, hm):
+        return 30 * hm if PAS == "jour" else 3 * hm
+
+    def in_cad(self, q, cad):
+        if cad == "mois":
+            return bool(self.month_end[q])
+        if cad == "decade":
+            return PAS != "jour" or self.dates[q].day in (10, 20) or bool(self.month_end[q])
+        return (self.ND - 1 - q) % 3 == 0
+
+    @staticmethod
+    def win(cad):
+        return {"mois": 12, "decade": 36, "jour3": 120}[cad]
 
     def eval_dates(self, cad, h):
         out = []
         for d in range(self.ND):
             if self.dates[d].isoformat() < EVAL_FROM or d + h >= self.ND:
                 continue
-            if cad == "mois" and not self.month_end[d]:
+            if not self.in_cad(d, cad):
                 continue
             out.append(d)
         return out
@@ -354,8 +411,7 @@ class Moteur:
         ck = (key, d, h, cad)
         if ck in self.calib_cache:
             return self.calib_cache[ck]
-        win = 12 if cad == "mois" else 36
-        tr = [q for q in range(self.ND) if q + h <= d and q - lagsteps >= 0 and (cad == "decade" or self.month_end[q])][-win:]
+        tr = [q for q in range(self.ND) if q + h <= d and q - lagsteps >= 0 and self.in_cad(q, cad)][-self.win(cad):]
         rng = np.random.default_rng(d * 7 + h)
         Xs, Ys = [], []
         for q in tr:
@@ -501,7 +557,7 @@ class Moteur:
             rng = np.random.default_rng(100003 * (seed + 1) + q)
             return sigm(2.0 * rng.normal(0, 1, len(ut))[inv]).astype(np.float32)
         if src == "placebo_sens":
-            pn, pe, sn = self.our("nowcast", q), self.our("equilibre", q), self.snap_of[q]
+            pn, pe, sn = self.our("nowcast", q), self.our("equilibre", q), self.field_date(q)
             if pn is None or pe is None:
                 return None
             ut, inv = np.unique(self.S.tile, return_inverse=True)
@@ -532,8 +588,7 @@ class Moteur:
         """p(vérité russe) = σ(w · [1, x, x⁺, L, L·g]) : consensus du jour (x, distance signée) + source (L, logit borné,
         g = 1 − |x|/30) ; et la même chose sans la source (base). w appris sur les dates q (même cadence) avec q + h ≤ d,
         12 derniers mois. Renvoie (p_empilé, p_base) sur U, ou (None, None)."""
-        win = 12 if cad == "mois" else 36
-        tr = [q for q in range(self.ND) if q + h <= d and (cad == "decade" or self.month_end[q])][-win:]
+        tr = [q for q in range(self.ND) if q + h <= d and self.in_cad(q, cad)][-self.win(cad):]
         Xs, Ys = [], []
         for q in tr:
             idx = self._sample(q, h)
@@ -564,7 +619,7 @@ class Moteur:
         S = self.S
         out = {}
         pc, pn, pe = base.get("consensus recalé"), base.get("nous : champ publié (nowcast)"), base.get("nous : pool (cartes + annonces)")
-        sn = self.snap_of[d]
+        sn = self.field_date(d)
         tiles = S.tile
         ut, inv = np.unique(tiles, return_inverse=True)
         if pc is not None and pn is not None:
@@ -676,20 +731,25 @@ def chg_skill(ra, rb):
 
 
 # ---------------------------------------------------------------- détection (pas décadaire)
-def detection(M, preds_by_date, names, thr=0.5):
-    """Événements : une maille de la zone dont le consensus bascule à la décade D (et le reste 3 décades). Pour chaque
-    source : avance = D − début de la série continue de décades (≤ 9, soit 90 jours) où la source était déjà du nouveau
-    côté ; sinon retard jusqu'à ce qu'elle y passe (≤ 9 décades, au-delà : manquée).
-    Fausses détections : la source s'écarte du consensus (accord à la décade précédente, consensus inchangé) et le
-    consensus ne la rejoint pas dans les 6 décades (2 mois)."""
+def detection(M, preds_by_date, names, thr=0.5, ix=None, stride_days=10):
+    """Événements : une maille de la zone dont le consensus bascule à la date D de la frise évaluée (pas de stride_days
+    jours : décades par défaut, un jour sur trois avec KPI_PAS=jour) et le reste 30 jours. Pour chaque source : avance =
+    D − début de la série continue de dates (≤ 90 jours) où la source était déjà du nouveau côté ; sinon retard jusqu'à ce
+    qu'elle y passe (≤ 90 jours, au-delà : manquée). Fausses détections : la source s'écarte du consensus (accord à la
+    date précédente, consensus inchangé) et le consensus ne la rejoint pas dans les 60 jours.
+    preds_by_date : liste (indices de la frise) ou dictionnaire ; ix : indices évalués (défaut : tous)."""
     Zc = M.Zc
-    nd = M.ND
-    C = M.cons[:, Zc]
+    ix = list(range(M.ND)) if ix is None else list(ix)
+    nd = len(ix)
+    LB, ST, FA = max(1, round(90 / stride_days)), max(1, round(30 / stride_days)), max(1, round(60 / stride_days))
+    C = M.cons[ix][:, Zc]
+    dates = [M.dates[i] for i in ix]
+    get = preds_by_date.get if isinstance(preds_by_date, dict) else (lambda i: preds_by_date[i] if i < len(preds_by_date) else None)
     res = {}
     for nm in names:
         X = np.full((nd, len(Zc)), -1, np.int8)
         for d in range(nd):
-            p = preds_by_date[d].get(nm)
+            p = (get(ix[d]) or {}).get(nm)
             if p is None:
                 continue
             q = p[Zc]
@@ -699,33 +759,33 @@ def detection(M, preds_by_date, names, thr=0.5):
                 X[d] = np.where(q >= thr, 1, np.where(q <= 1 - thr, 0, -1))
         leads, missed, n_ev = [], 0, 0
         ons_t = ons_f = 0
-        for d in range(1, nd - 3):
-            if M.dates[d].isoformat() < EVAL_FROM:
+        for d in range(1, nd - ST):
+            if dates[d].isoformat() < EVAL_FROM:
                 continue
             c0, c1 = C[d - 1], C[d]
             ev = (c0 >= 0) & (c1 >= 0) & (c0 != c1)
-            for k in range(1, 4):
+            for k in range(1, ST + 1):
                 ev &= C[d + k] == c1
             ev &= X[d] >= 0
-            ev &= (X[max(0, d - 9):d] >= 0).all(0) if d >= 1 else ev
+            ev &= (X[max(0, d - LB):d] >= 0).all(0) if d >= 1 else ev
             idx = np.flatnonzero(ev)
             if len(idx):
                 tgt = c1[idx]
                 L = np.zeros(len(idx), int)
                 alive = np.ones(len(idx), bool)
-                for j in range(1, 10):
+                for j in range(1, LB + 1):
                     if d - j < 0:
                         break
                     alive &= X[d - j, idx] == tgt
                     L += alive
                 lead = np.zeros(len(idx))
                 ant = L > 0
-                lead[ant] = [(M.dates[d] - M.dates[d - L[i]]).days for i in np.flatnonzero(ant)]
+                lead[ant] = [(dates[d] - dates[d - L[i]]).days for i in np.flatnonzero(ant)]
                 for i in np.flatnonzero(~ant):
                     lag = None
-                    for j in range(0, 10):
+                    for j in range(0, LB + 1):
                         if d + j < nd and X[d + j, idx[i]] == tgt[i]:
-                            lag = (M.dates[d + j] - M.dates[d]).days
+                            lag = (dates[d + j] - dates[d]).days
                             break
                     if lag is None:
                         missed += 1
@@ -735,17 +795,17 @@ def detection(M, preds_by_date, names, thr=0.5):
                 leads.append(lead)
                 n_ev += len(idx)
             # départs de la source
-            if d + 6 < nd:
+            if d + FA < nd:
                 on = (X[d] >= 0) & (C[d] >= 0) & (X[d] != C[d]) & (X[d - 1] >= 0) & (X[d - 1] == C[d - 1]) & (C[d] == C[d - 1])
                 oi = np.flatnonzero(on)
                 if len(oi):
                     later = np.zeros(len(oi), bool)
-                    for j in range(1, 7):
+                    for j in range(1, FA + 1):
                         later |= C[d + j, oi] == X[d, oi]
                     ons_t += int(later.sum())
                     ons_f += int((~later).sum())
         lead = np.concatenate(leads) if leads else np.zeros(0)
-        nmonths = len({M.dates[d].isoformat()[:7] for d in range(1, nd - 6) if M.dates[d].isoformat() >= EVAL_FROM})
+        nmonths = len({dates[d].isoformat()[:7] for d in range(1, nd - FA) if dates[d].isoformat() >= EVAL_FROM})
         res[nm] = {"evenements": int(n_ev), "part_anticipee": float((lead > 0).mean()) if n_ev else float("nan"),
                    "avance_moy_j_si_anticipee": float(lead[lead > 0].mean()) if (lead > 0).any() else 0.0,
                    "delai_moyen_signe_j": float(lead.mean()) if n_ev else float("nan"),
@@ -780,8 +840,8 @@ def main():
     mens_rows, tile_acc, sec_rows = [], {}, []
     allres = {}
     for cad in CADENCES:
-        for hm in (1, 2):
-            h = 3 * hm
+        for hm in [int(x) for x in os.environ.get("KPI_H", "1,2").split(",")]:
+            h = M.hsteps(hm)
             ds = M.eval_dates(cad, h)
             log(f"pas {cad}, h = {hm} mois : {len(ds)} dates")
             rows = {}
@@ -817,7 +877,7 @@ def main():
                                 rows.setdefault(f"[sans {s}] {nm}", []).append(r)
                 for src, lab in STACK:
                     for seed in (range(SEEDS_STACK) if src.startswith("placebo") else (0,)):
-                        if cad == "decade" and src == "dataonly":
+                        if cad != "mois" and src == "dataonly":
                             continue
                         ps, pb = M.stacked(src, d, h, cad, seed)
                         if ps is None:
@@ -841,7 +901,7 @@ def main():
     for (cad, hm), rows in allres.items():
         key = f"{cad}_h{hm}"
         dates_all = sorted({r["date"] for r in rows[US]})
-        last12 = dates_all[-12:] if cad == "mois" else dates_all[-36:]
+        last12 = dates_all[-M.win(cad):]
         per = {}
         for label, sel in (("periode", set(dates_all)), ("12_derniers_mois", set(last12))):
             tab = {}
@@ -889,7 +949,7 @@ def main():
             pool = {r["date"]: r for r in rows[POOL] if r["date"] in sel}
             rp = [pool[r["date"]] for r in ra if r["date"] in pool]
             ra2 = [r for r in ra if r["date"] in pool]
-            blk = 3 if cad == "mois" else 9
+            blk = {"mois": 3, "decade": 9, "jour3": 30}[cad]
             kpi = {"avance_brier": br_skill(ra, rb), "IC95_brier": boot(ra, rb, br_skill, block=blk),
                    "avance_chg": chg_skill(ra, rb), "IC95_chg": boot(ra, rb, chg_skill, block=blk),
                    "avance_km": km_skill(ra, rb), "IC95_km": boot(ra, rb, km_skill, block=blk),
@@ -989,9 +1049,9 @@ def main():
             for r in rows.get(nm, []):
                 mens_rows.append([cad, hm, r["date"], nm, r.get("n30"), fmt(r["b30"] / r["n30"], 5) if r.get("n30") else "", r.get("nchg"),
                                   fmt(r["bchg"] / r["nchg"], 4) if r.get("nchg") else "", fmt(kmsym([r]), 3)])
-        if cad == "mois":
+        if cad in ("mois", "jour3"):
             dates_all = sorted({r["date"] for r in rows[US]})
-            for label, sel in (("periode", set(dates_all)), ("12_derniers_mois", set(dates_all[-12:]))):
+            for label, sel in (("periode", set(dates_all)), ("12_derniers_mois", set(dates_all[-M.win(cad):]))):
                 for nm in (US, POOL, REF, "consensus (dur)", "DeepState (journal daté) (dur)", "ISW (dur)", "Wikipédia (dur)"):
                     rr = [r for r in rows.get(nm, []) if r["date"] in sel]
                     if not rr:
@@ -1006,14 +1066,16 @@ def main():
                         n2 = sum(r["sec_n2"][si] for r in rr if "sec_n2" in r)
                         k2 = sum(r["sec_k2"][si] for r in rr if "sec_k2" in r)
                         km = 0.5 * (k1 / n1 + k2 / n2) if n1 and n2 else float("nan")
-                        sec_rows.append([f"h{hm}", label, sname, nm, n30, b30 / n30 if n30 else float("nan"), nc, bc / nc if nc else float("nan"), km])
+                        sec_rows.append([f"h{hm}" if cad == "mois" else f"{cad} h{hm}", label, sname, nm, n30, b30 / n30 if n30 else float("nan"), nc, bc / nc if nc else float("nan"), km])
     R["resultats"] = out
     # ------------------ détection (pas décadaire, toutes les dates)
-    log("détection (pas décadaire)…")
-    preds_by_date = []
-    for d in range(M.ND):
+    stride = 3 if PAS == "jour" else 10
+    ixd = [d for d in range(M.ND) if PAS != "jour" or M.in_cad(d, "jour3")]
+    log(f"détection (pas de {stride} jours, {len(ixd)} dates)…")
+    preds_by_date = {}
+    for d in ixd:
         if M.dates[d].isoformat() < "2022-10-01":
-            preds_by_date.append({})
+            preds_by_date[d] = {}
             continue
         P = {}
         P["consensus (dur)"] = M.hard(M.cons[d])
@@ -1026,15 +1088,15 @@ def main():
             if p is not None:
                 P[nm] = p
         if "nous : champ publié (nowcast)" in P and POOL in P:
-            sn = M.snap_of[d]
+            sn = M.field_date(d)
             rng = np.random.default_rng(int(sn.replace("-", "")))
             ut, inv = np.unique(S.tile, return_inverse=True)
             r = np.where(rng.random(len(ut)) < 0.5, -1.0, 1.0)[inv]
             P["PLACEBO 2 : nowcast à sens tiré au hasard"] = sigm(lgt(P[POOL]) + r * (lgt(P[US]) - lgt(P[POOL])))
-        preds_by_date.append(P)
+        preds_by_date[d] = P
     names = ["DeepState (journal daté)", "ISW", "Wikipédia", POOL, US, "PLACEBO 2 : nowcast à sens tiré au hasard"]
-    det = detection(M, preds_by_date, names)
-    det08 = detection(M, preds_by_date, [POOL, US, "PLACEBO 2 : nowcast à sens tiré au hasard"], thr=0.8)
+    det = detection(M, preds_by_date, names, ix=ixd, stride_days=stride)
+    det08 = detection(M, preds_by_date, [POOL, US, "PLACEBO 2 : nowcast à sens tiré au hasard"], thr=0.8, ix=ixd, stride_days=stride)
     R["detection"] = {"seuil_0_5": det, "seuil_0_8": det08}
     # ------------------ écritures
     def clean(o):

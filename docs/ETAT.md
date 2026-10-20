@@ -1235,6 +1235,91 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   partout, la voie « combats » laisse passer des flèches à rebours (Pokrovsk 2025 : 13 contre 4). Captures :
   Vovtchansk 2024-05 (flèches rouges au sud de la frontière), Pokrovsk 2024-11, Lyman 2026-05 et 2026-09, Kherson
   2025-02 inchangés. Page méthode (FR/EN) complétée. Le champ « combat » est chargé avec les variantes (`confViews`).
+- **20/10/2026 : HISTORIQUE QUOTIDIEN du front (demande de l'utilisateur : décades, puis jours sur tout l'historique)**.
+  `build_front.py`, option `HIST=jours` (ou `decades` : 10 et 20 ; `HIST_FROM=AAAA-MM`) : un instantané par jour
+  2022-03-01 → dernier jour VIINA (1 634 jours), calculé EN BRANCHE depuis l'état du dernier mois écoulé M (classe
+  `HistSide`) : copie de la persistance des sources, filtre temporel depuis le champ de M (pas de 1 à 30 jours),
+  décalages par carte, β du nowcast et bande locale de M (walk-forward : connus à la fin de M), feux de la fenêtre de
+  14 jours finissant au jour (échelle des mois, × 0,1), UCDP et pertes du mois M (publiés au mois), statuts VIINA du jour
+  dérivés sans retraiter la chaîne (`HistStatus` : statut traité de M là où VIINA n'a pas changé depuis M, statut brut
+  sinon, séries arrêtées prolongées, déclarations DeepState postérieures à M). 4 vues (équilibre, ua, ru, tiers) +
+  nowcast ; variantes « sans X » non calculées. **La chaîne mensuelle n'est pas touchée** : `front.js` (sauf la clé
+  `hist` et les temps du Monte Carlo), tous les `front_<vue>.js` et `data/front_*.csv`, `data/dsm_log.csv` sont
+  IDENTIQUES octet par octet à un build sans l'option (vérifié avec DAILY_DAYS=90, décades puis jours).
+  - **Publication** : un fichier par année, chargé à la demande, les fichiers principaux restent mensuels :
+    `site/front_hist_<année>.js` (`window.FRONT_HIST[année]` = {version, cadence, keys, months : date, ref = indice du
+    mois de référence dans FRONT.months, ndays, a (surfaces des 5 vues), grey, greyNow, mc / mcNow (intervalle du mois
+    ref reporté), d (codes des cartes en différences par rapport au mois ref), beta, sigma, age, h (empreinte)}) et
+    `site/front_hist_<année>_<vue>.js` (`window.FRONTH["<année>/<vue>"]`, même codage que front_<vue>.js, différences
+    d'un jour au précédent). Index dans `FRONT.hist`. **Taille : 44 Mo** (2022 22,6 ; 2023 9,8 ; 2024 5,6 ; 2025 3,8 ;
+    2026 2,8 Mo) ; seule l'année en cours est réécrite chaque jour.
+  - **Coût** : 3,3-3,5 s par jour ; premier calcul complet 95 min en local (63 min de jours + chaîne), points de reprise
+    dans le cache brut (`HIST_CACHE`, une entrée par jour, 16 bits). Build du dépôt en adoptant ce cache : 42,6 min
+    (27 min sans l'option). Build « comme en CI » (historique relu des fichiers publiés, 39 jours récents recalculés en
+    177 s, seule l'année 2026 réécrite en 5 s, empreintes 2 s) : **32,2 min contre 27 min, soit +5 min en local**, ~+15 min
+    en CI (facteur ~3 observé) : **relever `timeout-minutes` de l'étape build_front de 90 à 120**. Puis
+    build_direction, build_fusion, build_kmchange, build_advance, stamp : sans erreur ; `check_arrows.py` : 0 échec
+    (2 835 contrôles). (Avec DAILY_DAYS=90 en local : 1 échec « annonces à rebours » au pas 2026-07-30 de la vue fusion,
+    indépendant de l'historique : les sorties mensuelles et les pas récents sont identiques au build de référence.)
+  - **Gel par empreinte** (`HistHash`, demande de l'utilisateur) : les réglages (σ0, v, noyaux, décalages, β, bande)
+    restent réappris sur TOUT l'historique à chaque build ; seul le champ coûteux de chaque jour est gardé. Un jour de
+    plus de `HIST_FREEZE` = 45 jours est repris (fichier publié, sinon cache) si son empreinte est inchangée : VERSION
+    du code, réglages arrondis (0,01), statuts VIINA du jour, états traités des mois jusqu'à M, annonces officielles
+    jusqu'au jour + 46 j, annonces des médias de 90 j, feux et normales de la fenêtre, UCDP/pertes de M, reprises du MoD RF
+    −75/+45 j, décalages par carte de M. Sinon recalcul, du plus ancien d'abord, dans la limite de `HIST_BUDGET_MIN`
+    (au-delà : version périmée gardée, reprise au passage suivant). Les 45 derniers jours sont toujours recalculés.
+    Changer `HistSide.VERSION` = tout recalculer. Limite assumée : l'empreinte ne contient pas le champ de M lui-même
+    (une dérive des réglages globaux de moins de 0,01 ne relance rien). `HIST_ADOPT=1` : adoption des entrées sans
+    empreinte (migration, utilisé une fois le 20/10).
+  - **Écart des pas récents (signalé, non corrigé)** : `WindowLayers.get` (pas de 3 jours de la CI) met les feux de la
+    fenêtre à l'échelle « nombre ramené au mois » SANS le × 0,1 de `load_layers` : l'élargissement de σ par les feux y
+    est ~10 fois plus fort que dans les mois. L'historique utilise le × 0,1 (mode strict). À corriger par l'utilisateur
+    (change les pas récents publiés).
+  - **Mesures** (banc `scratchpad/dec/eval_hist.py`, vérité = consensus des cartes au même jour 2 mois plus tard, frise
+    fins de mois + jours, 2023-24 réglage / 2025-26 gelé ; Brier ≤ 30 km / mailles qui changent ; délai = avance moyenne
+    des bascules UA → RU en jours / % vues avant / fausses alarmes %) :
+
+    | série | 2023-24 | 2025-26 | délai 23-24 | délai 25-26 | Pokrovsk 2025 chg / j | Vivaldi reprise ≥ 50 / ≥ 100 km² |
+    |---|---|---|---|---|---|---|
+    | cartes, dernier mois (site actuel) | 0,03520 / 0,4231 | 0,02795 / 0,4388 | 62,9 / 64 / 2,4 | 40,4 / 46 / 2,7 | 0,335 / 21 | 30/09 / jamais |
+    | cartes au jour | 0,03478 / 0,4180 | 0,02759 / 0,4314 | 54,4 / 63 / 2,4 | 35,5 / 43 / 2,8 | 0,303 / 22 | 28/09 / 14/10 |
+    | nowcast, dernier mois | 0,03724 / 0,3638 | 0,02893 / 0,3466 | 45,5 / 65 / 3,2 | 48,8 / 58 / 3,4 | 0,226 / 32 | 31/08 / 30/09 |
+    | nowcast au jour | 0,03712 / 0,3547 | 0,02922 / 0,3377 | 34,1 / 65 / 3,3 | 40,1 / 55 / 3,6 | 0,171 / 36 | **13/07** / 20/09 |
+    | fusion v3, dernier mois | 0,03608 / 0,3695 | 0,02544 / 0,3257 | 29,4 / 45 / 1,5 | 40,4 / 57 / 2,2 | 0,360 / 24 | 30/06 / 30/06 |
+    | fusion v3 réancrée au jour | 0,03605 / 0,3623 | 0,02540 / 0,3189 | 21,8 / 44 / 1,6 | 36,4 / 54 / 2,3 | 0,332 / 26 | **31/05** / 30/06 |
+
+    La fusion « réancrée » garde la loi de δ, la bande et les paramètres du mois t et place la ligne des cartes DU JOUR
+    (`fusion/decades.py`, `champ`) : meilleure en Brier et sur les mailles qui changent dans les deux périodes,
+    Vivaldi vu un mois plus tôt (reprise ≥ 50 km² le 31/05 au lieu du 30/06), corrélation au consensus du jour inchangée
+    (0,9437 → 0,9434 : pas de signature perroquet) ; mais l'avance moyenne sur les bascules BAISSE (29,4 → 21,8 j ;
+    40,4 → 36,4 j : le champ mensuel reporté « tient » plus longtemps une bascule annoncée). Le terme ρ·ΔY (rattrapage
+    des cartes) est sans effet : ΔY médian ≈ 0 par tronçon (ρ = 0, 0,5, 1 et le placebo ΔY permutés identiques) ;
+    à refaire avec une moyenne. **Non basculé** (pas meilleur sur tous les critères) ; module prêt
+    (`decades.champ`, `decades.ecrire` → `site/front_hist_<année>_fusion.js`), non branché dans `build_fusion.py`.
+  - **Lissage CAUSAL** (demande de l'utilisateur : moyenne des logits sur les k derniers jours ou exponentielle, jamais
+    centrée ; choix sur 2023-24 = meilleures mailles qui changent à Brier ≤ 30 km ≤ brut + 0,0001, gelé sur 2025-26) :
+    cartes → k3 (2025-26 0,02758 / 0,4303 contre 0,02759 / 0,4314) ; nowcast → k7 (0,02902 / 0,3341 contre 0,02922 /
+    0,3377 ; mais Vivaldi ≥ 50 km² le 06/08 au lieu du 13/07) ; fusion réancrée → k3 (0,02530 / 0,3175 contre 0,02540 /
+    0,3189 ; Vivaldi 02/06 au lieu du 31/05). Gains de 0,0001 à 0,002 en Brier, contre une détection plus tardive de
+    Vivaldi de 2 à 24 jours : **le brut est gardé** (règle « garder le brut s'il est aussi bon »). Le lissage porte sur les
+    CHAMPS publiés : un lissage par signal d'entrée demande un build par fenêtre (les feux ont déjà une fenêtre de 14 j).
+  - **KPI « avance sur les cartes » au pas de 3 jours** (`kpi_avance.py`, nouvelles variables `KPI_PAS=jour`,
+    `KPI_HIST=1`, `KPI_H`, `KPI_FROM`, `KPI_CACHE` ; détection en pas de 3 jours, 90 jours au plus ; secteurs au pas
+    jour3) : lancés le 20/10 (pas de 3 jours, h = 1 et 2 mois, 5 graines), champ mensuel reporté contre champ quotidien ;
+    ≈ 4 h chacun ; résultats dans `scratchpad/dec/kpi/mensuel` et `kpi/quotidien` de la session (resultats.md,
+    detection.csv, secteurs.csv), NON recopiés ici : à relire et reporter à la reprise.
+  - **build_direction.py** : option `SENS_HIST=1` (profondeur du tronçon et mouvement récent lus dans le champ des
+    cartes du JOUR du pas au lieu du dernier mois) ; non mesurée ici (direction et ampleur reportées par l'utilisateur).
+  - **CI à modifier par l'utilisateur** (`update.yml`, étape « Construire la carte du front ») : `env: { DAILY_DAYS:
+    "90", HIST: "jours", HIST_CACHE: "", HIST_BUDGET_MIN: "15" }` et `timeout-minutes: 120`. Aucun cache Actions
+    nécessaire : l'historique figé est relu dans `site/front_hist_*.js` (versionnés, à committer une première fois depuis
+    le build local) ; `git add data/ site/` les prend déjà.
+  - **Prochaine étape (reprise après le 21/10, 21 h)** : refonte quotidienne du MOTEUR DE FUSION (b) : socle à pas
+    réglable (`FUSION_PAS` = mois | decade | jour3 | jour), chargeurs mensuels étendus aux pas (dernier mois écoulé),
+    sources quotidiennes de `data/daily/` (lues causalement : `date_pub` ≤ jour), constantes de temps converties en pas
+    (H = 2 mois, fenêtres 24 / 36 mois, demi-vies), filtre temporel au pas ; réglage 2022-24, gel 2025-26, placebo,
+    anti-perroquet, comparaison avec la v3 mensuelle ; budget CI ≤ 60 min (sinon poids réappris moins souvent).
+    ~150 sites de calcul de temps à convertir dans `scripts/fusion/`. Puis direction et ampleur.
 ---
 
 ## 7. Signaux testés
@@ -1707,6 +1792,9 @@ python3 scripts/build_osint.py raw
 python3 scripts/build_claims.py raw raw/viina
 python3 scripts/build_official_signals.py raw raw/viina      # --tout : tous les mois du brut
 python3 -u scripts/build_front.py raw/viina                  # 35 à 50 min (19/10/2026, en local, machine chargée : 113 min)
+# historique quotidien (20/10/2026, § 6) : HIST=jours python3 -u scripts/build_front.py raw/viina
+#   premier calcul ~95 min (cache brut raw/front_hist_cache = points de reprise), ensuite les jours figés sont relus
+#   des fichiers publiés site/front_hist_*.js (empreinte inchangée) ; HIST_BUDGET_MIN limite les recalculs
 python3 scripts/stamp.py
 python3 scripts/check_arrows.py                              # 0 échec exigé
 python3 -c "import yaml,glob;[yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]"
