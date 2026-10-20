@@ -233,6 +233,7 @@ const TX = {
   "présence signalée chez le camp adverse, à moins de 6 km de la ligne (traverse la ligne)": ["presence reported on the other side's ground, within 6 km of the line (crosses the line)", "присутність повідомлена на території супротивника, до 6 км від лінії (перетинає лінію)", "присутствие отмечено на территории противника, до 6 км от линии (пересекает линию)"],
   "attaques signalées près de la ligne, sans présence signalée (les attaques visent le terrain adverse)": ["attacks reported near the line, no presence reported (attacks target the other side's ground)", "атаки повідомлені біля лінії, без повідомленої присутності (атаки спрямовані на територію супротивника)", "атаки отмечены у линии, без отмеченного присутствия (атаки направлены на территорию противника)"],
   "▶ lecture": ["▶ play", "▶ відтворити", "▶ воспроизвести"],
+  "La guerre vue du ciel": ["The war seen from the sky", "Війна з неба", "Война с неба"],
   "❚❚ pause": ["❚❚ pause", "❚❚ пауза", "❚❚ пауза"],
   "gare": ["station", "вокзал", "вокзал"],
   "centrale nucléaire": ["nuclear power plant", "АЕС", "АЭС"],

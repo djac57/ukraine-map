@@ -3004,7 +3004,10 @@ document.querySelectorAll("[data-lang-btn]").forEach(b => b.onclick = () => setL
 try { const l = localStorage.getItem("uaf-lang"); if (l && document.querySelector(`.intro .i18n[data-lang="${l}"]`)) setLang(l); } catch(e) {}
 legend(); full();
 window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); });
-document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw(); });
+document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw();
+  // graphiques reconstruits : replacer la boîte orange du pas affiché ; libellés posés une fois par JS (lecture, onglet)
+  marks.forEach(f => f()); $("play").textContent = timer ? pauseLabel() : playLabel(); document.title = _t("La guerre vue du ciel"); });
+document.title = _t("La guerre vue du ciel");
 let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (canvas.parentElement.clientWidth !== W) full(); }, 150); });
 document.fonts && document.fonts.ready.then(() => draw());
 // légende de la carte repliée d'office sur mobile (elle prenait la place de la carte) ; un toucher l'ouvre
