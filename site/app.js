@@ -1168,8 +1168,10 @@ function nearInfra(j, i){
   for (const p of INF.pts) { const d = Math.hypot(p.x[0] - i - 0.5, p.x[1] - j - 0.5); if (d < bd) { bd = d; best = p; } }
   return best ? {label: _t(best.t) + " " + best.n, d: Math.max(1, Math.round(bd * FR.grid.size / 1000))} : null;
 }
-// « combats intenses (anomalie) » : score de combat au moins deux fois sa moyenne nationale près de la ligne, sans
-// direction ; hachures dessinées sur la grille (4 pixels par maille pour la finesse du trait)
+// « combats intenses (anomalie) » : moyenne des deux plus forts z (feux, combats au sol, pertes ; par rapport aux 12 mois
+// précédents du secteur) au moins COMBAT_Z, à ≤ 30 km de la ligne, sans direction ; hachures (4 pixels par maille).
+// Seuil abaissé de 2 à 1 le 20/10/2026 (z ≥ 2 était trop rare) ; le champ publié contient les mailles dès z ≥ 1
+const COMBAT_Z = 1.0;
 let combatFor = -2, combatPat = null;
 function buildCombat(fi){
   if (combatFor === fi) return;
@@ -1179,8 +1181,8 @@ function buildCombat(fi){
   const cx = cv.getContext("2d"), img = cx.createImageData(GX * S, GY * S), d = img.data, q = F[fi];
   const [r, g, b] = C["front-rgb"].split(",").map(Number);
   for (let u = 0; u < UCELLS.length; u++) {
-    if (q[u] < 20) continue;
-    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.45 + (q[u] - 20) / 40);
+    if (q[u] < COMBAT_Z * 10) continue;
+    const c = UCELLS[u], x0 = (c % GX) * S, y0 = Math.floor(c / GX) * S, a = Math.min(1, 0.35 + (q[u] - COMBAT_Z * 10) / 40);
     for (let dy = 0; dy < S; dy++) for (let dx = 0; dx < S; dx++) {
       if (((x0 + dx) + (y0 + dy)) % 6 > 1) continue;  // diagonales
       const o = ((y0 + dy) * GX * S + x0 + dx) * 4; d[o] = r; d[o+1] = g; d[o+2] = b; d[o+3] = Math.round(255 * a);
@@ -2339,7 +2341,7 @@ function legend(){
   if (showPm && FR.pmove) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,rgba(232,162,0,.15),rgba(232,162,0,.9));border-radius:0"></i>${_t("secteurs susceptibles de bouger : probabilité que la ligne bouge d'au moins 0,5 km d'ici 2 mois dans ce tronçon de 24 km, dans un sens ou dans l'autre (plus foncé = plus probable ; AUC {a}, taux de base {b} %, estimée sur le seul passé) ; ne dit pas qui avance", {a: dec(FR.pmove.auc.toFixed(2)), b: Math.round(FR.pmove.base * 100)})}</span>`;
   if (showDestr) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:rgba(40,40,40,.7);border-radius:0"></i>${_t("destruction cumulée (radar Sentinel-1) : part du bâti dont la rétrodiffusion s'écarte durablement de 2021, jusqu'au mois précédent, mailles de 2 km ; contient des données Copernicus Sentinel modifiées")}</span>`;
   if (showRelief) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,#fff,#b9b9b9,#fff);border-radius:0"></i>${_t("relief : ombrage du modèle numérique de surface Copernicus GLO-90 (90 m), exagéré pour un pays plat ; arbres et bâti y laissent une texture ; © DLR e.V. 2010-2014 et © Airbus Defence and Space GmbH 2014-2018, fourni dans le cadre de COPERNICUS par l'Union européenne et l'ESA ; tous droits réservés")}</span>`;
-  if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>${_t("combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 2 par rapport à ses 12 mois précédents ; ne dit pas qui avance")}</span>`;
+  if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>${_t("combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 1 par rapport à ses 12 mois précédents ; ne dit pas qui avance")}</span>`;
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>${_t("événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)")}</span>`;

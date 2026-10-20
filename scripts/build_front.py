@@ -2463,7 +2463,9 @@ def main():
             Zf_store[t] = Z[0]
             for name, zz in (("zf", Z[0]), ("zu", Z[1]), ("zw", Z[2]), ("zm", zm)):
                 qstore[name][m] = bytes(np.clip(np.round((zz + 2) * 5), 0, 63).astype(np.uint8).tolist())  # z de −2 à +10,6
-            qstore["combat"][m] = bytes(np.where(hot, np.clip(np.round(top2 * 10), 20, 63), 0).astype(np.uint8).tolist())
+            # champ publié dès z ≥ 1 (le seuil d'affichage se règle dans app.js, COMBAT_Z) ; intense_km2 garde le seuil z ≥ 2
+            warm = (top2 >= 1.0) & (np.abs(sdl) <= 30)
+            qstore["combat"][m] = bytes(np.where(warm, np.clip(np.round(top2 * 10), 10, 63), 0).astype(np.uint8).tolist())
             mo["intense_km2"] = round(float(hot.sum()) * CELL_KM ** 2)
 
     # ---------- zone grise de contact : P(contact au sol) par maille, walk-forward ----------

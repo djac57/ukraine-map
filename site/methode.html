@@ -459,7 +459,7 @@
 <li><strong>Limites</strong> : le gain est modeste et vient surtout des offensives russes d'usure (2024-2025) ; le nowcast ne voit pas les retournements (contre-offensive ukrainienne de 2023, Kharkiv et Kherson en 2022, Vivaldi en 2026), où il prolonge la tendance précédente. Il n'y a pas de vérité cartographique en Russie : Koursk n'est pas évaluable.</li>
 </ul>
 <div class="tablewrap"><table class="oryx" id="nowTab"></table></div>
-<p><strong>Combats intenses</strong> (couche optionnelle) : hachures là où le score de combat dépasse deux fois sa moyenne nationale près de la ligne, sur les 14 derniers jours. Elle ne dit pas qui avance. C'est l'information la plus directe que portent les signaux : au nord de Lyman, le saillant apparaît en combat intense dès juin 2026, deux mois avant les cartes.</p>
+<p><strong>Combats intenses</strong> (couche optionnelle) : hachures là où les signaux de combat (feux, combats au sol, pertes) dépassent nettement leur normale des 12 mois précédents dans le même secteur (moyenne des deux plus forts z ≥ 1, soit environ le sixième le plus actif ; seuil abaissé de 2 à 1 le 20/10/2026), à moins de 30 km de la ligne. Elle ne dit pas qui avance. C'est l'information la plus directe que portent les signaux : au nord de Lyman, le saillant apparaît en combat intense dès juin 2026, deux mois avant les cartes.</p>
 <h3>Moteur de fusion (en test)</h3>
 <p>Idée : chaque signal a son traitement propre, puis tout est mis ensemble. On suit, tronçon de 24 km par tronçon, le décalage entre la vraie ligne et celle des cartes, dans le temps. Chaque signal dit, à sa façon, où ce décalage est probable : les feux, les combats et les pertes se concentrent selon une loi apprise autour de la ligne ; un message Telegram est un indice ponctuel, avec un taux de fausses alertes appris ; les assauts et la liste officielle sont une pression ; les impacts Sentinel-2 ne jouent que sur le sens. Les cartes ne sont plus mises en commun : chacune est un témoin séparé, avec un biais et un retard appris. Tout est réappris chaque mois sur le seul passé. La bande à 95 % est recalibrée secteur par secteur.</p>
 <ul>
@@ -660,6 +660,6 @@ La précision de chaque flèche est recalculée à chaque mise à jour et affich
 <script src="front.js?v=dd3baae0b2"></script>
 <script src="osint.js?v=46ed380b81"></script>
 <script src="methode_i18n.js?v=f737e30a24"></script>
-<script src="app.js?v=c3f28ceb5d"></script>
+<script src="app.js?v=cbd1c2073a"></script>
 </body>
 </html>
