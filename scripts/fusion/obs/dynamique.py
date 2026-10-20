@@ -20,6 +20,12 @@ Chaque modèle fournit ses variables g (sans sens) et h (orientées) par tronço
   liste_dyn   liste officielle comme PRESSION : part côté UA à ≤ 15 km et hausse sur un mois.
   assauts_dyn variante revue des assauts de l'état-major UA comme PRESSION : log(1 + assauts) côté UA à ≤ 10 km et sa
               hausse sur un mois (μ), log(1 + assauts) (π).
+  v3 (20/10/2026) :
+  kab_dyn     alertes KAB comme PRESSION (côté UA à ≤ 20 km, niveau et hausse) — RETENU ;
+  ookla_dyn   baisse des tests Ookla côté UA à ≤ 15 km (niveau dans π, hausse sur 3 mois dans μ) — RETENU ;
+  nowcast     décalage implicite du nowcast publié (témoin du DÉCALAGE, pas une carte de plus) — RETENU ;
+  s2v2        cratères Sentinel-2 v2 par côté (z RU − UA dans μ, max z dans π) — testé, non retenu ;
+  tg_msg      Telegram orienté par message (tuiles de 24 km) — testé, non retenu.
 """
 import csv
 import os
@@ -80,18 +86,21 @@ class Dynamique:
             self.F[t] = {"mu": np.c_[ma, mz], "pi": np.c_[np.abs(ma), np.abs(mz)]}
         self.mu_names, self.pi_names = ["asymétrie a", "asymétrie z"], ["|a|", "|z|"]
 
-    def _s2(self, C):
+    def _s2(self, C, fname="impacts_troncons_decades.csv", col="s2_z"):
         """Par mois et tronçon : (z_RU, z_UA) moyens des décades du mois (secteurs de 20 km répartis au prorata des
-        mailles sur les tuiles de 24 km), None si un côté manque."""
+        mailles sur les tuiles de 24 km), None si un côté manque. fname : v1 (5 zones) ou v2 (cratères, tout le front)."""
         zs = {}
-        for r in csv.DictReader(open(os.path.join(DATA, "impacts_troncons_decades.csv"), encoding="utf-8")):
-            if r["s2_z"] in ("", None):
+        path = os.path.join(DATA, fname)
+        if not os.path.exists(path):
+            return {t: [None] * len(C.rows[t]) for t in C.months}
+        for r in csv.DictReader(open(path, encoding="utf-8")):
+            if r.get(col) in ("", None):
                 continue
             t = S.midx.get(r["decade"][:7])
             if t is None:
                 continue
             a, b = map(int, r["sec"].split("_"))
-            zs.setdefault((t, a, b, r["side"]), []).append(float(r["s2_z"]))
+            zs.setdefault((t, a, b, r["side"]), []).append(float(r[col]))
         sec = (S.jj // 10) * 1000 + S.ii // 10
         tl = ((S.jj + OFF) // TILE) * 1000 + (S.ii + OFF) // TILE
         pairs = {}
@@ -138,6 +147,82 @@ class Dynamique:
                 self.cover[t] |= v is not None
             self.F[t] = {"mu": np.array(mu), "pi": np.zeros((len(mu), 0))}
         self.mu_names, self.pi_names = ["z impacts RU − UA (sens)"], []
+
+    def _prep_s2v2(self, C):
+        """Cratères Sentinel-2 v2 (tout le front depuis 2024-07, z local sur 30 jours par tronçon de 20 km × côté, dès
+        2025-01 ; précision ≈ 0,73 : un faux positif sur quatre) comme PRESSION PAR CÔTÉ : z_RU − z_UA dans μ (le camp
+        pilonné est celui qui défend ou subit la poussée : signe appris), max(z_RU, z_UA) dans π (intensité). Positions
+        individuelles non lues (agrégats publiés seulement). Absent : variables retirées (v2)."""
+        Z = self._s2(C, "impacts_troncons_decades_v2.csv")
+        self.cover = np.zeros(S.NM, bool)
+        for t in C.months:
+            mu, pi = [], []
+            for v in Z[t]:
+                if v is not None:
+                    mu.append([np.clip(v[0] - v[1], -10, 10)]); pi.append([np.clip(max(v), -3, 10)])
+                    self.cover[t] = True
+                else:
+                    mu.append([0.0]); pi.append([0.0])
+            self.F[t] = {"mu": np.array(mu), "pi": np.array(pi)}
+        self.mu_names, self.pi_names = ["cratères S2 v2 : z RU − UA"], ["cratères S2 v2 : max z"]
+
+    def _prep_tg_msg(self, C):
+        """Telegram ORIENTÉ, attribution au MESSAGE (data/telegram_troncons.csv, tuile de 24 km × mois) :
+        (UA − RU)/(total + 2) dans μ, log(1 + messages de combat) dans π. Remplace la version par mailles (attribution à
+        la phrase, réservée à l'affichage)."""
+        D, cover = DN.telegram_troncons()
+        self.cover = cover
+        for t in C.months:
+            n = len(C.rows[t])
+            if not cover[t]:
+                self.F[t] = {"mu": np.zeros((n, 1)), "pi": np.zeros((n, 1))}; continue
+            v = np.array([D.get((t, int(S.tiles[k])), (0.0, 0.0, 0.0)) for k in C.rows[t]], float).reshape(n, 3)
+            self.F[t] = {"mu": ((v[:, 0] - v[:, 1]) / (v[:, 0] + v[:, 1] + 2))[:, None], "pi": np.log1p(v[:, 2])[:, None]}
+        self.mu_names, self.pi_names = ["Telegram (message) (UA − RU)/(total + 2)"], ["Telegram (message) log(1 + combats)"]
+
+    def _prep_kab_dyn(self, C):
+        """Alertes KAB (canal officiel, data/alertes_kab.csv) comme PRESSION : log(1 + alertes) côté UA à ≤ 20 km et sa
+        hausse sur un mois (μ), log(1 + alertes) (π). La KAB précède l'assaut : signal de pression russe."""
+        A, cv = DN.brut("kab")
+        self.cover = cv
+        for t in C.months:
+            n = len(C.rows[t])
+            if not cv[t]:
+                self.F[t] = {"mu": np.zeros((n, 2)), "pi": np.zeros((n, 1))}; continue
+            m, nn = C.tile_mean(t, A[t], side="ua", maxd=20.0)
+            cur = np.log1p(m * nn)
+            if (t - 1) in C.rows and cv[t - 1]:
+                m0, n0 = C.tile_mean(t, A[t - 1], side="ua", maxd=20.0)
+                prev = np.log1p(m0 * n0)
+            else:
+                prev = cur
+            self.F[t] = {"mu": np.c_[cur, cur - prev], "pi": cur[:, None]}
+        self.mu_names, self.pi_names = ["KAB côté UA (log)", "KAB : hausse 1 mois"], ["KAB côté UA (log)"]
+
+    def _prep_ookla_dyn(self, C):
+        """Ookla (baisse des tests de débit, bloc de 10 km, trimestre publié seulement) comme PRESSION côté UA à ≤ 15 km :
+        niveau (π) et hausse sur 3 mois (μ : la population part devant une poussée)."""
+        A, cv = DN.brut("ookla")
+        self.cover = cv
+        for t in C.months:
+            n = len(C.rows[t])
+            if not cv[t]:
+                self.F[t] = {"mu": np.zeros((n, 1)), "pi": np.zeros((n, 1))}; continue
+            m, _ = C.tile_mean(t, A[t], side="ua", maxd=15.0)
+            m0, _ = C.tile_mean(t, A[t - 3], side="ua", maxd=15.0) if (t - 3) >= 0 and cv[t - 3] else (m, None)
+            self.F[t] = {"mu": (m - m0)[:, None], "pi": m[:, None]}
+        self.mu_names, self.pi_names = ["Ookla : hausse de la baisse sur 3 mois"], ["Ookla : baisse des tests (côté UA)"]
+
+    def _prep_nowcast(self, C):
+        """Nowcast PUBLIÉ comme témoin du DÉCALAGE (pas comme une carte de plus : il est construit sur les cartes) :
+        δ_now = décalage de la ligne des cartes qui reproduit le nowcast dans le tronçon (μ), |δ_now| (π). Son
+        coefficient est appris comme celui des cartes séparées (retard / biais), en walk-forward."""
+        D = DN.nowcast_shift()
+        self.cover = np.array([t in C.rows and any((t, k) in D for k in C.rows[t]) for t in range(S.NM)])
+        for t in C.months:
+            v = np.array([D.get((t, k), 0.0) for k in C.rows[t]])
+            self.F[t] = {"mu": v[:, None], "pi": np.abs(v)[:, None]}
+        self.mu_names, self.pi_names = ["δ nowcast publié"], ["|δ nowcast publié|"]
 
     def _prep_tg_oriente(self, C):
         A = {c: DN.brut("tg_" + c)[0] for c in ("att_ua", "att_ru", "pres_ua", "pres_ru")}

@@ -21,12 +21,15 @@ cartes du mois : plus d'« ISW présente » après son arrêt) ; poids d'une car
 l'avance locale des cartes du champ, SEULEMENT dans les secteurs figés (`fusion/obs/figes.py`, κ choisi chaque mois).
 Testés et non retenus : tronçons de 12 et 16 km, couplage entre voisins, double pavage décalé, biais δ des secteurs
 figés (FUSION_TILE / FUSION_OFFSET, FIGES_DELTA restent disponibles pour les essais).
+v3 (20/10/2026, docs/ETAT.md § 6) : KAB et Ookla en pression, nowcast publié emboîté comme témoin du DÉCALAGE ;
+variations de km² lues dans months[i].akm (champ sans extrapolation β·v_loc).
 
 Sorties :
   site/front_fusion.js
       window.FRONT_FUSION = {generated, version, method, calibration, validation, weights,
                              months: [null | {date, a: {tout, horsCrimee, depuis2022: [espérance, médiane, zone grise,
-                                      p > 0,95] km², russie: [espérance, médiane] km²}, mc: {tout, horsCrimee,
+                                      p > 0,95] km², russie: [espérance, médiane] km²}, akm: même format que a, champ
+                                      SANS β·v_loc (v3 : pour les VARIATIONS de km², lire akm.tout[1]), mc: {tout, horsCrimee,
                                       depuis2022: [bas, haut] km² (95 %)}}, …]}      (indices = FRONT.months)
       (window.FRONTP=window.FRONTP||{})["fusion"] = [...]   même encodage que front_<vue>.js (6 bits, différences,
                                       une entrée par entrée de FRONT.months ; pas récents : dernier mois reporté)
@@ -53,7 +56,17 @@ SPREAD_MODE = "both"
 # modèles revus le 19/10/2026 (rapport de recherche, « à revoir ») : assauts de l'état-major en PRESSION (et plus en
 # position), Sentinel-2 en SENS seulement ; le reste = version retenue en recherche
 POS_PROD = ["feux", "ucdp", "pertes", "em_frappes", "modru", "artillerie", "kab", "radar_bati", "tg"]
-DYN_PROD = ["temoins", "memoire", "mouvement", "asymetrie", "s2_sens", "tg_oriente", "activite", "liste_dyn", "assauts_dyn"]
+DYN_PROD = ["temoins", "memoire", "mouvement", "asymetrie", "s2_sens", "tg_oriente", "activite", "liste_dyn", "assauts_dyn",
+            # v3 (20/10/2026, docs/ETAT.md § 6) : KAB et Ookla en PRESSION, nowcast publié comme témoin du DÉCALAGE
+            "kab_dyn", "ookla_dyn", "nowcast"]
+# v3 : testés, NON retenus (règle « ne rien dégrader », réglage 2023-24) : cratères S2 v2 par côté ("s2v2"), Telegram
+# orienté par message ("tg_msg" à la place de "tg_oriente"), profil du décalage le long de la ligne (champ.PROFIL),
+# contrainte de km² dans le choix du champ (champ.CHOIX). Présence filmée (GeoConfirmed) : `fusion/obs/videos.py`,
+# DÉSACTIVÉ (autorisation non obtenue).
+# km² : la surface publiée pour les variations (months[i].akm) est celle du champ SANS le terme d'extrapolation de la
+# vitesse locale (β = 0, autres paramètres et bande identiques) : β·v_loc fait gagner les mailles qui changent mais
+# gonfle la variation de surface sur 12 mois (biais +425 km² en 2025-26, docs/ETAT.md § 6).
+KM_SANS_BETA = True
 # v2 (19-20/10/2026, docs/ETAT.md § 6) : réglages choisis sur 2023-2024, évalués gelés sur 2025-2026
 #  - source absente : ses variables sont retirées du modèle des cartes appris pour le mois (ISW après juin 2026…) ;
 #  - POIDS_FIGES : poids d'une carte durablement contredite réduit dans le champ, SEULEMENT dans les secteurs figés
@@ -136,11 +149,20 @@ def main():
         return
     # ---------- sorties ----------
     Fu = SO.full_fields(F)
+    Fk = {}
+    if KM_SANS_BETA:
+        for t in F:
+            b_, g_, s0_, sp_, kp_ = choice[t]
+            Fk[t] = CHM.quant(CH.field(t, CH.tables(t, CH.s_of(t, s0_, sp_), lams[t]), 0.0, g_, kappa=kp_))
+        Fk = SO.full_fields(Fk)
     months_meta = []
     for i in range(S.nOrder):
         if i < S.NM and i in Fu:
             a = SO.areas(Fu[i])
-            months_meta.append({"date": S.mdate[i], "a": a, "mc": SO.mc_interval(M, R, i, a)})
+            mm = {"date": S.mdate[i], "a": a, "mc": SO.mc_interval(M, R, i, a)}
+            if i in Fk:
+                mm["akm"] = SO.areas(Fk[i])
+            months_meta.append(mm)
         else:
             months_meta.append(None)
     gen = dt.date.today().isoformat()
@@ -155,11 +177,15 @@ def main():
                                   "kappa": choice.get(tl, (0, 0, 0, 0, 0.0))[4]},
                  "kappa_par_mois": {S.months[t]: v[4] for t, v in choice.items()}}
         log(f"secteurs figés : {figes['dernier_mois']}")
-    meta = {"generated": gen, "version": "moteur de fusion v2 (20/10/2026)",
+    meta = {"generated": gen, "version": "moteur de fusion v3 (20/10/2026)",
             "method": "décalage δ de la vraie ligne par tronçon de 24 km, loi a posteriori filtrée, un modèle d'observation "
                       "par signal, poids et paramètres réappris chaque mois en walk-forward (ukraine-recherche/analyses/fusion) ; "
                       "v2 : une source absente ne contribue pas (variables retirées du modèle du mois) ; poids d'une carte "
-                      "durablement contredite réduit dans les secteurs figés seulement (κ choisi chaque mois)",
+                      "durablement contredite réduit dans les secteurs figés seulement (κ choisi chaque mois) ; v3 : KAB et "
+                      "Ookla en pression, nowcast publié comme témoin du décalage ; variations de km² lues dans akm (champ "
+                      "sans extrapolation de la vitesse locale)",
+            "km": {"akm": "surfaces (même format que a) du champ sans le terme β·v_loc, pour les VARIATIONS de km² (30 j, "
+                          "12 mois) ; a = surfaces du champ affiché"},
             "figes": figes,
             "calibration": dict(CALIB, spread=SPREAD_MODE, lam_median_dernier_mois=round(float(np.median(lams[max(lams)])), 2)),
             "fieldParams": {S.months[t]: list(v) for t, v in choice.items()},

@@ -17,6 +17,9 @@ fin, mois), aucun texte.
   radar_bati  radar S1, bâti modifié (data/sar_cells.csv, ≤ 15 km de la ligne du mois, mailles bâties ≥ 5 %, σ = 2)
   tg_<type>   Telegram (data/telegram_cells.csv, pas mensuel) : att_ua, att_ru, pres_ua, pres_ru
   asym_a/z    « combats derrière la ligne » (formules de `sectors.Sectors.asym`, recopiées : a et z relatif)
+  ookla       v3 : baisse des tests Ookla par bloc de 10 km (data/ookla_blocs_trimestre.csv, trimestre publié seulement)
+  telegram_troncons()  v3 : Telegram attribué au MESSAGE par tuile de 24 km × mois (data/telegram_troncons.csv)
+  nowcast_shift()      v3 : décalage implicite du nowcast publié par rapport aux cartes, par tronçon
 """
 import csv
 import json
@@ -180,11 +183,109 @@ def load_tg(kind):
     return A, cover
 
 
+def load_ookla():
+    """Ookla Open Data (CC BY-NC-SA 4.0, data/ookla_blocs_trimestre.csv) : BAISSE des tests (mobile + fixe) par bloc de
+    10 km, log(1 + tests 2021-Q4) − log(1 + tests du trimestre), recentrée sur la médiane des blocs témoins, même calcul
+    que `sectors.Sectors.ookla` (recopié). Anti-fuite : au mois t, trimestre contenant le mois t − 3 (publié ~10 jours
+    après sa fin), à défaut le dernier publié. Masqué côté russe par le modèle (réseaux non comparables)."""
+    import math
+    path = os.path.join(DATA, "ookla_blocs_trimestre.csv")
+    A = np.zeros((NM, nZ), np.float32)
+    if not os.path.exists(path):
+        return A, np.zeros(NM, bool)
+    tot, wit = {}, set()
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(line for line in f if not line.startswith("#")):
+            b = int(r["bloc"])
+            tot.setdefault(r["trimestre"], {})[b] = int(r["tests_mobile"]) + int(r["tests_fixe"])
+            if r["temoin"] == "1":
+                wit.add(b)
+    REF = "2021Q4"
+    ref = {b: n for b, n in tot.get(REF, {}).items() if n > 0}
+    blk = ((S.jj // 5) * (S.NX // 5) + S.ii // 5)[S.Zi]
+    BL = {}
+    for qq, d in tot.items():
+        if qq <= REF:
+            continue
+        v = {b: math.log1p(n0) - math.log1p(d.get(b, 0)) for b, n0 in ref.items()}
+        tw = sorted(x for b, x in v.items() if b in wit)
+        med = tw[len(tw) // 2] if tw else 0.0
+        arr = np.zeros(int(max(blk.max(), max(ref) if ref else 0)) + 1, np.float32)
+        for b, x in v.items():
+            if b < len(arr):
+                arr[b] = x - med
+        BL[qq] = arr[blk]
+    qs = sorted(BL)
+    cover = np.zeros(NM, bool)
+    for t, m in enumerate(S.months):
+        y, mo = int(m[:4]), int(m[5:7]) - 3
+        if mo <= 0:
+            y, mo = y - 1, mo + 12
+        want = f"{y}Q{(mo - 1) // 3 + 1}"
+        have = [q for q in qs if q <= want]
+        if have:
+            A[t] = BL[have[-1]]
+            cover[t] = t in S.built
+    return A, cover
+
+
+def telegram_troncons():
+    """Telegram, attribution au MESSAGE (data/telegram_troncons.csv, pas mensuel ; décision du 19/10/2026 : le modèle lit
+    ce fichier, l'affichage les mailles) : {(t, code tuile 24 km): (attaques + présence UA, attaques + présence RU,
+    messages de combat)} ; couverture par mois. Tuiles alignées sur la grille du moteur (i0, j0 multiples de 12)."""
+    if "tgm" in _MEM:
+        return _MEM["tgm"]
+    out, ms = {}, set()
+    path = os.path.join(DATA, "telegram_troncons.csv")
+    if os.path.exists(path):
+        for r in csv.DictReader(open(path, encoding="utf-8")):
+            if r["pas"] != "mois":
+                continue
+            t = S.midx.get(r["debut"][:7])
+            if t is None:
+                continue
+            ms.add(t)
+            code = ((int(r["j0"]) + OFFT) // TILE) * 1000 + (int(r["i0"]) + OFFT) // TILE
+            v = out.setdefault((t, code), [0.0, 0.0, 0.0])
+            v[0] += float(r["n_att_ua"] or 0) + float(r["n_presence_ua"] or 0)
+            v[1] += float(r["n_att_ru"] or 0) + float(r["n_presence_ru"] or 0)
+            v[2] += float(r["n_combat"] or 0)
+    on = sorted(ms)
+    cover = np.array([bool(on) and on[0] <= t <= on[-1] and t in S.built for t in range(NM)])
+    _MEM["tgm"] = (out, cover)
+    return _MEM["tgm"]
+
+
+OFFT = 0  # le fichier Telegram est en tuiles de 24 km non décalées
+
+
+def nowcast_shift():
+    """Décalage IMPLICITE du nowcast publié par tronçon : δ_now(t, k) = décalage de la ligne des cartes (vue équilibrée) qui
+    reproduit le mieux l'état du nowcast (p > 0,5) sur les mailles du tronçon à ≤ 30 km (même calcul que δ vrai). Le
+    nowcast est construit sur les cartes : on ne lit QUE son écart aux cartes (témoin du décalage), pas une carte de plus."""
+    if "dnow" in _MEM:
+        return _MEM["dnow"]
+    out = {}
+    for t in S.built:
+        if not np.isfinite(S.Pnow[t]).any():
+            continue
+        sd = np.nan_to_num(S.SDe[t], nan=999)
+        pn = np.nan_to_num(S.Pnow[t], nan=0.5) > 0.5
+        for k in [k for (q, k) in S.Y if q == t]:
+            z = S.tile_cells[k]
+            m = (np.abs(sd[z]) <= 30) & S.isUA[S.Zi][z]
+            if m.sum() < NMIN_SHIFT:
+                continue
+            out[(t, k)] = _best_shift(sd[z][m], pn[z][m])
+    _MEM["dnow"] = out
+    return out
+
+
 LOADERS = {
     "feux": load_feux, "ucdp": load_ucdp, "pertes": load_pertes,
     "em_assauts": lambda: load_officiel("etatmajor_assauts"), "em_frappes": lambda: load_officiel("etatmajor_frappes"),
     "modru": lambda: load_officiel("modru_localites"), "artillerie": load_artillerie, "kab": load_kab,
-    "liste": load_liste, "radar_bati": load_radar_bati,
+    "liste": load_liste, "radar_bati": load_radar_bati, "ookla": load_ookla,
     "tg_att_ua": lambda: load_tg("att_ua"), "tg_att_ru": lambda: load_tg("att_ru"),
     "tg_pres_ua": lambda: load_tg("pres_ua"), "tg_pres_ru": lambda: load_tg("pres_ru"),
 }

@@ -67,7 +67,7 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `build_toponyms.py` | `site/toponyms.js` (toponymes EN/UK/RU, GeoNames) à partir de `ukraine-recherche/i18n/places_i18n.json` ; à relancer seulement si le fond de carte change. |
 | `guard.py` | Garde-fous des fichiers d'entrée. |
 | `kpi_avance.py` | KPI interne « avance sur les cartes » (§ 4) : lancé en local, lit `site/front_*.js` et VIINA, écrit dans `ukraine-recherche/analyses/kpi_avance/`. `KPI_CHAMP=fusion` évalue `front_fusion.js` à la place du nowcast ; `KPI_CAD=mois` pour un passage rapide (≈ 9 min). |
-| `build_fusion.py`, `fusion/` | Moteur de fusion (19/10/2026), vue PARALLÈLE « fusion » : lancé APRÈS `build_front.py` et `build_direction.py`, lit seulement `site/` et `data/`, tout réappris en walk-forward à chaque build (≈ 2 min ; `--kpi` : + KPI empilé, ≈ 6 min). Écrit `site/front_fusion.js` (champ + aires) et `site/fusion_explain.js` (explication par tronçon). Pas encore en CI ni sur la carte (§ 8 point 0). |
+| `build_fusion.py`, `fusion/` | Moteur de fusion (19/10/2026), vue PARALLÈLE « fusion » : lancé APRÈS `build_front.py` et `build_direction.py`, lit seulement `site/` et `data/`, tout réappris en walk-forward à chaque build (≈ 2 min ; `--kpi` : + KPI empilé, ≈ 6 min). Écrit `site/front_fusion.js` (champ + aires ; v3 : `akm`, aires du champ sans extrapolation, pour les variations de km²) et `site/fusion_explain.js` (explication par tronçon). Pas encore en CI ni sur la carte (§ 8 point 0). |
 
 ### Données versionnées (`data/`)
 
@@ -981,6 +981,52 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   - Scripts de cette étude (scratchpad, privés) : `crat2/large/` (`extract.py`, `flags.py`, `molin.py`,
     `molin2.py`, `sample_sheets.py`, `evalWXY.py`, `recall.py`) ; captures avant / après dans `crat2/large/shots/`.
 
+- 20/10/2026 : **MOTEUR DE FUSION v3, vers le MODÈLE UNIQUE** (demande de l'utilisateur : le moteur devient le modèle
+  unique de la carte, avec les nouvelles données, et EMBOÎTE le nowcast ; `scripts/fusion/`, `scripts/build_fusion.py`,
+  `scripts/build_kmchange.py` ; vue toujours parallèle, rien de basculé). Détail et tableaux :
+  `ukraine-recherche/analyses/fusion/RAPPORT.md` § « v3 ». Protocole : entrées figées (scratchpad `fv3/k3`), réglages
+  sur 2023-24 puis gelés sur 2025-26, règle fixée d'avance (Brier ≤ 30 km ≤ réf. + 0,0001, mailles qui changent ≤ réf.
+  + 0,001, P10 ≥ réf. − 0,5 pt), 20 variantes + 1 placebo.
+  (1) **Biais des km² sur 12 mois : cause = le terme d'extrapolation β·v_loc du champ** (β passe de 1 à 2,5 en 2024-11 :
+  le niveau de surface saute de 700 à 1 400 km² et la variation sur 12 mois compare deux réglages) ; δ ne dérive pas.
+  Contrainte de surface dans le choix du champ (3 variantes) : sans effet, non retenue. **Retenu : les VARIATIONS de
+  km² sont lues sur le champ sans β·v_loc** (`FRONT_FUSION.months[i].akm`, même format que `a` ; la carte garde β).
+  Erreur de la variation, surface p ≥ 0,5, p80 / biais (30 j 2024, 30 j 2025-26, 12 m 2024, 12 m 2025-26) : v2
+  828/+45, 701/+6, 1 670/+209, 1 140/+425 → **v3 `akm` 481/+16, 417/+22, 1 006/−264, 668/+190** ; nowcast 971/+6,
+  769/+16, 1 332/+38, 766/+65 (p80 meilleur partout, biais 12 mois plus fort, non significatif : ≈ 2 fenêtres
+  indépendantes). L'espérance Σp de `akm` est mauvaise sur 12 mois (1 938/−1 124 en 2024) : lire `akm.tout[1]`.
+  (2) **Avancée partielle** : profil du décalage médian le long de la ligne (`champ.PROFIL`, r(x) = vitesse locale ou
+  intensité des combats, α fixe) : 5 variantes, 4 échouent sur 2023-24, la 5e (vitesse, α 0,5, dans v3) passe avec un
+  gain dans le bruit et dégrade 2025-26 : **non retenu**, défaut ouvert.
+  (3) **Données** (un modèle d'observation chacune) : **retenus** KAB en PRESSION (`kab_dyn`, neutre ; la KAB
+  « position » tombe alors à un poids nul), Ookla en PRESSION (`ookla_dyn`, baisse des tests côté UA ≤ 15 km, trimestre
+  publié seulement) et **nowcast publié comme témoin du DÉCALAGE** (`nowcast` : δ_now = décalage de la ligne des cartes
+  qui reproduit le nowcast dans le tronçon, dans μ et |δ_now| dans π ; jamais une carte de plus). **Non retenus** :
+  cratères S2 v2 par côté (`s2v2`, z publié dès 2025-01 : rien à apprendre en 2023-24, 2025-26 mailles qui changent
+  0,3215 → 0,3239) ; Telegram orienté attribué au message (`tg_msg`, `data/telegram_troncons.csv`, à la place de la
+  version par mailles : 2023-24 0,3684 → 0,3693). Vérifiés présents : assauts (pression + intensité), frappes,
+  liste, artillerie, feux, UCDP, pertes ; tous les signaux du nowcast (`nowcast.py`) sont dans la fusion. Présence
+  filmée (GeoConfirmed) : `fusion/obs/videos.py`, modèle écrit et DÉSACTIVÉ (`ACTIF = False`, hors des listes).
+  Ablations dans v3 (2023-24, Brier ≤ 30 / changent / P10) : v3 0,03404 / 0,3658 / 93,0 ; sans nowcast 0,03405 /
+  0,3686 / 93,1 ; sans KAB 0,03403 / 0,3657 / 93,3 ; sans Ookla 0,03410 / 0,3654 / 93,1 ; PLACEBO (les trois permutés
+  entre tronçons) 0,03413 / 0,3695 / 92,4.
+  (4) **v2 → v3 → nowcast** (2023-24 ; 2025-26) : Brier ≤ 30 km 0,03417 → 0,03404 → 0,03605 ; 0,02503 → 0,02505 →
+  0,02850 (v3 − nowcast −0,0020 ± 0,0006 et −0,0035 ± 0,0006) ; mailles qui changent t+2 0,3684 → 0,3658 → 0,3680 ;
+  0,3215 → 0,3249 → 0,3440 (± 0,02-0,03) ; t+1 0,3479 → 0,3466 → 0,3597 ; 0,3304 → 0,3312 → 0,3471 ; couverture par
+  secteur méd. / P10 / < 90 % 98,8/92,4/6 % → 98,0/93,0/4 % → 98,4/82,8/19 % ; 96,4/90,0/10 % → 96,7/91,7/6 % →
+  95,7/88,7/14 % ; corrélation au consensus du jour 0,9310 → 0,9312 → 0,9240 ; 0,9450 → 0,9452 → 0,9367 ; KPI net
+  (banc, h = 1, ≤ 30 / changent) +4,21/−1,24 → +4,92/−0,95 → +0,43/+1,72 ; −2,83/+6,06 → −2,81/+5,91 → −2,02/+2,65.
+  `kpi_avance.py` (KPI_CHAMP=fusion, pas mensuel, 5 graines) : h = 1 **+3,15 [−1,5 ; +6,9] / +2,70 [+0,5 ; +5,0]**,
+  12 mois +0,60 / +3,87 ; h = 2 +3,04 [+0,3 ; +4,7] / +6,48 [+2,6 ; +9,7] (v2 +2,71 / +2,53 ; nowcast −0,2 / +1,6).
+  Événements 2025-26 (v2 / v3 / nowcast) : Pokrovsk toutes mailles 0,054 / 0,056 / 0,062 mais **mailles qui changent
+  0,294 / 0,315 / 0,199** ; Lyman-Vivaldi 0,054 / 0,053 / **0,037**, changent 0,235 / 0,235 / 0,314 ;
+  Antonivka–Kozatske 0,027 / 0,028 / 0,040, km² « russes » sur mailles UA 2026-09 8 / 8 / 108.
+  (5) **Verdict (règle de l'utilisateur du 20/10 : à justesse égale, la fusion l'emporte) : BASCULE RECOMMANDÉE** —
+  aucune dégradation significative contre le nowcast sur Brier ≤ 30 km, mailles qui changent, couverture par secteur,
+  KPI net, erreur des km² (p80) ; à surveiller : bascules de Pokrovsk 2025, mailles stables de Lyman, biais 12 mois des
+  km². Procédure (`app.js`, contrôle bloquant `check_fusion()` dans `check_arrows.py`) : rapport § « v3 », point 5.
+  Build réel : `build_fusion.py --kpi` 154 s, `build_kmchange.py` (vues `fusion_esperance`, `fusion_p50` ajoutées,
+  format inchangé), `stamp.py`, `check_arrows.py` : 0 échec sur 2 524.
 ---
 
 ## 7. Signaux testés
@@ -1045,6 +1091,7 @@ distance égale ; D AUC 0,830 ; E sens 0,632, 1,99 km contre 2,02 pour la persis
 | **19/10/2026 : AMPLEUR de l'avancée** (km signés par tronçon de 24 km à t+1 / t+2, 39 quantiles, conformal local par tronçon × classe de risque P(mouvement) ; persistance, tendance, Kalman, v4 + seuil, deux étages, régression quantile, boosting ; `ukraine-recherche/analyses/ampleur/RAPPORT.md`) | CRPS t+2 (toutes / bougent) : persistance 0,218 / 1,70 ; tendance 0,231 / 1,67 ; Kalman 0,219 / 1,68 ; v4 0,218 / 1,69 ; **deux étages 0,203 / 1,63** ; entrées CI 0,207 / 1,69 ; QR 0,215 / 1,53 ; boosting 0,209 / 1,58 (95 % raté : 88 %). t+1 : 0,131 → 0,125. MAE : jeu égal. Ablations t+2 : sans nowcast ni zone grise 0,213 ; sans Telegram 0,204 ; sans S2, terrain dur ou voisins : 0,202-0,203 (rien). Couverture t+2 par classe de risque, 80 % : 95,9 / 83,4 / 82,3 % ; 95 % : 98,1 / 95,5 / 95,3 %. Par secteur : 80,6-96,9 % et 92,3-98,7 %. Tronçons en mouvement dans l'intervalle 80 % : ≈ 50 % (Vovtchansk 7 %, Koursk 8 %, Robotyne 78 %, Pokrovsk 2025 66 %). km² agrégés : MAE t+2 360 (tendance) à 415 (persistance), aucune couverture calibrée. Décades non faites (vérité mensuelle) | t+2 par tronçon : `scripts/build_advance.py` → `site/front_advance.js` (non branché, `show` intégré) ; t+1 et km² : non affichables |
 | **19/10/2026 : MOTEUR DE FUSION UNIQUE** (un modèle d'observation par signal, position latente de la ligne par tronçon, grille bayésienne 1D filtrée, poids appris en walk-forward ; `ukraine-recherche/analyses/fusion/RAPPORT.md`) | contre le champ publié : Brier ≤ 30 km 0,03291 → 0,03200, mailles qui changent 0,3585 → 0,3452 (t+2) et 0,3562 → 0,3349 (t+1), couverture par secteur médiane 95,7 → 98,6 %, P10 81,0 → 94,2 %, secteurs < 90 % 23,7 → 1,7 % ; KPI avance net +2,0 pt (≤ 30 km) et +2,6 pt (mailles qui changent), production −0,4 / +2,1. Apports (ablation, mailles qui changent) : vitesse locale −0,043, intensité des combats −0,014, artillerie −0,011, cartes séparées −0,007 (et Brier ≤ 30 km −0,0023), liste en pression −0,004 ; Telegram, KAB, frappes, terrain : poids nuls ; assauts, S2 : légère dégradation | **validé, non intégré** : plan d'intégration dans `build_front.py` (vue parallèle `front_fusion.js`) et format d'info-bulle dans le rapport |
 | **19/10/2026 : détecteur de CRATÈRES v2** (Sentinel-2 L2A 10 m, référence = dernière observation claire de chaque pixel, couronne 130 m − 70 m, forme ronde, plus claire que le voisinage, persistance, contexte clair de 1 km, brume masquée ; 360 vignettes photo-interprétées à l'aveugle + 5 boîtes de 1 km² exhaustives ; `ukraine-recherche/sar/crateres_v2/RAPPORT.md`) | Précision hors réglage (PK, nord de Lyman, Soumy, 2026) **0,73** (IC 0,63-0,82, n = 80) contre **0,17** pour v1 (IC 0,08-0,34 ; 0/16 à PK). Témoin calme : 0,22 détection / 100 km²·passage contre 1,0-1,2 sur le front (v1 : 1,5 partout, aucun contraste). Rappel des cratères nets 26/33 (v1 0/33) ; cratères faibles largement manqués (rappel de réserve 0,12-0,24). Molin (11/07-11/08/2026, ≈ 1 400 frappes) : v2 en voit ≈ 3-10 %. Sens, indice S2 seul (cas communs 2025-26) : 0,707 → 0,706 (≥ 1 km, 40 UA), 0,714 → 0,758 (≥ 2 km, 22 UA), dans le bruit ; production rejouée : AUC du sens inchangée (S2 hors P(sens)), « poussée possible » 0,09 → 0,10 de précision (sans S2 : 0,11), 5/75 départs précédés dans tous les cas, Vivaldi 102 j ; S2 dans P(sens) : −0,003 à −0,010 comme v1. Groupes (amas ≥ 3) : trop rares, pas mieux. 5 zones, 15 900 km², 2024-07 → 2026-10, ≈ 6 h de calcul ; front entier ≈ 30 h + 1 h/mois | détecteur **validé** (précision), **gain prédictif non démontré** : `data/impacts_troncons_decades_v2.csv` livré (même format, 5 zones), **non lu** par `build_direction.py` (v1 conservé) ; pas d'extension au front entier pour l'instant |
+| **20/10/2026 : MOTEUR DE FUSION v3** (nouvelles données chacune avec son modèle d'observation, nowcast emboîté comme témoin du décalage, km² sans extrapolation, profil le long de la ligne ; 20 variantes + placebo, réglage 2023-24, gelé 2025-26 ; `ukraine-recherche/analyses/fusion/RAPPORT.md` § v3) | 2023-24 / 2025-26 contre le nowcast : Brier ≤ 30 km 0,03404 / 0,02505 (nowcast 0,03605 / 0,02850), mailles qui changent 0,3658 / 0,3249 (0,3680 / 0,3440), P10 93,0 / 91,7 % (82,8 / 88,7) ; KPI net h = 1, toute la période, ≤ 30 km / changent +3,15 / +2,70 pt (nowcast −0,2 / +1,6) ; km² p80 12 mois (`akm`) 1 006 / 668 (1 332 / 766). Apports (2023-24, mailles qui changent) : nowcast −0,0028, Ookla ≈ 0 (Brier ≤ 30 km −0,00006), KAB en pression ≈ 0 ; placebo +0,0037 ; cratères S2 v2 : rien en 2023-24, +0,0024 en 2025-26 ; Telegram par message +0,0009 ; profil du décalage : dans le bruit | KAB, Ookla, nowcast **retenus** ; S2 v2, Telegram par message, profil **non retenus** ; GeoConfirmed : emplacement désactivé ; **bascule recommandée** (non faite) |
 
 Rapports détaillés : `ukraine-recherche/signals/`, `signals2/` (faisceau, VERDICT.txt, `replay/` pour la liste
 officielle), `signals3/`, `sar/` (rapport_SAR_V2.md), `backtest/`, `front/` (journaux de build et de contrôle),
@@ -1105,6 +1152,12 @@ gains walk-forward ; voir le bilan ci-dessus) :
    - Pistes ouvertes : forme LOCALE du décalage dans le tronçon (une bascule partielle, pas un δ uniforme ni plus
      fin) ; bande des 12 derniers mois (P10 86,7 %, 7 secteurs < 90 % sur 42) ; biais de la variation de km² sur 12
      mois (+425 km² contre +65 pour le nowcast, 2025-26).
+   - **v3 du 20/10/2026** (§ 6) : KAB et Ookla en pression, nowcast emboîté (témoin du décalage), variations de km²
+     lues dans `akm` (champ sans β·v_loc : 12 mois p80 1 140 → 668 km² en 2025-26) ; profil du décalage, cratères S2 v2,
+     Telegram par message : non retenus. **Bascule recommandée** (règle du 20/10) ; procédure et contrôle bloquant
+     `check_fusion()` : rapport de fusion § v3, point 5 (à faire par l'utilisateur : `app.js`, `index.html`, `i18n.js`,
+     `check_arrows.py`, CI). Restent ouverts : forme locale du décalage ; bascules de Pokrovsk 2025 (0,315 contre
+     0,199 pour le nowcast) ; biais 12 mois des km² (+190 contre +65).
 1. **« Qui avait raison »** : **MESURÉ le 19/10/2026**, c'est le nouveau KPI principal « avance sur les cartes »
    (§ 4, § 6 ; `scripts/kpi_avance.py`, `ukraine-recherche/analyses/kpi_avance/RAPPORT.md`).
    - **Valeur de référence** (site du 18/10, pas mensuel, h = 1 mois, 2023-01 → 2026-08) :

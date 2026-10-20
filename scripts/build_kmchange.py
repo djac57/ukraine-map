@@ -98,6 +98,18 @@ def main():
             return None
 
     by_date = {dt.date.fromisoformat(mo["date"]): mo for mo in FR["months"] if mo and len(mo.get("date", "")) == 10}
+    # vue « fusion » (moteur de fusion, site/front_fusion.js, mêmes indices que FRONT.months) : ajoutée aux statistiques
+    # de KMCHANGE.views seulement (format inchangé), si le fichier existe
+    fus_by_date = {}
+    p_fus = os.path.join(a.root, "site", "front_fusion.js")
+    if os.path.exists(p_fus):
+        s_ = open(p_fus, encoding="utf-8").read()
+        head = s_[s_.index("=") + 1:s_.index(";\n")]
+        FF = json.loads(head)
+        for mo, mf in zip(FR["months"], FF.get("months", [])):
+            if mo and mf and len(mo.get("date", "")) == 10 and mf.get("a"):
+                # akm (v3) : surfaces du champ sans extrapolation de la vitesse, réservées aux variations de km²
+                fus_by_date[dt.date.fromisoformat(mo["date"])] = (mf.get("akm") or mf["a"])["tout"]
     out = []
     for mo in FR["months"]:
         if not mo or len(mo.get("date", "")) != 10 or area(mo, 1) is None:
@@ -151,6 +163,9 @@ def main():
                     for k_ in (0, 1):
                         b1, b0 = area(by_date[t], k_, v), area(by_date[t0], k_, v)
                         dv[f"{v}{k_}"] = None if b1 is None or b0 is None else b1 - b0
+                for k_ in (0, 1):        # moteur de fusion (front_fusion.js)
+                    f1, f0 = fus_by_date.get(t), fus_by_date.get(t0)
+                    dv[f"fusion{k_}"] = None if f1 is None or f0 is None else f1[k_] - f0[k_]
                 R.append((t, ours - truth, esp - truth, None if c0 is None else c0 - truth, dv, truth))
             if not R:
                 continue
@@ -164,6 +179,8 @@ def main():
                 views[v][w] = stats([r[4][v] - r[5] for r in R if r[4][v] is not None])
             for k_, lab in ((0, "esperance"), (1, "p50")):
                 views.setdefault("nowcast_" + lab, {})[w] = stats([r[4][f"nowcast{k_}"] - r[5] for r in R if r[4].get(f"nowcast{k_}") is not None])
+                if fus_by_date:
+                    views.setdefault("fusion_" + lab, {})[w] = stats([r[4][f"fusion{k_}"] - r[5] for r in R if r[4].get(f"fusion{k_}") is not None])
             dd = [r[4]["ru"] - r[4]["ua"] for r in R if r[4]["ru"] is not None and r[4]["ua"] is not None]
             st = stats(dd)
             views["desaccord"][w] = None if st is None else dict(st, signe=st.pop("bias"))

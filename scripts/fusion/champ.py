@@ -41,6 +41,10 @@ def eval_cells(t):
 
 
 SPREAD = {"mode": "both"}
+# v3 (20/10/2026) : profil du décalage le long de la ligne (None : δ uniforme par tronçon, v2) ; contrainte de km² dans le
+# choix des paramètres du champ (None : v2)
+PROFIL = {"mode": None, "alpha": 0.0}
+CHOIX = {"km_tol": None}
 
 
 def spread_of(lam):
@@ -127,7 +131,47 @@ class Champ:
             sd = sd + beta * self.M.vloc(t)
         if gamma:
             sd = sd + gamma * self.offset(t, kappa)
+        if PROFIL["mode"] and PROFIL["alpha"]:
+            sd = sd + PROFIL["alpha"] * self.profil(t)
         return sd
+
+    def profil(self, t):
+        """v3 (avancée PARTIELLE d'un tronçon) : le décalage médian m_k du tronçon n'est plus uniforme le long de la ligne,
+        il est réparti selon un profil r(x) de moyenne 1 sur les mailles proches de la ligne du tronçon :
+            terme = (r(x) − 1) · m(x),   m(x) = Σ_k ω_k(x) m_k (même voisinage que le champ),
+        r(x) = (ε + a(x)) / (ε + moyenne du tronçon de a), borné à [0 ; 3], a = |vitesse locale des cartes| ("vit") ou
+        intensité locale des combats ("act", log(1 + feux + UCDP + assauts) lissé). Aucun paramètre appris par tronçon :
+        α (poids du profil) est fixé sur 2023-2024. Une partie du tronçon bouge (là où la ligne bougeait / où l'on se
+        bat), le reste non ; la médiane du tronçon est conservée en moyenne."""
+        key = (t, PROFIL["mode"])
+        cache = self.__dict__.setdefault("_pf", {})
+        if key in cache:
+            return cache[key]
+        sd = np.nan_to_num(S.SDe[t], nan=999)
+        near = np.abs(sd) <= 6.0
+        if PROFIL["mode"] == "vit":
+            a, eps = np.abs(self.M.vloc(t)).astype(np.float64), 0.25
+        else:
+            from . import donnees as DN
+            a = np.zeros(S.nZ)
+            for src in ("feux", "ucdp", "em_assauts"):
+                A, cv = DN.brut(src)
+                if cv[t]:
+                    a = a + A[t]
+            a = S.smooth(S.full(np.log1p(a).astype(np.float32)), 2.0)[S.Zi].astype(np.float64)
+            eps = 0.1
+        num = np.bincount(S.tinv, weights=a * near, minlength=S.nT)
+        den = np.bincount(S.tinv, weights=near.astype(float), minlength=S.nT)
+        mt = num / np.maximum(den, 1)
+        r = np.clip((eps + a) / (eps + mt[S.tinv]), 0, 3.0)
+        med = median_of(self.R["post"][t])
+        pc, pr, pw = self.pairs(t)
+        mn = np.bincount(pc, weights=pw * med[pr], minlength=S.nZ)
+        md = np.bincount(pc, weights=pw, minlength=S.nZ)
+        m = np.where(md > 1e-9, mn / np.maximum(md, 1e-12), 0.0)
+        out = ((r - 1.0) * m * (np.abs(sd) <= 30)).astype(np.float64)
+        cache[key] = out
+        return out
 
     def field(self, t, F, beta, gamma, sel=None, kappa=0.0):
         """Champ sur Z (champ des cartes là où aucun tronçon n'est voisin) ; sel : masque des paires à calculer."""
@@ -207,7 +251,8 @@ def table_choix(CH, fgrid=None):
         k = y >= 0
         ch = k & (S.T[t][idx] >= 0) & (S.T[t][idx] != y)
         pp = S.Pnow[t][idx]
-        prod = np.array([((pp[k] - y[k]) ** 2).sum(), k.sum(), ((pp[ch] - y[ch]) ** 2).sum(), ch.sum()], float)
+        prod = np.array([((pp[k] - y[k]) ** 2).sum(), k.sum(), ((pp[ch] - y[ch]) ** 2).sum(), ch.sum(),
+                         float((pp[k] >= 0.5).sum() - (y[k] == 1).sum())], float)
         pc = CH.pairs(t)[0]
         inidx = np.zeros(S.nZ, bool); inidx[idx] = True
         sel = inidx[pc]
@@ -217,7 +262,8 @@ def table_choix(CH, fgrid=None):
             if (s0, sp) not in Ftab:
                 Ftab[(s0, sp)] = CH.tables(t, CH.s_of(t, s0, sp))
             p = quant(CH.field(t, Ftab[(s0, sp)], b, g, sel=sel, kappa=kp)[idx])
-            row.append([((p[k] - y[k]) ** 2).sum(), k.sum(), ((p[ch] - y[ch]) ** 2).sum(), ch.sum()])
+            row.append([((p[k] - y[k]) ** 2).sum(), k.sum(), ((p[ch] - y[ch]) ** 2).sum(), ch.sum(),
+                        float((p[k] >= 0.5).sum() - (y[k] == 1).sum())])
         ll[t] = (np.array(row, float), prod)
     return grid, ll
 
@@ -232,6 +278,17 @@ def choisir(grid, ll, t, use_b=True, use_g=True):
     rb = (A[:, 0] / A[:, 1]) / (Pp[0] / Pp[1])
     rc = (A[:, 2] / np.maximum(A[:, 3], 1)) / (Pp[2] / max(Pp[3], 1))
     ok = rb <= 0.97
+    if CHOIX["km_tol"] is not None and A.shape[1] > 4:
+        # v3 : ERREUR DE NIVEAU de la surface p ≥ 0,5 contre le consensus à q + 2 (mailles évaluées, km², moyenne pondérée
+        # des mois passés) au plus celle du nowcast publié (ou km_tol) : la ligne ne doit pas s'emballer en surface.
+        wsum = sum(dec.values())
+        eg = 4.0 * A[:, 4] / wsum
+        ep = 4.0 * Pp[4] / wsum
+        okk = np.abs(eg) <= max(abs(ep), CHOIX["km_tol"])
+        if (ok & okk).any():
+            ok = ok & okk
+        elif okk.any():
+            ok = okk
     sc = np.where(ok, rc, 10 + rb + rc) if ok.any() else rb + rc
     best = grid[int(np.argmin(sc))]
     if len(grid[0]) < 5 or len({g[4] for g in grid}) == 1:

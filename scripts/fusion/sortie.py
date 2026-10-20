@@ -22,12 +22,16 @@ CODES = {
     "Mem": "mémoire du tronçon (mois précédent)",
     "Fg": "secteur figé : biais durable des cartes appris dans le secteur",
     "Vo": "tronçons voisins (couplage)",
+    "C2": "cratères Sentinel-2 v2 par côté (pression)", "Tm": "Telegram orienté (attribution au message)",
+    "Kd": "alertes KAB (pression)", "Ok": "Ookla : baisse des tests de débit (pression)",
+    "Nw": "nowcast publié (décalage par rapport aux cartes)",
 }
 POS_CODE = {"feux": "F", "ucdp": "U", "pertes": "P", "em_assauts": "A", "em_frappes": "Fa", "modru": "M", "artillerie": "Ar",
             "kab": "K", "radar_bati": "R", "tg": "T", "terrain": "Te", "_filtre": "Mem", "_figes": "Fg",
             "_couplage": "Vo"}
 DYN_CODE = {"memoire": "Me", "mouvement": "Vi", "asymetrie": "As", "impacts_s2": "S2", "s2_sens": "S2", "tg_oriente": "To",
-            "liste_dyn": "Li", "activite": "Ac", "assauts_dyn": "Aa"}
+            "liste_dyn": "Li", "activite": "Ac", "assauts_dyn": "Aa", "s2v2": "C2", "tg_msg": "Tm", "kab_dyn": "Kd",
+            "ookla_dyn": "Ok", "nowcast": "Nw"}
 
 
 def _q(P, a):

@@ -13,6 +13,7 @@ from .dynamique import Dynamique  # noqa: F401
 from .terrain import Barrieres  # noqa: F401
 from .cartes import TemoinCartes  # noqa: F401
 from .figes import RGRID as FIGES_RGRID, PoidsCartesFiges, SecteursFiges  # noqa: F401
+from .videos import PresenceFilmee  # noqa: F401  (emplacement, DÉSACTIVÉ : autorisation GeoConfirmed non obtenue)
 
 
 def catalogue():
@@ -39,5 +40,11 @@ def catalogue():
         Dynamique("liste_dyn", "Liste officielle comme pression"),
         Dynamique("assauts_dyn", "Assauts de l'état-major comme pression (variante revue)"),
         Dynamique("activite", "Intensité des combats près de la ligne (probabilité de mouvement)"),
+        # v3 (20/10/2026)
+        Dynamique("s2v2", "Cratères Sentinel-2 v2 par côté (pression, tout le front)"),
+        Dynamique("tg_msg", "Telegram orienté, attribution au message (tronçons)"),
+        Dynamique("kab_dyn", "Alertes KAB comme pression"),
+        Dynamique("ookla_dyn", "Ookla : baisse des tests de débit comme pression"),
+        Dynamique("nowcast", "Nowcast publié : témoin du décalage par rapport aux cartes"),
         Barrieres("terrain", "Terrain dur (fleuves, escarpements, canaux)"),
     ]
