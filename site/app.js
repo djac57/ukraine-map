@@ -247,7 +247,61 @@ function buildRuMask(){
 // sources étant corrélées d'un mois à l'autre). Calibré sur les cas connus de scripts/check_arrows.py.
 // réglages des flèches (calibrés sur les cas connus de scripts/check_arrows.py)
 // vmin 0,7 km/mois ; même signe 3 mois sur 3 sous 1 km/mois, 2 sur 3 au-delà ; saut ≥ 3 km/mois en un mois accepté
-const ARROW_PARAMS = {vmin: 0.7, need: 3, vstrong: 1.0, jump: 3, jumpHl: 0, hl: 0, mode: "geo"};
+// conf : vue de référence (cartes) contre laquelle les flèches d'une vue-modèle sont confirmées (null : pas de
+// confirmation) ; vconf : vitesse expliquée minimale (km/mois ; la même que vmin : le mouvement expliqué doit lui-même
+// passer le seuil d'une flèche) ; confKm : rayon de recherche d'une annonce du même camp ; confLoo : le mouvement des
+// cartes doit tenir sans chacune des cartes sources (variantes « sans X » qui ne retirent qu'une carte, voir LOO_VIEWS)
+// sig : 3e voie, nos signaux physiques — combats intenses (champ « combat » publié, z ≥ sigZ) à ≤ sigKm km de la base,
+// au mois affiché ou au précédent ; sigAsym : idem avec les combats derrière la ligne (asymétrie ≥ sigAsym, du côté du
+// camp qui recule ; null : non utilisée). Mesuré le 20/10/2026 (ETAT.md § 6) : l'asymétrie confirme des flèches peu
+// fiables (27-36 % suivies d'un déplacement des cartes à 3 mois, contre 44 % pour les combats intenses) et en rend sur
+// le Dnipro calme (6 à 12) : désactivée.
+const ARROW_PARAMS = {vmin: 0.7, need: 3, vstrong: 1.0, jump: 3, jumpHl: 0, hl: 0, mode: "geo", conf: "equilibre", vconf: 0.7, confKm: 20, confLoo: true,
+  sig: true, sigZ: 1.0, sigAsym: null, sigAsymSide: true, sigKm: 20};
+// vues-modèles posées sur les cartes : leur ligne 50 % ne compte comme mouvement que si les cartes, le décalage publié
+// par le modèle (getter de l'explication par tuile, null s'il n'en publie pas) ou une annonce le confirment
+const MODEL_VIEWS = {nowcast: null, fusion: () => window.FUSION_EXPLAIN};
+// variantes publiées qui retirent une seule carte source (FR.variants[v].drop ⊂ cartes de SRCN) : tirées des données
+let looViews = null;
+const LOO_VIEWS = () => looViews || (looViews = Object.keys(FR.variants || {}).filter(v => { const d = FR.variants[v].drop || [];
+  return d.length && d.every(s => Object.prototype.hasOwnProperty.call(SRCN, s)); }));
+// chargement des variantes nécessaires à la confirmation (une fois) ; les flèches des vues-modèles attendent ce chargement
+let looState = 0;   // 0 : rien demandé, 1 : en cours, 2 : prêt
+const confViews = () => (ARROW_PARAMS.confLoo ? LOO_VIEWS() : []).concat(ARROW_PARAMS.sig ? ["combat", "asym"] : []);
+function looReady(){
+  if (looState === 2) return true;
+  if (confViews().every(v => window.FRONTP && window.FRONTP[v])) { looState = 2; return true; }
+  if (looState === 0) { looState = 1; const L = confViews(), step = k => k >= L.length ? (looState = 2, arrowCache = {}, draw()) : ensureView(L[k], () => step(k + 1)); step(0); }
+  return false;
+}
+window.__uafArrowsReady = () => looReady();
+// 3e voie de confirmation : signal de combat anormal à ≤ sigKm km de (x, y), aux instantanés donnés ; renvoie
+// "combat" (z ≥ sigZ), "asym" (asymétrie ≥ sigAsym) ou null
+// asymétrie : seulement du côté du camp qui recule (derrière SA ligne, là où l'attaquant se bat : g > 0,5 côté russe)
+// si AP.sigAsymSide, g étant le champ du mois affiché et ru le camp qui avance
+function combatSignalNear(frames, x, y, g, ru){
+  const AP = ARROW_PARAMS, km = FR.grid.size / 1000, R = AP.sigKm / km, R2 = R * R;
+  for (const [view, thr, tag] of [["combat", AP.sigZ * 10 / 63, "combat"], ["asym", AP.sigAsym, "asym"]]) {
+    if (thr === null || !isFinite(thr) || thr > 1 || !viewFields(view)) continue;
+    const side = tag === "asym" && AP.sigAsymSide !== false && g;
+    for (const fi of frames) { if (fi < 0) continue; const F = fullField(view, fi); if (!F) continue;
+      for (let j = Math.max(0, Math.floor(y - R)); j <= Math.min(GY - 1, Math.ceil(y + R)); j++)
+        for (let i = Math.max(0, Math.floor(x - R)); i <= Math.min(GX - 1, Math.ceil(x + R)); i++) {
+          const dx = i + 0.5 - x, dy = j + 0.5 - y; if (dx * dx + dy * dy > R2) continue;
+          const c = j * GX + i; if (cellPlace[c] === -1 || F[c] < thr - 1e-6) continue;
+          if (side && (g[c] > 0.5) === ru) continue;   // côté du camp qui avance : ne confirme pas
+          return tag; } } }
+  return null;
+}
+// décalage médian publié par tuile (km), par instantané : Map clé de tuile → δ ; tuile de la maille (x, y)
+const ofsCache = new Map();
+function offsetMap(get, fi){
+  const X = get && get(); if (!X || fi < 0 || !X.months || !X.months[fi]) return null;
+  const k = X.generated + ":" + fi; if (ofsCache.has(k)) return ofsCache.get(k);
+  const T = X.tileCells || 12, m = new Map(); for (const r of X.months[fi]) m.set(r[0] / T + ":" + r[1] / T, r[2] / 10);
+  ofsCache.set(k, m); return m;
+}
+const tileKey = (get, x, y) => { const T = (get() || {}).tileCells || 12; return Math.floor(x / T) + ":" + Math.floor(y / T); };
 // logit borné (p quantifié en 64 niveaux : 0 et 1 exclus)
 const lgt = p => { const q = Math.min(1 - 0.5 / 63, Math.max(0.5 / 63, p)); return Math.log(q / (1 - q)); };
 window.__uafSetArrowParams = o => { Object.assign(ARROW_PARAMS, o); arrowCache = {}; };
@@ -343,6 +397,13 @@ function computeArrows(fi, Lkm, view){
   const DD = [0, 1, 2].map(m => IDX[m + 1] >= 0 ? Math.max(1, (FDATE[IDX[m]] - FDATE[IDX[m + 1]]) / 864e5) : 30);
   if (G4.some(x => !x)) return arrowCache[key] = [];
   const km = FR.grid.size / 1000, out = [], AP = ARROW_PARAMS;
+  // vue-modèle (posée sur les cartes) : champ de référence des cartes et décalage publié par tuile (voir MODEL_VIEWS)
+  const MV = AP.conf && view !== AP.conf && Object.prototype.hasOwnProperty.call(MODEL_VIEWS, view) ? MODEL_VIEWS[view] : undefined;
+  if (MV !== undefined && !looReady()) return [];   // variantes « sans X » en cours de chargement : rien, sans mise en cache
+  // champs de référence : les cartes, puis les cartes sans chacune de leurs sources
+  const REFV = MV !== undefined ? [AP.conf].concat(AP.confLoo ? LOO_VIEWS() : []) : [];
+  const GCS = REFV.map(v => IDX.map(i => fullField(v, i))), CONF = GCS.length > 0 && !GCS.some(G => G.some(x => !x));
+  const OFS0 = CONF && MV ? [offsetMap(MV, fi), offsetMap(MV, i3)] : null, OFS = OFS0 && OFS0[0] && OFS0[1] ? OFS0 : null;
   for (const run of lines50(view, fi)) {
     // abscisse curviligne
     const acc = [0]; for (let t = 1; t < run.length; t++) acc.push(acc[t - 1] + Math.hypot(run[t][0] - run[t - 1][0], run[t][1] - run[t - 1][1]) * km);
@@ -351,8 +412,8 @@ function computeArrows(fi, Lkm, view){
     for (let sgi = 0; sgi < nseg; sgi++) {
       const a0 = total * sgi / nseg, a1 = total * (sgi + 1) / nseg, mid = (a0 + a1) / 2;
       // vitesse mensuelle du tronçon pour chacun des trois derniers mois : v_m = Σ |∇p| · (−(p_m − p_m−1) / |∇p|) / Σ |∇p|
-      let sw = 0, n = 0, ax = 0, ay = 0;
-      const vm = [0, 0, 0];
+      let sw = 0, n = 0, ax = 0, ay = 0, vd = 0, swd = 0;
+      const vm = [0, 0, 0], VC = GCS.map(() => [0, 0, 0]);
       for (let t = 0; t < run.length; t++) {
         if (acc[t] < a0 || acc[t] > a1) continue;
         const [x, y] = run[t], [gx, gy, c] = gradAt(g1, x, y), gm = Math.hypot(gx, gy);
@@ -368,6 +429,14 @@ function computeArrows(fi, Lkm, view){
           for (let m = 0; m < 3; m++) vm[m] += gm * (sx && sx[m] !== null && sx[m + 1] !== null ? sx[m] - sx[m + 1]
             : -(lgt(G4[m][c]) - lgt(G4[m + 1][c])) / gl);
         } else for (let m = 0; m < 3; m++) vm[m] += -(G4[m][c] - G4[m + 1][c]);  // pondéré par |∇p| : gm · (−Δp/gm)
+        if (CONF) {
+          // même mesure sur chaque ligne de référence, le long de la même normale (repli en logit sur son gradient)
+          GCS.forEach((GC, r) => { const sc = GC.map(G => crossing(G, x, y, gx / gm, gy / gm)), [cgx, cgy] = gradAt(GC[0], x, y), cgm = Math.hypot(cgx, cgy);
+            const q0 = Math.min(0.98, Math.max(0.02, GC[0][c])), cgl = cgm / (q0 * (1 - q0));
+            for (let m = 0; m < 3; m++) VC[r][m] += gm * (sc[m] !== null && sc[m + 1] !== null ? sc[m] - sc[m + 1] : cgm > 1e-3 ? -(lgt(GC[m][c]) - lgt(GC[m + 1][c])) / cgl : 0); });
+          // variation du décalage publié par le modèle sur la fenêtre (δ > 0 : ligne plus avancée côté ukrainien)
+          if (OFS) { const d0 = OFS[0] && OFS[0].get(tileKey(MV, x, y)), d3 = OFS[1] && OFS[1].get(tileKey(MV, x, y)); vd += gm * -((d0 || 0) - (d3 || 0)); swd += gm; }
+        }
         sw += gm;
       }
       if (!n || !sw) continue;
@@ -398,6 +467,29 @@ function computeArrows(fi, Lkm, view){
         if (ang < bestAng) { bestAng = ang; nn = loc; ax = run[t][0]; ay = run[t][1]; }
       }
       if (!nn) continue;
+      // confirmation (vue-modèle seulement, voir MODEL_VIEWS) : le mouvement de la ligne du modèle doit être expliqué
+      // par ce sur quoi le modèle est construit, soit le déplacement de la ligne des cartes plus la variation de son
+      // propre décalage publié (v_expl, même sens, ≥ AP.vconf km/mois sur les trois mois), soit une annonce datée du même
+      // camp à moins de AP.confKm km sur la fenêtre ; sinon c'est un déplacement de la seule ligne 50 % du modèle, que
+      // la variation de largeur ou d'asymétrie de sa bande suffit à produire quand le front est figé (Dnipro aval, 2024-2025 :
+      // bande du modèle de 1 à 2 km, décalage médian nul, ligne 50 % qui va et vient de 3 à 8 km). Le déplacement des cartes
+      // doit en outre tenir sans chacune des cartes sources (AP.confLoo) : une seule carte qui recode un secteur est une
+      // révision, pas une poussée (même règle que pour les annonces) ; v_expl retenue = la plus faible dans le sens de v
+      let vexp = null, conf = CONF ? "cartes" : null;   // voie de confirmation retenue (diagnostic)
+      if (CONF) {
+        const days = DD[0] + DD[1] + DD[2], sg = Math.sign(v), od = swd ? vd / swd / (days / 30) : 0;
+        const ve = VC.map(vc => (vc[0] / (sw * DD[0] / 30) + vc[1] / (sw * DD[1] / 30) + vc[2] / (sw * DD[2] / 30)) / 3 + od);
+        vexp = ve.reduce((a, x) => sg * x < sg * a ? x : a, ve[0]);
+        if (!(Math.sign(vexp) === sg && Math.abs(vexp) >= AP.vconf)) {
+          const R = AP.confKm / km, ru = v < 0;
+          const ev = [fi, i1, i2].some(i => i >= 0 && eventArrows(i).some(e => e.ru === ru && Math.min(Math.hypot(e.ax - ax, e.ay - ay), Math.hypot(e.cx - ax, e.cy - ay)) <= R));
+          // 3e voie : nos signaux physiques (combats intenses ou combats derrière la ligne près de la base, mois affiché
+          // ou précédent) ; un mouvement que le modèle voit avant les cartes reste ainsi visible s'il est appuyé
+          const sg2 = !ev && AP.sig ? combatSignalNear([fi, i1], ax, ay, g1, ru) : null;
+          if (!ev && !sg2) continue;
+          conf = ev ? "annonce" : "signal " + sg2;
+        }
+      }
       let [nx, ny] = nn;
       const [gx, gy] = gradAt(g1, ax, ay); if (nx * gx + ny * gy < 0) { nx = -nx; ny = -ny; }
       const sgn = v > 0 ? 1 : -1;
@@ -425,12 +517,12 @@ function computeArrows(fi, Lkm, view){
       // retourné : sur le passé, il n'annonce pas de gain russe (14 % contre 24 % en moyenne) ; la flèche reste incertaine.
       if (uncertain && v < 0) {
         out.push({gx: ax, gy: ay, dx: -nx * sgn, dy: -ny * sgn, v: Math.abs(v), ru: false, L: Lkm, segKm: Math.round(a1 - a0), vm: vm.map(x => +x.toFixed(2)),
-                  uncertain: true, possible: true, why: "combats derrière la ligne russe"});
+                  uncertain: true, possible: true, why: "combats derrière la ligne russe", vexp, conf});
         continue;
       }
       const gd = guardDir(G4[1], g1, ax, ay, nx * sgn, ny * sgn, v < 0);
       out.push({gx: ax, gy: ay, dx: gd.ux, dy: gd.uy, v: Math.abs(v), ru: v < 0, L: Lkm, segKm: Math.round(a1 - a0), vm: vm.map(x => +x.toFixed(2)),
-                uncertain: uncertain || gd.st === "incertaine", reoriented: gd.st === "réorientée", guarded: gd.st !== "ok", why: gd.why});
+                uncertain: uncertain || gd.st === "incertaine", reoriented: gd.st === "réorientée", guarded: gd.st !== "ok", why: gd.why, vexp, conf});
     }
   }
   return arrowCache[key] = out;
@@ -862,7 +954,7 @@ window.__uafArrows = (fi, L, v) => (L === "overview" ? overviewArrows(fi, v || C
 const cellOf = (lon, lat) => { const q = proj([lon, lat]); return Math.floor((q[1] - gAff[1]) / gAff[2]) * GX + Math.floor((q[0] - gAff[0]) / gAff[2]); };
 const inBox = (gx, gy, b) => { const ll = proj.invert([gAff[0] + gx * gAff[2], gAff[1] + gy * gAff[2]]); return ll[0] >= b[0] && ll[0] <= b[1] && ll[1] >= b[2] && ll[1] <= b[3]; };
 // diagnostic (headless) : déplacement du dernier mois (km, signé) de tous les tronçons de L km, sans aucun seuil
-window.__uafMoves = (fi, L) => { const save = {...ARROW_PARAMS}; Object.assign(ARROW_PARAMS, {vmin: 0, need: 0, vstrong: 0, jump: 1e9, hl: 0, jumpHl: 0}); arrowCache = {};
+window.__uafMoves = (fi, L) => { const save = {...ARROW_PARAMS}; Object.assign(ARROW_PARAMS, {vmin: 0, need: 0, vstrong: 0, jump: 1e9, hl: 0, jumpHl: 0, conf: null}); arrowCache = {};
   const out = computeArrows(fi, L || 20, CKV()).map(a => a.vm[0]); Object.assign(ARROW_PARAMS, save); arrowCache = {}; return out; };
 // diagnostic (headless) : part des mailles d'une boîte situées dans la zone grise de contact
 window.__uafContactShare = (fi, b) => { const F = viewFields("contact"); if (!F || !F[fi]) return null; let n = 0, z = 0;
@@ -2057,7 +2149,7 @@ if ($("lyrFusion")) $("lyrFusion").onchange = e => { fusionOn = e.target.checked
   const done = () => { const FF = window.FRONT_FUSION; if (FF && !FF._merged) { FF._merged = true; FF.months.forEach((m, i) => { if (m && FR.months[i]) { FR.months[i].a.fusion = m.a; FR.months[i].mcFus = m.mc; } }); }
     frontFor = -2; legend(); draw(); updateReadout(); drawChart && drawChart(); };
   if (!fusionOn) return done();
-  ensureView("fusion", () => { if (!window.FUSION_EXPLAIN) { const sc = document.createElement("script"); sc.src = "fusion_explain.js?v=" + (FRONT_V.fusion || ""); sc.onload = () => { FUSX = window.FUSION_EXPLAIN; draw(); }; document.head.appendChild(sc); } done(); }); };
+  ensureView("fusion", () => { if (!window.FUSION_EXPLAIN) { const sc = document.createElement("script"); sc.src = "fusion_explain.js?v=" + (FRONT_V.fusion || ""); sc.onload = () => { FUSX = window.FUSION_EXPLAIN; arrowCache = {}; draw(); }; document.head.appendChild(sc); } done(); }); };
 if (fusionOn && $("lyrFusion")) setTimeout(() => $("lyrFusion").onchange({target: $("lyrFusion")}), 0);   // fusion par défaut : chargement au démarrage
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
 if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };

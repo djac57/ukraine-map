@@ -61,8 +61,9 @@ FORBID = [("Koursk, pas de rouge à l'expansion", ["2024-08"], [34.80, 35.80, 51
 # révélée le 15 septembre, l'ISW s'arrête en juin) ; on exige donc septembre, puis deux mois dès qu'octobre est construit.
 # ALERTES non bloquantes, provisoires (décision du 17 octobre 2026), jusqu'au nowcast par les signaux de combat :
 # - flèches de Vivaldi : faute de sources, la reprise n'est visible qu'à partir de septembre ou d'octobre ;
-# - Dnipro calme : 13 flèches (8 tolérées), dues surtout au codage de Kherson par VIINA (russe dans 2 ou 3 cartes
-#   jusqu'en avril 2023) et aux îles du delta en 2024-2025.
+# - Dnipro calme : 46 flèches sur la vue fusion (cartes : 21), 1 depuis le 20/10/2026 (confirmation des flèches des
+#   vues-modèles par les cartes sans chacune de leurs sources, une annonce ou des combats intenses : app.js,
+#   computeArrows ; ETAT.md § 6).
 # Surface : ALERTE non bloquante. Wikipédia n'a jamais marqué le saillant russe en 2025 : le modèle le tenait pour
 # disputé (p ≈ 0,5), si bien que sa reprise ne retire au plus qu'environ la moitié de sa surface ; et Karpivka, Petrovka,
 # etc. ne sont libérées que sur la géométrie de DeepStateMap, jamais dans son journal (option retenue : journal seul).
@@ -95,7 +96,7 @@ HARNESS = """<!doctype html><html><head><meta charset="utf-8"></head><body><pre 
 const okDir=(a,dir)=>{if(!dir) return true; if(Array.isArray(dir)) return a.dir[0]*dir[0]+a.dir[1]*dir[1]>0;
  const c=dir.vers||dir.depuis, tx=(c[0]-a.lon)*Math.cos(a.lat*Math.PI/180), ty=-(c[1]-a.lat), d=a.dir[0]*tx+a.dir[1]*ty; return dir.vers? d>0 : d<0;};
 f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l+'\\n';
-const fusOk=()=>{const cb=w.document.getElementById('lyrFusion'); return !(cb&&cb.checked)||(w.FRONT_FUSION&&w.FRONTP.fusion&&w.FUSION_EXPLAIN&&w.__uafView&&w.__uafView()==='fusion');};
+const fusOk=()=>{const cb=w.document.getElementById('lyrFusion'); return !(cb&&cb.checked)||(w.FRONT_FUSION&&w.FRONTP.fusion&&w.FUSION_EXPLAIN&&w.__uafView&&w.__uafView()==='fusion'&&(!w.__uafArrowsReady||w.__uafArrowsReady()));};
 const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowCheck||!w.__uafArrows||!fusOk())&&n<120){return setTimeout(()=>go(n+1),500);}
  if(!fusOk()){o.textContent+='ERREUR vue fusion (front_fusion.js, fusion_explain.js) non chargée : contrôles non représentatifs de la carte publiée\\n'; return;}
  try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='VUE MESUREE|'+r.view+'\\n'; o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces : '+(r.evN||0)+' ; sans sens établi (repère creux) '+(r.reoriented||0)+' ; confirmations (en retard sur les cartes, sans direction) '+(r.late||0)+' ; sens vérifié contre le territoire basculé : '+(r.flipChecked||0)+'\\n';

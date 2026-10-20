@@ -213,7 +213,10 @@ probabilité de contrôle russe** partout (bande russe comprise) ; les distances
 - Gradient (`computeArrows`) : pour chaque tronçon (100, 50, 20, 10 km) de la ligne 50 %, déplacement mensuel le long
   de la normale = écart des positions de la ligne de chaque mois (`crossing`, ±30 km, un seul côté) ; à défaut
   −Δlogit p / |∇logit p| ; pour de petits déplacements, v_n ≈ −Δp/|∇p|. Flèche si |v| ≥ v_min avec le même sens
-  2 ou 3 mois sur 3, ou saut ≥ 3 km en un mois ; base sur la ligne (≤ 2 km), angle à la normale < 30°.
+  2 ou 3 mois sur 3, ou saut ≥ 3 km en un mois ; base sur la ligne (≤ 2 km), angle à la normale < 30°. Vues-modèles
+  (fusion, nowcast ; depuis le 20/10/2026, § 6) : mouvement confirmé par les cartes (≥ 0,7 km/mois même sens, δ publié
+  compris, encore sans chacune des cartes sources), par une annonce du même camp à ≤ 20 km, ou par nos signaux
+  (combats intenses publiés, z ≥ 1, à ≤ 20 km, mois affiché ou précédent), sinon pas de flèche.
 - Localités qui ont basculé (`eventArrows`) : annonces datées des 30 derniers jours, regroupées à 15 km, pondérées par
   la fiabilité mesurée de chaque source ; seuil de corroboration ; sens tiré du déplacement réel de la ligne
   (`lineShift`), à défaut des mailles basculées, des localités basculées, du gradient ; confronté aux localités et
@@ -375,7 +378,8 @@ Vouhledar, Selydove/Kourakhove, Pokrovsk, Koupiansk) ; sens interdits à Koursk 
 Pokrovsk, Koursk) ; fins de série (ISW, UCDP) ; vue d'ensemble (une flèche à moins de 50 km de tout tronçon en
 mouvement) ; zone grise de contact détectée chaque mois.
 Depuis le 20/10/2026, tout est mesuré sur la VUE AFFICHÉE (`fieldName()`, la fusion par défaut ; § 6).
-Alertes non bloquantes : Vivaldi (flèches bleues et surface reprise), Dnipro calme. Diagnostics : P(contact) aux
+Alertes non bloquantes : Vivaldi (flèches bleues et surface reprise), Dnipro calme (OK depuis le 20/10/2026 : 1 flèche
+sur la vue fusion, règle de confirmation, § 6). Diagnostics : P(contact) aux
 centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saillant de Vivaldi.
 
 ---
@@ -1110,6 +1114,72 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   mois ; clé `sens` du fichier. Lyman, tronçon (576, 192), 2026-04 → 2026-09 : P(sens RU | bouge) 97, 96, 98, 98,
   96, 68 % ; P(bouge) 49, 49, 77, 71, 66, 33 % : il ne voit pas Vivaldi avant septembre (rapport § v4). Régénérés :
   `build_fusion.py` (98 s), `build_kmchange.py`, `stamp.py`.
+- 20/10/2026 : **FLÈCHES DE GRADIENT DES VUES-MODÈLES : CONFIRMATION PAR LES CARTES (sans chaque source) OU UNE ANNONCE**
+  (demande de l'utilisateur : CALME « Dnipro à Kherson » en ALERTE, 46 flèches sur la vue fusion contre 21 sur les
+  cartes ; hypothèse « variance collapse », borne inférieure proposée).
+  **Diagnostic** (vue fusion, boîte 32,3-33,9 E / 46,4-47,0 N, tronçons de 50 et 20 km) : 46 flèches = 2023-04/05
+  (11, bande large σ 5-10 km, la fenêtre voit encore le codage de Kherson), 2023-12 (1), 2024-09/10 (9, RU),
+  2024-12 → 2025-04 (25, UA). Sur 2024-09 → 2025-04 : σ logistique de la fusion à la base 1,1-2,2 km (cartes 2-5 km),
+  bande 5-95 % souvent 6-10 km ; **δ médian = 0 sur toutes les tuiles et tous les mois** (5-95 % de ±0,5 km à
+  [−1 ; +3,5] km) ; pourtant la ligne 50 % de la fusion va et vient : à 32,70 E 46,60 N, −4,9 → −8,1 → −8,5 → −2,0 → +0,6
+  → −4,2 → −4,7 km (août 2024 → février 2025) quand celle des cartes reste à −4,8 ± 0,1 ; à 33,70 E 46,94 N, saut de
+  4 km en février 2025 (cartes : 2 km, révision d'une seule carte). Sauts d'un mois de 3 à 9 km, d'où la règle du saut
+  ou deux mois sur trois. **Hypothèse confirmée en partie** : c'est bien la bande resserrée (et sa largeur ou son
+  asymétrie qui changent d'un mois à l'autre, réglages du champ, poids des cartes réduits dans les secteurs figés) qui
+  déplace la ligne 50 % sans que δ bouge ; ce n'est ni une oscillation de δ ni un saut de maille. **Borne inférieure
+  écartée** : la mesure géométrique de v n'utilise pas σ, et un seuil v ≥ k × bruit passé du tronçon échoue dans les
+  deux sens (bruit passé, calculé sans futur, 0,05-1 km sur le Dnipro, 5-17 km à Pokrovsk en 2025 : il garderait les
+  fausses et retirerait les vraies). Constat annexe : les flèches gardées à σ < 1,5 km ne sont suivies d'un
+  déplacement des cartes que dans 23 % des cas (52-63 % ailleurs).
+  **Règle retenue** (`app.js`, `computeArrows`, générique, aucun chiffre propre au théâtre) : pour une VUE-MODÈLE
+  (`MODEL_VIEWS` : nowcast, fusion), une flèche de gradient n'est gardée que si (a) la vitesse expliquée — même mesure
+  sur la ligne 50 % des cartes (`ARROW_PARAMS.conf = "equilibre"`), le long de la même normale, plus la variation du
+  décalage δ publié par tuile (`fusion_explain.js`, fusion seulement) — va dans le même sens à ≥ `vconf` = 0,7 km/mois
+  (= vmin), et cela encore pour chacune des variantes qui retirent UNE carte source (`confLoo`, liste tirée de
+  `FR.variants[].drop` ⊂ cartes de `SRCN` : sans_dsm, sans_isw, sans_wiki ; la plus faible compte) ; ou (b) une flèche
+  d'annonces du même camp (directe ou confirmation) tombe à ≤ `confKm` = 20 km de la base sur les trois mois de la
+  fenêtre. Même principe que les annonces : une seule carte qui recode est une révision. Les trois variantes (≈ 3,7 Mo)
+  sont chargées à la demande (`looReady`) ; tant qu'elles manquent, pas de flèche de gradient de vue-modèle (sans mise
+  en cache) ; `__uafArrowsReady` exposé, attendu par le harnais (`fusOk`). `__uafMoves` (fins de série) mesure sans
+  confirmation. Le chargement de `fusion_explain.js` vide le cache des flèches.
+  **Avant → après** (`check_arrows.py`, code 0 dans les deux cas ; avant = `ARROW_PARAMS='{"conf":null}'`) : flèches
+  contrôlées 3 548 → 2 353, 0 échec ; **CALME Dnipro 46 → 0 (OK)** (tronçons de 10 km : 77 → 7) ; cas connus tous OK
+  (Vovtchansk 7 → 3, première flèche 2024-06 au lieu de 2024-05 ; Koursk reflux 4 → 3 ; Selydove 12 → 10 ; Pokrovsk
+  49 → 36 ; Koupiansk 20 → 15 ; les flèches perdues de ces cas sont surtout à rebours : Pokrovsk 16 → 4, Koupiansk 8 → 5) ;
+  Vivaldi flèches bleues OK (septembre 1/2/3), surface 188 km² OK ; VUE 2024-02/05/08/11, 2025-03/08 OK ; fins de série
+  OK ; vue d'ensemble 2024-2026 11,9 → 8,7 flèches de gradient par mois. Précision sur 2023-2026 (tronçons 20 et 50 km,
+  vérité : déplacement des cartes ≥ 1 km dans le sens de la flèche à 3 mois) : gardées 53 % (402), retirées 26 % (251 :
+  par le retrait d'une source 20 %, sans confirmation des cartes 29 %). **Revers** : une poussée que le modèle voit
+  avant toutes les cartes et sans annonce perd sa flèche (Vovtchansk et Lyptsi en mai 2024, v 2,1-2,4 km/mois, cartes
+  −0,2 ; quelques flèches de 2026 à Houliaïpole et Vovtchansk) ; la vue des cartes seules n'est pas modifiée (21 sur le
+  cas calme). Captures : Pokrovsk 2024-11 (flèches rouges vers l'ouest), Lyman 2026-05 et 2026-09 (flèches bleues au
+  nord de Lyman en septembre), Kherson 2025-02 (une flèche de 10 km résiduelle). Page méthode (FR/EN, étapes 13 et
+  « Critère », cas calme, tableau) mise à jour.
+  **Complément du même jour : 3e voie, NOS SIGNAUX PHYSIQUES** (demande du coordinateur, principe de l'utilisateur :
+  s'éloigner du recopiage des cartes ; la voie « cartes » faisait perdre les poussées vues AVANT les cartes, Vovtchansk
+  en mai 2024). Une flèche non confirmée par les cartes ni par une annonce est gardée si le champ publié « combats
+  intenses » (`front_combat.js`, z ≥ `sigZ` = 1 par rapport aux 12 mois précédents du secteur) a une maille à ≤ `sigKm`
+  = 20 km de la base au mois affiché ou au précédent (`combatSignalNear`, `ARROW_PARAMS.sig`). Les combats derrière la
+  ligne (asymétrie, `sigAsym`, du côté du camp qui recule si `sigAsymSide`) sont codés mais DÉSACTIVÉS (`sigAsym:
+  null`). Mesures (vue fusion, tronçons 20 et 50 km, 2023-04 → 2026-06, précision = déplacement des cartes ≥ 1 km dans
+  le sens de la flèche à 3 mois) :
+  | variante | Dnipro calme | Vovtchansk 2024-05 | Pokrovsk 2025 bon/rebours | flèches | précision |
+  |---|---|---|---|---|---|
+  | sans confirmation | 46 | 5 | 32/16 | 653 | 43 % |
+  | cartes + annonces | 0 | 0 | 32/4 | 402 | 53 % |
+  | + combats z ≥ 1 et asymétrie ≥ 0,2 (20 km) | 12 | 5 | 32/14 | 546 | 48 % (asym. 27 %) |
+  | + asymétrie ≥ 0,4 côté qui recule seulement | 6 | 5 | 32/13 | 516 | 50 % (asym. 36 %) |
+  | **+ combats z ≥ 1 (20 km), RETENU** | **1** | **5** | **32/13** | **461** | **52 %** |
+  | + combats z ≥ 1 à 10 km et asymétrie 0,2 | 7 | 5 | 32/10 | 499 | 50 % |
+  Précision par voie (retenu) : cartes 56 % (281), annonces 45 % (121), combats intenses 44 % (59). Pokrovsk 2024-11
+  6/0, Koupiansk 2025 10/4, Vivaldi 2026-06 → 09 2/1, Lyman 2026-05 → 09 5 dans les deux variantes.
+  **`check_arrows.py` : code 0** — 2 656 flèches, 0 échec ; **CALME Dnipro 1 (2023-12 RU 1,15) → OK** ; Vovtchansk
+  OK dès **2024-05** (L100 1,96 km/mois, 7 flèches) ; Koursk reflux 2024-12 (4) ; Pokrovsk 45 ; Koupiansk 15 ; Vivaldi
+  OK (septembre 1/2/3, 188 km²) ; VUE 2024-05 retrouve Vovtchansk et Lyptsi, 2024-11 la flèche russe de Koursk ;
+  vue d'ensemble 2024-2026 9,6 flèches de gradient par mois (11,9 sans règle) ; I18N OK. Revers : là où l'on se bat
+  partout, la voie « combats » laisse passer des flèches à rebours (Pokrovsk 2025 : 13 contre 4). Captures :
+  Vovtchansk 2024-05 (flèches rouges au sud de la frontière), Pokrovsk 2024-11, Lyman 2026-05 et 2026-09, Kherson
+  2025-02 inchangés. Page méthode (FR/EN) complétée. Le champ « combat » est chargé avec les variantes (`confViews`).
 ---
 
 ## 7. Signaux testés
