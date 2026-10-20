@@ -119,9 +119,20 @@ jobs:
         continue-on-error: true
       - name: Contrôle des flèches (base sur la ligne 50 %, angle < 30°)
         id: check
-        run: python scripts/check_arrows.py
+        run: |
+          set -o pipefail
+          python scripts/check_arrows.py 2>&1 | tee data/controle_fleches.txt
         timeout-minutes: 15
         continue-on-error: true
+      - name: Publier seulement le rapport du contrôle s'il échoue (lisible sans connexion à GitHub)
+        if: steps.check.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data/controle_fleches.txt
+          git commit -m "Contrôle des flèches en échec du $(date -u +%F) : rapport seul, données non publiées" || exit 0
+          git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
       - name: Versionner les sorties
         if: steps.check.outcome == 'success'
         continue-on-error: true
