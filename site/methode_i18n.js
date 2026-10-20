@@ -16,7 +16,7 @@ window.METHODE_H = {
   "Flèches d'annonces": ["Claim arrows", "Стрілки заяв", "Стрелки заявлений"],
   "Cadence": ["Cadence", "Частота", "Частота"],
   "Notre estimation : ce qui est publié, ce qui est en test": ["Our estimate: what is published, what is under test", "Наша оцінка: що опубліковано, що тестується", "Наша оценка: что опубликовано, что тестируется"],
-  "Moteur de fusion (en test)": ["Fusion engine (under test)", "Рушій злиття (тестується)", "Движок слияния (тестируется)"],
+  "Moteur de fusion (vue par défaut)": ["Fusion engine (default view)", "Рушій злиття (вигляд за замовчуванням)", "Движок слияния (вид по умолчанию)"],
   "Prévisions : où, dans quel sens, de combien": ["Forecasts: where, which way, how far", "Прогнози: де, в якому напрямку, наскільки", "Прогнозы: где, в каком направлении, насколько"],
   "Chiffres clés : la variation des km²": ["Key figures: the change in km²", "Ключові цифри: зміна км²", "Ключевые цифры: изменение км²"],
   "Banc d'essai : chaque signal dans chaque rôle": ["Test bench: every signal in every role", "Випробувальний стенд: кожен сигнал у кожній ролі", "Испытательный стенд: каждый сигнал в каждой роли"],

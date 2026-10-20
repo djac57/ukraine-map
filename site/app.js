@@ -2194,8 +2194,8 @@ window.__tgHit = () => tgHits.find(h => h.recent && TG && TG.recent && TG.recent
 function tgLinks(h, pinned){
   const L = h.recent && TG.recent && TG.recent.links ? TG.recent.links[h.c + "," + h.ic] : null; if (!L || !L.length) return "";
   const esc = t => String(t).replace(/[^\w\/.-]/g, "");
-  return `<div style="margin-top:4px">${_t("messages")} : ` + L.map(x => pinned ? `<a href="https://t.me/${esc(x)}" target="_blank" rel="noopener noreferrer">t.me/${esc(x)}</a>` : `t.me/${esc(x)}`).join(" · ") + `</div>` +
-    (pinned ? "" : `<div style="color:var(--faint)">${_t("clic : liens cliquables")}</div>`);
+  return `<div style="margin-top:4px">${_t("messages d'origine")} : ` + L.map(x => pinned ? `<a href="https://t.me/${esc(x)}" target="_blank" rel="noopener noreferrer">t.me/${esc(x)}</a>` : `t.me/${esc(x)}`).join(" · ") + `</div>` +
+    (pinned ? "" : `<div style="color:var(--faint)">${_t("clic : ouvrir les messages d'origine")}</div>`);
 }
 function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -2237,9 +2237,9 @@ function hover(e){
   if (showTg && tgHits.length) {
     let best = null; for (const h of tgHits) if (Math.hypot(h.x - mx, h.y - my) <= h.r + 2) { best = h; break; }
     if (best) {
-      tip.innerHTML = `<div>${_t(best.key === "ru" ? "sources russes, ce mois-ci : {a} mention(s) d'attaques ukrainiennes, {p} de présence ukrainienne" : "sources ukrainiennes, ce mois-ci : {a} mention(s) d'attaques russes, {p} de présence russe", {a: best.a, p: best.p})}</div>` +
+      tip.innerHTML = `<div>${_t(best.key === "ru" ? "canaux Telegram russes : activité ukrainienne signalée ici ({a} attaques, {p} présence)" : "canaux Telegram ukrainiens : activité russe signalée ici ({a} attaques, {p} présence)", {a: best.a, p: best.p})}</div>` +
         (best.recent && TG.recent ? `<div style="color:var(--faint)">${_t("30 derniers jours, jusqu'au {d}", {d: TG.recent.to})}</div>` : "") +
-        `<div>${_t(best.kind === "cross" ? "présence signalée chez le camp adverse, à moins de 6 km de la ligne (traverse la ligne)" : best.kind === "same" ? "signalée de son propre côté (confirmation de contrôle)" : "attaques signalées près de la ligne, sans présence signalée (les attaques visent le terrain adverse)")}</div>` +
+        `<div>${_t(best.kind === "cross" ? "présence signalée du côté tenu par l'autre camp" : best.kind === "same" ? "présence signalée de son propre côté" : "attaques signalées, sans présence signalée")}</div>` +
         `<div style="color:var(--faint)">${_t("indique qu'un secteur va bouger, pas qui avance")}</div>` + tgLinks(best, e.type === "click");
       if (e.type === "click") { tip.classList.add("pin"); tipKey = [mx, my]; }
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -2284,9 +2284,9 @@ function hover(e){
         return;
       }
       tip.innerHTML = best.a.ev ? (best.a.undirected
-        ? `<div class="r"><span>${_t("localités qui ont basculé ({c}), sens non établi", {c: camp})}</span><b>${_t("{n} localité(s)", {n: best.a.ev})}</b></div><div style="margin-top:4px;color:var(--faint)">30 derniers jours ; sens non établi : les localités basculées et le déplacement de la ligne ne vont pas dans la même direction</div>`
+        ? `<div class="r"><span>${_t("localités qui ont basculé ({c}), sens non établi", {c: camp})}</span><b>${_t("{n} localité(s)", {n: best.a.ev})}</b></div><div style="margin-top:4px;color:var(--faint)">${_t("30 derniers jours ; sens non établi : les localités basculées et le déplacement de la ligne ne vont pas dans la même direction")}</div>`
         : best.a.late
-        ? `<div class="r"><span>${_t("confirmé par annonce ({c}), pas un mouvement nouveau", {c: camp})}</span><b>${_t("{n} localité(s)", {n: best.a.ev})}</b></div><div style="margin-top:4px;color:var(--faint)">changements annoncés dans les 30 jours que les cartes montraient déjà : pas un mouvement nouveau</div>`
+        ? `<div class="r"><span>${_t("confirmé par annonce ({c}), pas un mouvement nouveau", {c: camp})}</span><b>${_t("{n} localité(s)", {n: best.a.ev})}</b></div><div style="margin-top:4px;color:var(--faint)">${_t("changements annoncés dans les 30 jours que les cartes montraient déjà : pas un mouvement nouveau")}</div>`
         : `<div class="r"><span>${_t("changements annoncés : avancée {c}", {c: camp})}</span><b>${_t("{n} localité(s)", {n: best.a.ev})}</b></div><div style="margin-top:4px;color:var(--faint)">${_t("30 derniers jours ; journal DeepStateMap, état-major UA, MoD RF, bascules des cartes, pondérés par leur fiabilité mesurée")}</div>`)
         : `<div class="r"><span>${_t("avancée {c}", {c: camp})}</span><b>${_t("{v} km par 30 jours", {v: dec(Math.round(best.a.v * 10) / 10)})}</b></div>` +
         `<div class="r"><span>${_t("tronçon")}</span><b>${_t("~{L} km de front", {L: best.a.L})}</b></div><div class="r"><span>${_t("période")}</span><b>${frameLabel(Math.max(0, frameAt(fi, 90)))} → ${frameLabel(fi)}</b></div>` +
@@ -2314,14 +2314,14 @@ function hover(e){
   // zone grise de contact : P(contact au sol) à la maille ; tronçon de 50 km le plus proche : largeurs par côté et
   // composition du signal ; z-scores de la maille (secteur jugé par rapport à ses 12 mois précédents)
   const uu = d3.bisectLeft(UCELLS, j * GX + i), CF = viewFields("contact"), pcv = CF && CF[fi] ? CF[fi][uu] / 63 : null, ct = FR.months[fi].contact;
-  let ctxt = pcv === null ? "" : `<div class="r"><span>${_t("P(contact au sol)")}</span><b>${Math.round(pcv * 100)} %</b></div>`;
+  let ctxt = pcv === null ? "" : `<div class="r"><span>${_t("probabilité de combats au contact")}</span><b>${Math.round(pcv * 100)} %</b></div>`;
   // bande d'incertitude locale (intervalle conforme du secteur de 24 km le plus proche, dernier mois calculé)
   const LB = FR.localBand && FR.localBand[fieldName() === "nowcast" ? "nowcast" : "equilibre"];
   if (LB && LB.tiles && LB.tiles.length) {
     const ll = proj.invert([gAff[0] + (i + 0.5) * gAff[2], gAff[1] + (j + 0.5) * gAff[2]]), c = Math.cos(ll[1] * Math.PI / 180);
     let tb = null, td = 1e9;
     for (const t of LB.tiles) { const d = Math.hypot((t[0] - ll[0]) * c, t[1] - ll[1]) * 111; if (d < td) { td = d; tb = t; } }
-    if (tb && td < 30 && tb[2] != null) ctxt += `<div class="r"><span>${_t("bande 95 % du secteur")}</span><b>${_t("{a} km côté ukr. · {b} km côté russe", {a: dec(tb[2]), b: dec(tb[3])})}</b></div>` +
+    if (tb && td < 30 && tb[2] != null) ctxt += `<div class="r"><span>${_t("marge d'erreur de la ligne dans ce secteur (95 %)")}</span><b>${_t("{a} km côté ukr. · {b} km côté russe", {a: dec(tb[2]), b: dec(tb[3])})}</b></div>` +
       `<div style="color:var(--faint)">${_t("secteur de {s} : la ligne réelle est tombée dans sa bande {p} % du temps ({n} points, 2023-2026, sur le seul passé)", {s: tb[7] || "…", p: Math.round(tb[5] * 100), n: tb[6]})}</div>`;
   }
   if (ct && ct.tiles && ct.tiles.length) {
@@ -2345,7 +2345,7 @@ function hover(e){
   if (pmt && pmt.length) {
     let tb = null, td = 1e9;
     for (const t of pmt) { const dd = Math.hypot(t[0] - i, t[1] - j); if (dd < td) { td = dd; tb = t; } }
-    if (tb && td * FR.grid.size / 1000 < 20) { pmLine = `<div class="r"><span>${_t("P(la ligne bouge d'ici 2 mois)")}</span><b>${tb[2]} %</b></div>`;
+    if (tb && td * FR.grid.size / 1000 < 20) { pmLine = `<div class="r"><span>${_t("chance que la ligne bouge d'ici 2 mois")}</span><b>${tb[2]} %</b></div>`;
       ctxt += pmLine + `<div style="color:var(--faint)">${_t("tronçon de 24 km, ≥ 0,5 km dans un sens ou l'autre ; moyenne {b} %", {b: Math.round(((FR.pmove && FR.pmove.base) || 0) * 100)})}</div>`; }
     { const at = advText(fi, i, j); if (at) { ctxt += `<div>${at}</div>`; pmLine += `<div style="color:var(--faint)">${at}</div>`; } }
   }
@@ -2380,18 +2380,18 @@ function hover(e){
       const ll = proj.invert([gAff[0] + (i + 0.5) * gAff[2], gAff[1] + (j + 0.5) * gAff[2]]), c = Math.cos(ll[1] * Math.PI / 180);
       let tb = null, td = 1e9;
       for (const t of LB.tiles) { const d = Math.hypot((t[0] - ll[0]) * c, t[1] - ll[1]) * 111; if (d < td) { td = d; tb = t; } }
-      if (tb && td < 30 && tb[2] != null) band = `<div class="r"><span>${_t("bande 95 %")}</span><b>${dec(Math.round((tb[2] + tb[3]) * 10) / 10)} km</b></div>`;
+      if (tb && td < 30 && tb[2] != null) band = `<div class="r"><span>${_t("marge d'erreur de la ligne (95 %)")}</span><b>${dec(Math.round((tb[2] + tb[3]) * 10) / 10)} km</b></div>`;
     }
     tip.innerHTML = `<div class="r"><span>${st3}</span><b>p ${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div>` +
-      (pcv !== null && pcv > 0.05 ? `<div class="r"><span>${_t("P(contact au sol)")}</span><b>${Math.round(pcv * 100)} %</b></div>` : "") + band + pmLine + more;
+      (pcv !== null && pcv > 0.05 ? `<div class="r"><span>${_t("probabilité de combats au contact")}</span><b>${Math.round(pcv * 100)} %</b></div>` : "") + band + pmLine + more;
     tip.style.display = "block";
     const tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px";
     return;
   }
-  tip.innerHTML = `<div class="r"><span>${_t("p(occupé)")}${fvar ? " · " + (isCombo(fvar) ? comboParts(fvar).length + " sources retirées" : fvar.replace("_", " ")) : ""}</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div><div class="r"><span>${_t("état")}</span><b>${st}</b></div>` + ctxt +
+  tip.innerHTML = `<div class="r"><span>${_t("p(occupé)")}${fvar ? " · " + (isCombo(fvar) ? comboParts(fvar).length + " " + _t("sources retirées") : fvar.replace("_", " ")) : ""}</span><b>${isNaN(p) ? "…" : Math.round(p*100) + "\u00a0%"}</b></div><div class="r"><span>${_t("état")}</span><b>${st}</b></div>` + ctxt +
     `<div style="margin-top:4px;color:var(--faint)">${_t("source · vote · poids dans le calcul")}</div>` +
-    act.map(([s, c]) => `<div class="r"><span>${NAMES[s]} <span style="color:var(--faint)">(${_t(({ua: "ukr.", ru: "russe", tiers: "tiers"})[FR.camps[s]])})</span></span><b>${STN[c]} · ${Math.round(FR.weights[s] / cw[FR.camps[s]] / nc * 100)}\u00a0%</b></div>`).join("") +
+    act.map(([s, c]) => `<div class="r"><span>${_t(NAMES[s])} <span style="color:var(--faint)">(${_t(({ua: "ukr.", ru: "russe", tiers: "tiers"})[FR.camps[s]])})</span></span><b>${STN[c]} · ${Math.round(FR.weights[s] / cw[FR.camps[s]] / nc * 100)}\u00a0%</b></div>`).join("") +
     `<div style="margin-top:4px;color:var(--faint)">${_t("les tracés votent selon leur distance à la maille : poids nominaux")}</div>` +
     (fl & 1 ? `<div style="margin-top:4px">${_t("Crimée, occupée depuis 2014")}</div>` : fl & 2 ? `<div style="margin-top:4px">${_t("occupé avant 2022")}</div>` : "");
   tip.style.display = "block";
@@ -2418,8 +2418,8 @@ function legend(){
   if (typeof layerNotes === "function" && $("mSub")) $("mSub").innerHTML = layerNotes().join("<br>");
   const front = showFront || showLines ? (showStates ? `<span><i style="background:rgba(${C["front-rgb"]},.6);border-radius:0"></i>${_t("contrôle russe (p > 0,95)")}</span><span><i style="background:rgba(${C["grey-rgb"]},.7);border-radius:0"></i>${_t("incertitude des cartes (0,05 – 0,95)")}</span><span>${_t("sans couleur : contrôle ukrainien (p < 0,05)")}</span>` : `<span><i style="background:rgba(${C["front-rgb"]},.75);border-radius:0"></i>${_t("probabilité d'occupation russe")}</span>`) +
     (showLines ? `<span><i style="background:${C.front};height:2px;border-radius:0;vertical-align:3px"></i>${_t("ligne médiane (p = 50 %)")}</span>` : "") +
-    (showUnc ? `<span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>${_t("incertitude des cartes : lignes 5 % et 95 % (bande calibrée secteur par secteur)")}</span>` : "") +
-    (showContact ? `<span><i style="background:repeating-linear-gradient(-45deg,rgba(${C["grey-rgb"]},.9) 0 1px,transparent 1px 4px);border-radius:0"></i>${_t("zone grise de contact : probabilité d'un contact au sol (opacité), estimée par nos signaux de combat et la distance à la ligne")}</span>` : "") +
+    (showUnc ? `<span><i style="border-top:1px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>${_t("où les cartes divergent : lignes 5 % et 95 %")}</span>` : "") +
+    (showContact ? `<span><i style="background:repeating-linear-gradient(-45deg,rgba(${C["grey-rgb"]},.9) 0 1px,transparent 1px 4px);border-radius:0"></i>${_t("zone grise : probabilité de combats au contact (plus dense = plus probable)")}</span>` : "") +
     `<span><i style="border-top:1px dotted ${C.ink};height:0;border-radius:0;vertical-align:3px"></i>${_t("occupé avant 2022")}</span><span style="flex-basis:100%;height:0"></span>` : "";
   const items = mode === "pts"
     ? [[C["fire-now"], _t("feu en excès, mois affiché")], [C["fire-old"], _t("mois précédents (traînée)")]]
@@ -2430,17 +2430,17 @@ function legend(){
     O.groups.map((g,i) => `<span class="lchip" role="button" tabindex="0" data-g="${i}" aria-pressed="${lossOn[i]}">${pictoSvg(i, C["loss-now"])}${g}</span>`).join("");
   const raws = Object.entries(rawOn).filter(([, v]) => v).map(([s]) => s);
   if (raws.length) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("tracés bruts, au pas affiché :")}</span>` + raws.map(s => `<span><i style="border-top:3px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>${_t("tracé {s} : limite de sa zone russe (statut par localité, VIINA)", {s: s === "dsm" ? "DeepStateMap" : s === "isw" ? "ISW" : "Wikipedia"})}</span>`).join("");
-  if (showClaims) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i><i style="background:${C.cool};border-radius:0;clip-path:polygon(0 0,100% 0,50% 100%)"></i>${_t("annonces officielles des 30 jours précédant le pas affiché (pâles : 30 à 60 jours) : prises annoncées par le MoD RF, reprises annoncées par l'état-major ukrainien ; cliquer un triangle pour sa date et sa confirmation par une autre carte")}</span>`;
+  if (showClaims) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i><i style="background:${C.cool};border-radius:0;clip-path:polygon(0 0,100% 0,50% 100%)"></i>${_t("annonces officielles (30 jours ; pâles : 30 à 60 jours) : rouge, prise annoncée par la Russie ; bleu, reprise annoncée par l'Ukraine ; cliquer un triangle : date et confirmation par une autre carte")}</span>`;
   if (showArrows) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée russe")}</span><span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée ukrainienne")}</span>` +
-    `<span>${_t("flèche pleine : déplacement de la ligne 50 % (km par 30 jours, sur 3 périodes de 30 jours)")}</span>` +
-    `<span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px;box-shadow:-4px 0 0 -1px ${C.uactl}"></i>${_t("flèche avec un cercle à la base : localités qui ont basculé selon les sources dans les 30 derniers jours (journal DeepStateMap, état-major UA, MoD RF, bascules des cartes), pondérées par la fiabilité mesurée de chaque source")}</span>` +
-    `<span><i style="border-top:2px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>${_t("flèche en pointillés : sens incertain (on se bat derrière la ligne, ou sens non établi le long de la limite)")}</span>` +
-    `<span><i style="border:1.3px solid ${C.front};width:8px;height:8px;border-radius:50%;vertical-align:0;background:transparent"></i>${_t("cercle creux : confirmé par annonce (changement que les cartes montraient déjà, pas un mouvement nouveau) ou sens non établi")}</span>`;
-  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:radial-gradient(#7337aa 40%,transparent 45%) 0 0/4px 4px;border-radius:0"></i>${_t("combats derrière la ligne : endroits où l'activité de combat vue des deux côtés (feux, UCDP, pertes) se concentre anormalement d'un côté de la ligne (asymétrie ≥ 0,2 et au-dessus de sa normale des 12 mois précédents, z ≥ 2, signal gardé 3 mois), pointillé violet de ce côté ; ne dit pas qui avance")}</span>`;
-  if (showPm && FR.pmove) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,rgba(232,162,0,.15),rgba(232,162,0,.9));border-radius:0"></i>${_t("secteurs susceptibles de bouger : probabilité que la ligne bouge d'au moins 0,5 km d'ici 2 mois dans ce tronçon de 24 km, dans un sens ou dans l'autre (plus foncé = plus probable ; AUC {a}, taux de base {b} %, estimée sur le seul passé) ; ne dit pas qui avance", {a: dec(FR.pmove.auc.toFixed(2)), b: Math.round(FR.pmove.base * 100)})}</span>`;
+    `<span>${_t("flèche pleine : la ligne a bougé dans ce sens (km par 30 jours, sur 90 jours)")}</span>` +
+    `<span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px;box-shadow:-4px 0 0 -1px ${C.uactl}"></i>${_t("flèche avec un cercle : localités qui ont changé de camp selon les sources (30 jours)")}</span>` +
+    `<span><i style="border-top:2px dashed ${C.front};height:0;border-radius:0;vertical-align:3px"></i>${_t("flèche en pointillés : sens incertain")}</span>` +
+    `<span><i style="border:1.3px solid ${C.front};width:8px;height:8px;border-radius:50%;vertical-align:0;background:transparent"></i>${_t("cercle creux : changement déjà visible sur les cartes, ou sens non établi")}</span>`;
+  if (showAsym) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:radial-gradient(#7337aa 40%,transparent 45%) 0 0/4px 4px;border-radius:0"></i>${_t("combats derrière la ligne : activité de combat anormalement concentrée d'un côté de la ligne (pointillé violet de ce côté) ; ne dit pas qui avance")}</span>`;
+  if (showPm && FR.pmove) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,rgba(232,162,0,.15),rgba(232,162,0,.9));border-radius:0"></i>${_t("où la ligne va bouger : probabilité que la ligne bouge d'au moins 0,5 km d'ici 2 mois (plus vif = plus probable ; en moyenne {b} % des tronçons bougent ; AUC {a} sur le passé) ; ne dit pas qui avance", {a: dec(FR.pmove.auc.toFixed(2)), b: Math.round(FR.pmove.base * 100)})}</span>`;
   if (showDestr) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:rgba(40,40,40,.7);border-radius:0"></i>${_t("destruction cumulée (radar Sentinel-1) : part du bâti dont la rétrodiffusion s'écarte durablement de 2021, jusqu'au mois précédent, mailles de 2 km ; contient des données Copernicus Sentinel modifiées")}</span>`;
   if (showRelief) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:linear-gradient(90deg,#fff,#b9b9b9,#fff);border-radius:0"></i>${_t("relief : ombrage du modèle numérique de surface Copernicus GLO-90 (90 m), exagéré pour un pays plat ; arbres et bâti y laissent une texture ; © DLR e.V. 2010-2014 et © Airbus Defence and Space GmbH 2014-2018, fourni dans le cadre de COPERNICUS par l'Union européenne et l'ESA ; tous droits réservés")}</span>`;
-  if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>${_t("combats intenses : signaux de combat (feux, UCDP, pertes) anormaux pour le secteur, z ≥ 1 par rapport à ses 12 mois précédents ; ne dit pas qui avance")}</span>`;
+  if (showCombat) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(45deg,rgba(${C["front-rgb"]},.9) 0 2px,transparent 2px 5px);border-radius:0"></i>${_t("combats intenses : feux, combats et pertes nettement au-dessus de la normale du secteur (12 mois précédents) ; ne dit pas qui avance")}</span>`;
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>${_t("événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)")}</span>`;
@@ -2470,7 +2470,7 @@ function layerNotes(){
   const n = [], fi = frontIdx();
   if (showFront || showLines) {
     if (fi < 0) n.push(_t("front : pas d'instantané pour ce mois"));
-    else if (!AX[stepIdx] || AX[stepIdx].f < 0) n.push(_t("front : {d} (dernier disponible, J-7)", {d: frameLabel(fi)}));
+    else if (!AX[stepIdx] || AX[stepIdx].f < 0) n.push(_t("front : {d} (dernier disponible, J-1)", {d: frameLabel(fi)}));
     else if (AX[stepIdx].d) n.push(_t("front : estimation au {d} (pas de {s} jours, signaux de combat sur {w} jours)", {d: frameLabel(fi), s: FR.stepDays || 3, w: FR.windowDays || 14}));
   }
   if (showFire) {
@@ -2536,10 +2536,10 @@ function updateArea(){
       // erreur de CETTE série (espérance de la vue active ; nowcast : views.nowcast_esperance), recalculée à chaque mise à jour
       const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (amode() === "fusion" && KV.fusion_p50 ? KV.fusion_p50 : amode() === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
       const E12 = KR && KR.m12 && KR.m12.p50 ? Math.round(KR.m12.p50 / 10) * 10 : THEATRE.errFallback.m12, E1 = KR && KR.m1 && KR.m1.p50 ? Math.round(KR.m1.p50 / 10) * 10 : THEATRE.errFallback.m1, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
-      const hab = (e, x) => _t("écart habituel ± {e} km²", {e: fmt(e)}) + (Math.abs(x) < e ? " " + _t("(dans l'écart habituel)") : "");
+      const hab = (e, x) => _t("marge d'erreur habituelle ± {e} km²", {e: fmt(e)}) + (Math.abs(x) < e ? " " + _t("(dans la marge d'erreur)") : "");
       const kmV = (v, j) => { const m = j >= 0 ? FR.months[j] : null; return m && m.a[v] ? m.a[v].tout[0] : NaN; };
-      const vw1 = (a, b) => isFinite(a) && isFinite(b) && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r10b(a), u: (b >= 0 ? "+" : "−") + r10b(b)}) : "";
-      const vw = (a, b) => isFinite(a) && isFinite(b) && fmode === "equilibre" && !fvar ? " · " + _t("vue russe {r}, vue ukrainienne {u}", {r: (a >= 0 ? "+" : "−") + r100(a), u: (b >= 0 ? "+" : "−") + r100(b)}) : "";
+      const vw1 = (a, b) => isFinite(a) && isFinite(b) && fmode === "equilibre" && !fvar ? " · " + _t("selon les sources russes {r}, ukrainiennes {u}", {r: (a >= 0 ? "+" : "−") + r10b(a), u: (b >= 0 ? "+" : "−") + r10b(b)}) : "";
+      const vw = (a, b) => isFinite(a) && isFinite(b) && fmode === "equilibre" && !fvar ? " · " + _t("selon les sources russes {r}, ukrainiennes {u}", {r: (a >= 0 ? "+" : "−") + r100(a), u: (b >= 0 ? "+" : "−") + r100(b)}) : "";
       big.innerHTML = (d12 !== null ? line(_t("12 derniers mois"), (d12 >= 0 ? "+" : "−") + r100(d12) + "\u00a0km²", who(d12) + " · " + hab(E12, d12) + (vw(kmV("ru", fi) - kmV("ru", j12), kmV("ua", fi) - kmV("ua", j12)))) : "") +
         (d1 !== null ? line(_t("30 derniers jours"), (d1 >= 0 ? "+" : "−") + r10b(d1) + "\u00a0km²", who(d1) + " · " + hab(E1, d1) + (vw1(kmV("ru", fi) - kmV("ru", j1), kmV("ua", fi) - kmV("ua", j1)))) : "") +
         line(_t("total occupé"), "≈\u00a0" + fmt(Math.round(v / 1000) * 1000) + "\u00a0km²", _t("{s} % de l'Ukraine · {f}", {s: share, f: frameLabel(fi)}) +
@@ -2635,7 +2635,7 @@ function drawDeltaChart(cm){
   svg.append("g").selectAll("rect").data(rows).join("rect").attr("x", r => x(r[0]) - x.step() * x.paddingInner() / 2).attr("width", x.step())
     .attr("y", m.t).attr("height", h - m.b - m.t).attr("fill", "transparent").style("cursor", "pointer")
     .on("mouseenter", (e, r) => { const v = val.get(r[0]);
-      tipD.innerHTML = `<b>${(v >= 0 ? "+" : "−") + fmt(Math.round(Math.abs(v) / 10) * 10)} km²</b> ${monthLabel(r[0])}` + (Math.abs(v) < E1 ? ` <span>${_t("(dans l'écart habituel)")}</span>` : "");
+      tipD.innerHTML = `<b>${(v >= 0 ? "+" : "−") + fmt(Math.round(Math.abs(v) / 10) * 10)} km²</b> ${monthLabel(r[0])}` + (Math.abs(v) < E1 ? ` <span>${_t("(dans la marge d'erreur)")}</span>` : "");
       tipD.hidden = false; const bx = x(r[0]) / w * el.clientWidth; tipD.style.left = Math.max(0, Math.min(el.clientWidth - 220, bx - 60)) + "px"; tipD.style.top = "0px"; })
     .on("mouseleave", () => { tipD.hidden = true; })
     .on("click", (e, r) => { stop(); setMonth(r[0]); });
@@ -2654,7 +2654,7 @@ function drawAreaChart(){
   lineChart($("areaChart"), rows, {color: C.front, band: [3, 4], zero: true, ref: pre ? {v: pre, label: _t("occupé avant le {d} : ≈ {v} km²", {d: startLabel(), v: fmt(Math.round(pre / 100) * 100)})} : null, lines: lean ? [{i: 1, color: C.front, w: 2.2}] : [
       {i: 5, color: C.ink, w: 1, dash: "2 3", op: .55}, {i: 6, color: C.cool, w: 1, dash: "2 3", op: .8},
       {i: 2, color: C.ink, w: 1.2, dash: "5 3", op: .7}, {i: 1, color: C.front, w: 2.2}],
-    title: i => FR.months[i] ? _t("{m} — {mode} : {a} km² (95 % : {lo} – {hi}) ; vue russe {r}, vue ukrainienne {u}", {m: monthLabel(i), mode: MODEN[cm], a: fmt(FR.months[i].a[cm][perim][0]), lo: fmt(mcOf(FR.months[i])[perim][0]), hi: fmt(mcOf(FR.months[i])[perim][1]), r: fmt(FR.months[i].a.ru[perim][0]), u: fmt(FR.months[i].a.ua[perim][0])}) : _t("{m} — pas d'instantané", {m: monthLabel(i)})});
+    title: i => FR.months[i] ? _t("{m} — {mode} : {a} km² (95 % : {lo} – {hi}) ; selon les sources russes {r}, ukrainiennes {u}", {m: monthLabel(i), mode: MODEN[cm], a: fmt(FR.months[i].a[cm][perim][0]), lo: fmt(mcOf(FR.months[i])[perim][0]), hi: fmt(mcOf(FR.months[i])[perim][1]), r: fmt(FR.months[i].a.ru[perim][0]), u: fmt(FR.months[i].a.ua[perim][0])}) : _t("{m} — pas d'instantané", {m: monthLabel(i)})});
   drawDeltaChart(cm);
   const rrows = chartFrames().map((v, i) => v && v.a[amode()] && v.a[amode()].russie ? [i, v.a[amode()].russie[1]] : null).filter(Boolean);
   const ruEl = document.getElementById("ruChart");
