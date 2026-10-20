@@ -111,7 +111,7 @@ let fmode = "equilibre", fvar = null, showStates = false;
 const rawOn = {dsm: false, isw: false, wiki: false};
 let showClaims = false, claimHits = [];
 // nowcast (signaux de combat) : par défaut sur la vue équilibrée sans variante de sources ; « cartes seules » sinon
-let nowcastOn = !!(document.getElementById("lyrNowcast") && document.getElementById("lyrNowcast").checked), showCombat = false;
+let nowcastOn = true, showCombat = false;   // signaux de combat toujours pris en compte (case masquée)
 // zone grise (contact) mesurée par nos signaux : cochée ; incertitude des cartes (lignes 5 et 95 %) : décochée
 let showContact = !!(document.getElementById("lyrContact") && document.getElementById("lyrContact").checked), showUnc = !!(document.getElementById("lyrUnc") && document.getElementById("lyrUnc").checked);
 // vue « moteur de fusion (test) » (front_fusion.js, scripts/build_fusion.py) : prioritaire sur le nowcast quand elle est cochée
