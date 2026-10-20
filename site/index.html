@@ -54,7 +54,7 @@
       <div data-lyr="lyrAsym" hidden><svg width="30" height="10"><defs><pattern id="hasy" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="2" height="2" fill="#7337aa"/></pattern></defs><rect width="30" height="10" fill="url(#hasy)"/></svg><span data-t="lgAsym">combats derrière la ligne (anomalie, sans direction)</span></div>
       <div data-lyr="lyrFire" hidden><svg width="30" height="10"><circle cx="9" cy="5" r="2.5" fill="var(--fire-now)"/><circle cx="20" cy="5" r="2" fill="var(--fire-old)"/></svg><span data-t="lgFire">feux anormaux (FIRMS)</span></div>
       <div data-lyr="lyrLoss" hidden><svg width="30" height="10"><rect x="11" y="1" width="8" height="8" fill="var(--loss-now)"/></svg><span data-t="lgLoss">pertes documentées (WarSpotting)</span></div>
-      <div data-lyr="lyrUcdp" hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="var(--ucdp)" opacity=".8"/></svg><span data-t="lgUcdp">combats au sol (UCDP)</span></div>
+      <div data-lyr="lyrUcdp" data-off hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="var(--ucdp)" opacity=".8"/></svg><span data-t="lgUcdp">combats au sol (UCDP)</span></div>
       <div data-lyr="lyrArcs" hidden><svg width="30" height="10"><rect x="1" y="1" width="9" height="8" fill="var(--arc)" opacity=".5"/><rect x="11" y="1" width="9" height="8" fill="#6f7f1f" opacity=".55"/><circle cx="25.5" cy="5" r="3.5" fill="var(--arc)" stroke="var(--bg)"/></svg><span data-t="lgArcs">missiles et drones : régions visées (bleu pétrole : par la Russie ; olive : par l'Ukraine, signalées) · zones de lancement russes</span></div>
     </details>
     <details class="lggrp" open data-grp="lgGrpCtx"><summary data-t="lgGrpCtx">contexte</summary>
@@ -124,7 +124,7 @@
   <fieldset><legend data-t="gCtx">Contexte</legend>
     <label class="chk"><input type="checkbox" id="lyrFire"> <span data-t="cbFire">feux anormaux</span></label>
     <label class="chk"><input type="checkbox" id="lyrLoss"> <span data-t="cbLoss">pertes documentées</span></label>
-    <label class="chk"><input type="checkbox" id="lyrUcdp"> <span data-t="cbUcdp">combats (UCDP)</span></label>
+    <label class="chk" hidden style="display:none"><input type="checkbox" id="lyrUcdp" autocomplete="off"> <span data-t="cbUcdp">combats (UCDP)</span></label>
     <label class="chk"><input type="checkbox" id="lyrArcs"> <span data-t="cbArcs">missiles et drones</span></label>
     <label class="chk"><input type="checkbox" id="lyrBase" checked> <span data-t="cbBase">routes / localités</span></label>
     <label class="chk"><input type="checkbox" id="lyrInfra"> <span data-t="cbInfra">infrastructures (si zoom sur localité)</span></label>
