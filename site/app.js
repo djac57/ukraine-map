@@ -993,7 +993,8 @@ window.__uafArrowCheck = function(){
       const g = fullField(VW, fi), [gx, gy] = gradAt(g, a.gx, a.gy), s = a.ru ? -1 : 1;
       if (s * (a.dx * gx + a.dy * gy) <= 0) fails.push({mois: FR.months[fi].date, L, sens: "gradient à rebours"});
     }
-    const ge = fullField(fieldName(), fi);
+    // champ affiché ; si la vue (fusion) n'a pas ce pas (entrée absente en CI), repli sur le nowcast puis l'équilibre
+    const ge = fullField(fieldName(), fi) || fullField("nowcast", fi) || fullField("equilibre", fi);
     for (const a of eventArrows(fi)) {
       total++; evN++; if (a.undirected) reoriented++; if (a.late) { late++; continue; }
       if (POLDOF(fi)) { const w = dirViolation(POLDOF(fi), a.ax, a.ay, a.dir[0], a.dir[1], a.ru); if (w) fails.push({mois: FR.months[fi].date, annonces: true, direction: w, ru: a.ru, base: llg(a.ax, a.ay)}); }
