@@ -77,12 +77,11 @@
   <fieldset><legend data-t="gView">Vue</legend>
     <label class="chk"><input type="checkbox" id="lyrFront" checked> <span data-t="cbFront">densité</span></label>
     <label class="chk"><input type="checkbox" id="lyrLines" checked> <span data-t="cbLines">ligne la plus probable (50 %)</span></label>
-    <label class="chk"><input type="checkbox" id="lyrContact" checked> <span data-t="cbContact">zone grise (contact, nos signaux)</span></label>
+    <label class="chk"><input type="checkbox" id="lyrContact" autocomplete="off"> <span data-t="cbContact">zone grise (contact, nos signaux)</span></label>
     <label class="chk"><input type="checkbox" id="lyrUnc"> <span data-t="cbUnc">incertitude des cartes (5 – 95 %)</span></label>
     <label class="chk" hidden style="display:none"><input type="checkbox" id="lyrStates" autocomplete="off"> <span data-t="cbStates">3 états</span></label>
     <label class="chk"><input type="checkbox" id="lyrArrows" checked> <span data-t="cbArrows">flèches : qui pousse où</span></label>
     <label class="chk" hidden style="display:none"><input type="checkbox" id="lyrNowcast" checked autocomplete="off"> <span data-t="cbNowcast">avec signaux de combat (nowcast)</span></label>
-    <label class="chk"><input type="checkbox" id="lyrFusion" checked autocomplete="off"> <span data-t="cbFusion">moteur de fusion</span></label>
     <label class="chk"><input type="checkbox" id="lyrCombat" autocomplete="off"> <span data-t="cbCombat">combats : intensité et combats derrière la ligne</span></label>
     <label class="chk" hidden style="display:none"><input type="checkbox" id="lyrAsym" autocomplete="off"> <span data-t="cbAsym">combats derrière la ligne</span></label>
     <label class="chk"><input type="checkbox" id="lyrClaims"> <span data-t="cbClaims">annonces officielles (30 jours)</span></label>
@@ -92,6 +91,7 @@
     <div class="seg" role="group" aria-label="Vue" hidden style="display:none"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true" data-t="mEq">équilibrée</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">UA</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">RU</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false" data-t="mTiers">tiers</button></div>
   </fieldset>
   <fieldset><legend data-t="gSrc">Sources du calcul</legend>
+    <label class="chk"><input type="checkbox" id="lyrFusion" checked autocomplete="off"> <span data-t="cbFusion">moteur de fusion</span></label>
     <select id="varSel" hidden>
       <option value="" data-t="vFull">complet</option>
       <option value="sans_dsm" data-t="vDsm">sans DeepStateMap</option>
