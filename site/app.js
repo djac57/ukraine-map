@@ -2072,7 +2072,9 @@ ensureView("asym", () => { arrowCache = {}; for (const k in possCache) delete po
 if ($("lyrRelief")) $("lyrRelief").onchange = e => { showRelief = e.target.checked; if (showRelief) loadRelief(() => { legend(); draw(); }); legend(); draw(); };
 if (showRelief) loadRelief(() => { legend(); draw(); });
 if ($("lyrDestr")) $("lyrDestr").onchange = e => { showDestr = e.target.checked; ensureView("destr", () => { destrFor = -2; legend(); draw(); }); legend(); draw(); };
-if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.checked; ensureView("combat", () => { combatFor = -2; legend(); draw(); }); };
+// une seule case pour les deux couches de combats (lisibilité, 20/10/2026) : intensité anormale + combats derrière la ligne
+if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.checked; ensureView("combat", () => { combatFor = -2; legend(); draw(); });
+  if ($("lyrAsym")) { $("lyrAsym").checked = e.target.checked; $("lyrAsym").onchange({target: $("lyrAsym")}); } };
 $("lyrArrows").onchange = e => { showArrows = e.target.checked; if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); legend(); draw(); };
 $("lyrBase").onchange = e => { showBase = e.target.checked; if (showBase) loadBasemap(); draw(); };
 if ($("lyrInfra")) $("lyrInfra").onchange = e => { showInfra = e.target.checked; if (showInfra) loadInfra(() => { legend(); draw(); }); legend(); draw(); };
