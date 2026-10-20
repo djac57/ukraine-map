@@ -1,0 +1,3 @@
+check_arrows.py : PyYAML absent, workflows non vérifiés
+LEGENDE|OK|24 cases, 30 entrées ; chaque case a son entrée en 4 langues
+check_arrows.py : ERREUR TypeError: Cannot read properties of null (reading '91539') TypeError: Cannot read properties of null (reading '91539') |     at window.__uafArrowCheck (http://127.0.0.1:40399/app.js?v=fa322440fa:1008:121) |     at go (http://127.0.0.1:40399/_check_arrows.html:9:57) |     at http://127.0.0.1:40399/_check_arrows.html:60:16
