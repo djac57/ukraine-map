@@ -41,6 +41,10 @@ jobs:
         run: python scripts/fetch_claims.py raw
         timeout-minutes: 60
         continue-on-error: true
+      - name: "Bilans et annonces du MoD RF repris par Interfax et RIA Novosti (citations seulement, reprise incrémentale ; rattrapage depuis mars en quelques passages)"
+        run: python scripts/fetch_mod_bulletins.py raw --since 2026-03-01 --sources interfax,ria --budget 25
+        timeout-minutes: 30
+        continue-on-error: true
       - name: "Bilans du MoD RF : drones ukrainiens interceptés par région (reprise incrémentale)"
         run: python scripts/fetch_mod_drones.py raw --recent
         timeout-minutes: 40
