@@ -233,14 +233,25 @@ def build(a):
 
 
 D0_PTS = "2024-07-01"     # origine des jours de site/crateres_points.js
+# Niveau 2 (« détection élargie », décision du 20/10/2026) : la règle stricte avec C ≥ 20 (au lieu de 30) et une
+# élongation ≤ 3 (au lieu de 2) ; tous les autres critères inchangés (persistance, contraste à d1, fond végétal, aire,
+# texture, données manquantes). Défini ici et non dans rules.py (copie octet pour octet de la recherche). Les agrégats
+# (sections / build) restent sur la règle stricte.
+P_NIV2 = dict(rules.P, Cmin=20.0, elong_max=3.0)
+# Précisions mesurées à l'aveugle le 20/10/2026 sur le front entier (bande ≤ 15 km, 07/2024 → 10/2026 ; 334 vignettes
+# tirées au hasard dans chaque niveau, douteux = ½) : stricte 0,47 (n = 79, IC 95 % 0,37-0,58), niveau 2 seul 0,43
+# (n = 143, IC 0,35-0,51). Sur les zones d'évaluation de l'été 2026 (PK, nord de Lyman, Soumy), la stricte était à 0,73.
+PREC_N1, PREC_N2 = 0.47, 0.43
 
 
 def points(a):
-    """Positions des détections RETENUES (rules.keep, règle stricte v2), à ≤ 15 km de la ligne du mois (mêmes que les
-    agrégats), dates d'observation ≤ aujourd'hui − a.lag jours (décalage de publication) :
-      window.CRATERES = {generated, upto, d0, precision, cols, pts: [[lon×1e4, lat×1e4, jour depuis d0, côté], …]}
-    côté = 1 si russe (champ « equilibre » du mois, p ≥ 0,5), 0 sinon ; points triés par jour. Pas de score par point
-    (la règle est à seuils : seule la précision d'ensemble, ≈ 73 %, est mesurée)."""
+    """Positions des détections v2 à ≤ 15 km de la ligne du mois (mêmes que les agrégats), dates d'observation
+    ≤ aujourd'hui − a.lag jours (décalage de publication) :
+      window.CRATERES = {generated, upto, d0, precision, precision2, cols,
+                         pts: [[lon×1e4, lat×1e4, jour depuis d0, côté, niveau], …]}
+    côté = 1 si russe (champ « equilibre » du mois, p ≥ 0,5), 0 sinon ; niveau = 1 si retenue par la règle stricte
+    (rules.P), 2 si retenue seulement par la règle élargie (P_NIV2) ; points triés par jour. Pas de score par point
+    (règles à seuils : seule la précision d'ensemble de chaque niveau est mesurée)."""
     import datetime as dt
     from pyproj import Transformer
     fr = sl.Front(a.root)
@@ -261,33 +272,38 @@ def points(a):
         G = sl.tile_utm(fr, dict(j0=tj, i0=ti))
         if G["epsg"] not in TR:
             TR[G["epsg"]] = Transformer.from_crs(f"EPSG:{G['epsg']}", "EPSG:4326", always_xy=True)
-        R, C, D, S = [], [], [], []
+        R, C, D, S, NV = [], [], [], [], []
         for line in open(cp):
             if not line.endswith("\n") or '"d2": null' in line:
                 continue
             o = json.loads(line)
-            if o["d1"] < D0_PTS or o["d1"] > upto or not rules.keep(o, rules.P):
+            if o["d1"] < D0_PTS or o["d1"] > upto:
+                continue
+            nv = 1 if rules.keep(o, rules.P) else 2 if rules.keep(o, P_NIV2) else 0
+            if not nv:
                 continue
             k = fr.sec_side(o["cell"], o["d1"][:7])
             if k is None:
                 nfar += 1
                 continue
             R.append(o["r"]); C.append(o["c"]); D.append(dt.date.fromisoformat(o["d1"]).toordinal() - o0)
-            S.append(1 if k[2] == "RU" else 0)
+            S.append(1 if k[2] == "RU" else 0); NV.append(nv)
         if not R:
             continue
         lon, lat = TR[G["epsg"]].transform(G["x0"] + (np.array(C) + 0.5) * 10.0, G["y1"] - (np.array(R) + 0.5) * 10.0)
-        pts += [[int(round(x * 1e4)), int(round(y * 1e4)), d, s] for x, y, d, s in zip(lon, lat, D, S)]
+        pts += [[int(round(x * 1e4)), int(round(y * 1e4)), d, s, nv] for x, y, d, s, nv in zip(lon, lat, D, S, NV)]
     pts.sort(key=lambda p: (p[2], p[0], p[1]))
     out = a.js or os.path.join(a.root, "site", "crateres_points.js")
-    obj = dict(generated=dt.date.today().isoformat(), upto=upto, d0=D0_PTS, precision=0.73,
-               cols=["lon_e4", "lat_e4", "jour", "ru"], pts=pts)
+    obj = dict(generated=dt.date.today().isoformat(), upto=upto, d0=D0_PTS, precision=PREC_N1, precision2=PREC_N2,
+               cols=["lon_e4", "lat_e4", "jour", "ru", "niveau"], pts=pts)
     js = "window.CRATERES=" + json.dumps(obj, separators=(",", ":")) + ";"
     open(out + ".tmp", "w", encoding="utf-8").write(js)
     os.replace(out + ".tmp", out)
     last = dt.date.fromordinal(o0 + pts[-1][2]).isoformat() if pts else "—"
-    print(f"{out} : {len(js) // 1024} Ko, {len(pts)} points ({sum(p[3] for p in pts)} côté russe), {ntile} tuiles, "
-          f"{nfar} retenues hors bande de 15 km écartées, dernière date {last} (≤ {upto})")
+    n1 = sum(1 for p in pts if p[4] == 1)
+    print(f"{out} : {len(js) // 1024} Ko, {len(pts)} points (stricts {n1}, élargis seulement {len(pts) - n1} ; "
+          f"{sum(p[3] for p in pts)} côté russe), {ntile} tuiles, {nfar} retenues hors bande de 15 km écartées, "
+          f"dernière date {last} (≤ {upto})")
 
 
 def main():

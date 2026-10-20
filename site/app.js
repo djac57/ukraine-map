@@ -7,7 +7,7 @@ const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
 const THEATRE = Object.assign({start: "2022-02-24", preKey: "depuis2022", preParts: [["Crimée", "horsCrimee"]], preRest: "Donbass",
   errFallback: {m1: 300, m12: 820}}, window.THEATRE || {});
 const startLabel = () => new Date(THEATRE.start + "T12:00:00Z").toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
-const FRONT_V = {"advance": "50c5ed65a5", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "crat": "0a75f299ae", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "03bc656851", "imp": "ef5999d3d8", "kmc": "f6e465f495", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"advance": "50c5ed65a5", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "crat": "51d4e58371", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "df83bc5115", "imp": "ef5999d3d8", "kmc": "3cc4e94491", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -1300,18 +1300,57 @@ function cratWindow(){
   const d0 = Date.parse(CRAT.d0 + "T00:00:00Z"), e = Math.round((Date.parse(end + "T00:00:00Z") - d0) / 864e5);
   return {end, lo: e - CRAT_DAYS + 1, hi: e, d0};
 }
+// points dès CRAT_KMPX (zoom moyen) ; au-delà, densité des points en mailles d'écran (CRAT_BIN px). Encre neutre
+// (noir / blanc cassé selon le thème) cerclée d'un halo clair : aucune couleur réservée (rouge / bleu = camps, ambre =
+// prévision, brique = feux). Stricts : disque plein ; élargis seulement (niveau 2) : anneau plus petit et plus pâle.
+const CRAT_KMPX = 1.2, CRAT_BIN = 9;
+const cratLvl = p => p.length > 4 ? p[4] : 1;
+const cratN10 = lv => { const v = CRAT && (lv === 2 ? CRAT.precision2 : CRAT.precision); return v ? Math.max(1, Math.round(v * 10)) : null; };
 function drawCraters(k){
   const w = cratWindow(); if (!w) return;
-  const P = CRAT.pts; let i = d3.bisector(p => p[2]).left(P, w.lo);
+  const P = CRAT.pts; let i0 = d3.bisector(p => p[2]).left(P, w.lo);
   ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const halo = C.dark ? "#161616" : "#fbf8f0", ink = C.dark ? "#f2efe6" : "#161616";
-  for (; i < P.length && P[i][2] <= w.hi; i++) {
+  const kmpx = kmPerPx(k), s = kmpx > 0.8 ? 0.85 : kmpx > 0.4 ? 1 : kmpx > 0.2 ? 1.2 : 1.4;   // taille adaptée au zoom
+  // deux passes : les élargis d'abord, les stricts par-dessus
+  for (const lv of [2, 1]) for (let i = i0; i < P.length && P[i][2] <= w.hi; i++) {
+    const p = P[i]; if (cratLvl(p) !== lv) continue;
+    const q = proj([p[0] / 1e4, p[1] / 1e4]), x = q[0] * k + tr.x, y = q[1] * k + tr.y;
+    if (x < -6 || x > W + 6 || y < -6 || y > H + 6) continue;
+    const age = (p[2] - w.lo) / CRAT_DAYS;                    // 0 = début de la fenêtre de 30 jours, 1 = pas affiché
+    if (lv === 1) {
+      ctx.globalAlpha = 0.45 + 0.55 * age;
+      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(x, y, 3.6 * s, 0, 7); ctx.fill();
+      ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(x, y, 2.3 * s, 0, 7); ctx.fill();
+    } else {
+      ctx.globalAlpha = 0.3 + 0.4 * age;
+      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(x, y, 2.8 * s, 0, 7); ctx.fill();
+      ctx.strokeStyle = ink; ctx.lineWidth = 1.1 * s; ctx.beginPath(); ctx.arc(x, y, 1.6 * s, 0, 7); ctx.stroke();
+    }
+    impHits.push({x, y, pt: true, day: p[2], ru: p[3], lv, d0: w.d0});
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+// vue d'ensemble : points de la fenêtre comptés par maille d'écran de CRAT_BIN px, un disque par maille dont la
+// surface suit le nombre de détections (stricts + élargis), plus opaque s'il y a des stricts
+function drawCratDensity(k){
+  const w = cratWindow(); if (!w) return;
+  const P = CRAT.pts, B = new Map();
+  for (let i = d3.bisector(p => p[2]).left(P, w.lo); i < P.length && P[i][2] <= w.hi; i++) {
     const p = P[i], q = proj([p[0] / 1e4, p[1] / 1e4]), x = q[0] * k + tr.x, y = q[1] * k + tr.y;
-    if (x < -5 || x > W + 5 || y < -5 || y > H + 5) continue;
-    ctx.globalAlpha = 0.55 + 0.45 * (p[2] - w.lo) / CRAT_DAYS;   // plus pâle quand plus ancien dans la fenêtre
-    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fill();
-    ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill();
-    impHits.push({x, y, pt: true, day: p[2], ru: p[3], d0: w.d0});
+    if (x < -CRAT_BIN || x > W + CRAT_BIN || y < -CRAT_BIN || y > H + CRAT_BIN) continue;
+    const key = Math.floor(x / CRAT_BIN) * 10000 + Math.floor(y / CRAT_BIN);
+    let b = B.get(key); if (!b) B.set(key, b = {n: 0, s: 0, sx: 0, sy: 0});
+    b.n++; if (cratLvl(p) === 1) b.s++; b.sx += x; b.sy += y;
+  }
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const halo = C.dark ? "#161616" : "#fbf8f0", ink = C.dark ? "#f2efe6" : "#161616";
+  for (const b of B.values()) {
+    const x = b.sx / b.n, y = b.sy / b.n, r = Math.min(CRAT_BIN * 0.55, 1.3 + 0.8 * Math.sqrt(b.n));
+    ctx.globalAlpha = b.s ? Math.min(0.95, 0.55 + 0.08 * b.s) : 0.4;
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(x, y, r + 1.2, 0, 7); ctx.fill();
+    ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+    impHits.push({x, y, bin: true, n: b.n, s: b.s});
   }
   ctx.restore(); ctx.globalAlpha = 1;
 }
@@ -1319,7 +1358,15 @@ window.__uafCraters = () => { const w = cratWindow(); const h = impHits.filter(h
 let impFor = "", impImg = null;
 function drawImp(k){
   impHits = [];
-  if (CRAT && kmPerPx(k) <= INFRA_KMPX) return drawCraters(k);
+  if (CRAT && kmPerPx(k) <= CRAT_KMPX) return drawCraters(k);
+  // vue d'ensemble : densité des points (lisible) ; les z des tronçons (règle stricte) restent au survol
+  if (CRAT) {
+    drawCratDensity(k);
+    if (IMP) { const fi = frontIdx(); if (fi >= 0) { const m = FR.months[fi].date.slice(0, 7);
+      for (const [mm, gx, gy, zr, zu] of IMP.rows) if (mm === m && ((zr || 0) >= 1 || (zu || 0) >= 1))
+        impHits.push({x: (gAff[0] + gx * gAff[2]) * k + tr.x, y: (gAff[1] + gy * gAff[2]) * k + tr.y, zr, zu}); } }
+    return;
+  }
   if (!IMP) return;
   const fi = frontIdx(); if (fi < 0) return; const m = FR.months[fi].date.slice(0, 7);
   const PMF = viewFields("pmove"), g = fullField(fieldName(), fi); if (!PMF || !PMF[fi] || !g) { ensureView("pmove", () => draw()); return; }
@@ -2044,13 +2091,22 @@ function hover(e){
     let best = null, bd = 40; for (const h of impHits) { const dd = Math.hypot(h.x - mx, h.y - my); if (dd < (h.pt ? Math.min(bd, 8) : bd)) { bd = dd; best = h; } }
     if (best && best.pt) {
       const [y, m, d] = new Date(best.d0 + best.day * 864e5).toISOString().slice(0, 10).split("-");
-      tip.innerHTML = `<div>${_t("cratère possible, observé le {d} ({s})", {d: dayName(y, m, d), s: _t(best.ru ? "côté russe de la ligne" : "côté ukrainien de la ligne")})}</div><div style="color:var(--faint)">${_t("détection automatique (Sentinel-2), ≈ 3 sur 4 sont de vrais cratères")}</div>`;
+      const n10 = cratN10(best.lv), sub = best.lv === 2 ? (n10 ? _t("cratère possible (détection élargie, ≈ {n} sur 10 sont de vrais cratères)", {n: n10}) : _t("cratère possible (détection élargie)"))
+        : (n10 ? _t("détection automatique (Sentinel-2), ≈ {n} sur 10 sont de vrais cratères", {n: n10}) : _t("détection automatique (Sentinel-2)"));
+      const side = _t(best.ru ? "côté russe de la ligne" : "côté ukrainien de la ligne");
+      tip.innerHTML = best.lv === 2 ? `<div>${sub}</div><div style="color:var(--faint)">${_t("observé le {d} ({s}), Sentinel-2", {d: dayName(y, m, d), s: side})}</div>`
+        : `<div>${_t("cratère possible, observé le {d} ({s})", {d: dayName(y, m, d), s: side})}</div><div style="color:var(--faint)">${sub}</div>`;
+      tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
+    }
+    if (best && best.bin) {
+      tip.innerHTML = `<div>${_t("{n} détections de cratères en 30 jours ici, dont {s} strictes", {n: best.n, s: best.s})}</div><div style="color:var(--faint)">${_t("Sentinel-2, détecteur v2 ; zoomez pour voir les positions")}</div>`;
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
     }
     if (best) {
       const zs = v => v == null ? "–" : (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1).replace(".", ",");
-      tip.innerHTML = `<div>${_t("impacts détectés (30 j), anomalie locale z : côté russe {r} · côté ukrainien {u}", {r: zs(best.zr), u: zs(best.zu)})}</div><div style="color:var(--faint)">${_t("détecteur v2 : ≈ 3 détections sur 4 sont de vrais cratères ; zoomez pour voir les positions")}</div>`;
+      tip.innerHTML = `<div>${_t("impacts détectés (30 j), anomalie locale z : côté russe {r} · côté ukrainien {u}", {r: zs(best.zr), u: zs(best.zu)})}</div><div style="color:var(--faint)">${cratN10(1) ? _t("détecteur v2, règle stricte : ≈ {n} détections sur 10 sont de vrais cratères ; zoomez pour voir les positions", {n: cratN10(1)}) : _t("détecteur v2, règle stricte ; zoomez pour voir les positions")}</div>`;
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
     }

@@ -943,6 +943,43 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
     `crateres_points.js` (FRONT_V.crat). Page méthode mise à jour.
   - À faire : brancher la mise à jour mensuelle en CI (l'utilisateur s'en charge ; `.github/` non touché) ; les
     détections individuelles restent hors dépôt (dossier privé), seules les positions retenues sont publiées.
+- 20/10/2026 (après-midi) : **cratères v2, DEUX NIVEAUX (strict + élargi) et comparaison à Molin** (décision de
+  l'utilisateur du 20/10/2026 : afficher aussi une variante « large », quelques fausses alarmes acceptées).
+  - Niveau 2 (`front_finalize.P_NIV2`, défini dans `front_finalize.py` et non dans `rules.py`, copie octet pour octet
+    de la recherche) : règle stricte avec C ≥ 20 (au lieu de 30) et élongation ≤ 3 (au lieu de 2), le reste inchangé ;
+    calculé sur les candidats déjà calculés (aucune image relue). L'ancienne variante `rules.P_LARGE` (sans contraste
+    à d1 ni fond végétal) ajoutée par-dessus forme un niveau « très large » : **écarté**.
+  - Vérité : 3 lots à l'aveugle tirés au hasard sur tout le front (bande ≤ 15 km, 07/2024 → 10/2026), 334 vignettes
+    regardées une à une (`crat2/prive/lot_{W,X,Y}.json`, `labels_{W,X,Y}.json`, privés). Contrôle de cohérence de
+    l'œil : 48 vignettes du lot L ré-étiquetées sans voir les anciennes étiquettes, précision 0,83 contre 0,81 (accord
+    exact 0,91).
+  - **Précision (douteux = ½)** : stricte **0,47** (n = 79, IC 0,37-0,58 ; 0,38 sans les douteux, 0,57 en les comptant
+    vrais) ; niveau 2 seul **0,43** (n = 143, IC 0,35-0,51) ; très large seul 0,14 (n = 112). Cumul stricte + élargie
+    0,45 ; très large cumulé 0,29. La stricte à 0,73 ne vaut que pour les zones nettes de l'été 2026 (PK, nord de
+    Lyman, Soumy) : sur tout le front elle est à 0,47 (2024 : 0,42, 2025 : 0,38, 2026 : 0,63 ; Donetsk 0,43, nord 0,61,
+    sud 0,44). Fausses alarmes typiques : lisières et haies (taches claires ambiguës), brûlis, chemins, villages,
+    végétation qui jaunit.
+  - **Rappel** (réserve étiquetée, méthode `eval_pr.py`) : PK 0,20 (stricte) → 0,35 (large) → 0,43 (très large) ;
+    nord de Lyman 0,12 → 0,22 → 0,23. Vrais cratères estimés sur le front : × 2,3 avec le niveau 2.
+  - **Molin** (cadre `zones.pk`, 3 700 km² ; ≈ 1 400 frappes du 11/07 au 11/08/2026, ≈ 3 200 en 3 mois) :
+    11/07 → 11/08 : 80 strictes (≈ 38 vraies), 200 strict + élargi (≈ 89), 329 très large (≈ 107) ; 11/05 → 11/08 :
+    158 / 449 / 633 (≈ 74 / 199 / 225). Par semaine (blocs de 7 j depuis le 11/07) : strictes 2, 10, 10, 26, 32 ; strict +
+    élargi 4, 40, 19, 72, 65 ; très large 4, 48, 29, 110, 138. Dates comparables par semaine : 2, 2, 3, 3, 2 (dont
+    ≥ 25 % du cadre : 0, 1, 1, 1, 1). Causes de l'écart : nuages (12 dates en un mois, 4 couvrant ≥ 25 % du cadre ;
+    74-82 % du cadre comparé au moins une fois), bâti exclu (6,5 % du cadre), cratères accolés rejetés pour leur forme
+    (119 des 357 taches C ≥ 30 du mois ont une élongation > 3, 55 une aire > 30 px), taille minimale (aire à
+    mi-hauteur des détections : médiane 11 px, 5e centile 6 px, soit des taches de ≥ 25-30 m), Molin compte des
+    frappes. Candidats propres C ≥ 12 dans le cadre : 1 121 en un mois (5 à 12 % sont des cratères).
+  - Site : `crateres_points.js` a une 5e colonne `niveau` (1 strict, 2 élargi seulement) et `precision` = 0,47,
+    `precision2` = 0,43 (lues par le survol : « ≈ N sur 10 ») ; 8 331 points (3 461 + 4 870), 194 Ko. `app.js` :
+    points dès `CRAT_KMPX` = 1,2 km/px (avant : 0,8), taille selon le zoom ; stricts = disque sombre à halo clair,
+    élargis = petit anneau pâle (dessinés dessous) ; estompage sur la fenêtre de 30 jours ; en vue d'ensemble, densité
+    des points par maille d'écran de 9 px (disque ∝ √n, plus opaque s'il y a des stricts), les z des tronçons (règle
+    stricte, inchangés) restent au survol ; le pointillé n'est plus dessiné que si `crateres_points.js` manque.
+    Encre neutre (noir / blanc cassé), aucune couleur réservée. Textes : i18n (4 langues, lgImp / lgImpTip, survols),
+    légende d'`index.html`, page méthode (deux niveaux, contrôle sur tout le front, comparaison à Molin).
+  - Scripts de cette étude (scratchpad, privés) : `crat2/large/` (`extract.py`, `flags.py`, `molin.py`,
+    `molin2.py`, `sample_sheets.py`, `evalWXY.py`, `recall.py`) ; captures avant / après dans `crat2/large/shots/`.
 
 ---
 
