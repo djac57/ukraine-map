@@ -29,7 +29,7 @@
       <div data-lyr="lyrFront"><svg width="30" height="10"><rect width="30" height="10" fill="var(--uactl)" opacity=".55"/></svg><span data-t="lgUa">contrôle ukrainien en Russie</span></div>
       <div data-lyr="lyrLines"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/></svg><span data-t="lg50">ligne la plus probable (50 %)</span></div>
       <div data-lyr="lyrUnc" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="0.9" stroke-dasharray="4 3"/></svg><span data-t="lgUnc">incertitude des cartes : lignes 5 % et 95 %</span></div>
-      <div data-lyr="lyrStates" hidden><svg width="30" height="10"><rect width="10" height="10" fill="var(--front)" opacity=".6"/><rect x="10" width="10" height="10" fill="rgba(var(--grey-rgb),.7)"/><rect x="20" width="10" height="10" fill="none" stroke="var(--rule)"/></svg><span data-t="lgStates">3 états : russe (p > 0,95), incertain, ukrainien</span></div>
+      <div data-lyr="lyrStates" data-off hidden><svg width="30" height="10"><rect width="10" height="10" fill="var(--front)" opacity=".6"/><rect x="10" width="10" height="10" fill="rgba(var(--grey-rgb),.7)"/><rect x="20" width="10" height="10" fill="none" stroke="var(--rule)"/></svg><span data-t="lgStates">3 états : russe (p > 0,95), incertain, ukrainien</span></div>
       <div data-lyr="lyrNowcast" data-off hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--front)" stroke-width="2.2"/><circle cx="8" cy="5" r="1.6" fill="var(--bg)"/><circle cx="22" cy="5" r="1.6" fill="var(--bg)"/></svg><span data-t="lgNow">ligne ajustée par les signaux de combat (nowcast)</span></div>
       <div data-lyr="lyrContact"><svg width="30" height="10"><defs><pattern id="hct" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="1" height="3" fill="var(--ink)" opacity=".55"/></pattern></defs><rect width="30" height="10" fill="url(#hct)"/></svg><span data-t="lgGrey" data-tt="lgGreyTip" title="Probabilité de contact au sol estimée par nos signaux (feux, combats au sol, pertes, menaces d’artillerie, radar, bilans officiels). Alertes d’artillerie : données arrêtées le 7 sept. 2026. Détails sur la page méthode.">zone grise : contact mesuré ⓘ</span></div>
       <div data-lyr="always"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--ink)" stroke-width="1" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgPre">occupé avant 2022</span></div>
@@ -79,7 +79,7 @@
     <label class="chk"><input type="checkbox" id="lyrLines" checked> <span data-t="cbLines">ligne la plus probable (50 %)</span></label>
     <label class="chk"><input type="checkbox" id="lyrContact" checked> <span data-t="cbContact">zone grise (contact, nos signaux)</span></label>
     <label class="chk"><input type="checkbox" id="lyrUnc"> <span data-t="cbUnc">incertitude des cartes (5 – 95 %)</span></label>
-    <label class="chk"><input type="checkbox" id="lyrStates"> <span data-t="cbStates">3 états</span></label>
+    <label class="chk" hidden style="display:none"><input type="checkbox" id="lyrStates" autocomplete="off"> <span data-t="cbStates">3 états</span></label>
     <label class="chk"><input type="checkbox" id="lyrArrows" checked> <span data-t="cbArrows">flèches : qui pousse où</span></label>
     <label class="chk" hidden style="display:none"><input type="checkbox" id="lyrNowcast" checked autocomplete="off"> <span data-t="cbNowcast">avec signaux de combat (nowcast)</span></label>
     <label class="chk"><input type="checkbox" id="lyrFusion" checked autocomplete="off"> <span data-t="cbFusion">moteur de fusion</span></label>
@@ -89,7 +89,7 @@
     <label class="chk"><input type="checkbox" id="lyrTg"> <span data-t="cbTg">signaux Telegram (30 j)</span></label>
     <label class="chk"><input type="checkbox" id="lyrImp"> <span data-t="cbImp">impacts détectés (Sentinel-2)</span></label>
     <label class="chk"><input type="checkbox" id="lyrPm" checked> <span data-t="cbPm">prévision : où ça va bouger</span></label>
-    <div class="seg" role="group" aria-label="Vue" hidden><button class="btn" data-mode="equilibre" type="button" aria-pressed="true" data-t="mEq">équilibrée</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">UA</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">RU</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false" data-t="mTiers">tiers</button></div>
+    <div class="seg" role="group" aria-label="Vue" hidden style="display:none"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true" data-t="mEq">équilibrée</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">UA</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">RU</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false" data-t="mTiers">tiers</button></div>
   </fieldset>
   <fieldset><legend data-t="gSrc">Sources du calcul</legend>
     <select id="varSel" hidden>
