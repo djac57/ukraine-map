@@ -165,17 +165,7 @@ def ru_daily(posts, idx, last):
         d = p["date"]
         if d > last or not re.search(r"группировк\w* войск", t):
             continue
-        hits = []
-        for m in O.RU_PLACES.finditer(t):
-            for w in O.RU_CAP.findall(m.group(1)):
-                k = O.ru_stem(w)
-                if any(k.startswith(x) for x in O.RU_NOT):
-                    continue
-                cands = idx.get(k)
-                if cands and len(cands) <= 3:
-                    g = T.cell_of(cands[0][0], cands[0][1])
-                    if g >= 0:
-                        hits.append(g)
+        hits = O.ru_post_cells(p, idx, T.cell_of)   # découpage par segment, oblast cité, homonymes levés ou rejetés
         nb[d] += 1
         if hits:
             src[d].add("agence" if not isinstance(p["id"], int) or p["id"] >= AGENCY_ID else "tg")

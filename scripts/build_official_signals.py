@@ -194,12 +194,125 @@ def load_gaz_ru(tess):
         pr = f["properties"]
         if pr.get("ADM1_NAME") not in FRONT_ADM1:
             continue
-        p = (float(pr["longitude"]), float(pr["latitude"]), pr["name"])
+        p = (float(pr["longitude"]), float(pr["latitude"]), pr["name"], pr["ADM1_NAME"])
         for n in {n.strip() for n in (pr.get("alternatenames") or "").split(",") if re.search(r"[а-яё]", n.lower())}:
             k = ru_stem(n)
-            if len(k.replace(" ", "")) >= 4:
+            if len(k.replace(" ", "")) >= 4 and p not in idx[k]:
                 idx[k].append(p)
     return idx
+
+
+# Découpage des listes « в районах населенных пунктов A, B Запорожской области и C Донецкой Народной Республики »
+# (20/10/2026) : un nom par segment, l'adjectif d'oblast qui suit un nom vaut pour lui et pour les noms sans oblast
+# qui le précèdent dans la liste ; noms composés à trait d'union gardés ; homonymes départagés par l'oblast cité puis
+# par la cohérence spatiale avec les localités sûres de la même liste (60 km), sinon rejetés (plus de « premier
+# candidat » arbitraire).
+RU_LIST = re.compile(r"в район(?:е|ах) населенн\w+\s+пункт[а-яё]*\s*([^.;:\n]+)", re.I)
+RU_OBLAST = [(re.compile(p, re.I), r) for p, r in (
+    (r"донецк\w+ народн\w+ республик\w*|\bднр\b", "Donets'k"),
+    (r"луганск\w+ народн\w+ республик\w*|\bлнр\b", "Luhans'k"),
+    (r"запорожск\w+ област\w*", "Zaporizhzhya"),
+    (r"херсонск\w+ област\w*", "Kherson"),
+    (r"харьковск\w+ област\w*", "Kharkiv"),
+    (r"днепропетровск\w+ област\w*", "Dnipropetrovs'k"),
+    (r"сумск\w+ област\w*", "Sumy"),
+    (r"николаевск\w+ област\w*", "Mykolayiv"),
+    (r"черниговск\w+ област\w*", "Chernihiv"),
+    (r"(?:курск|белгородск|брянск)\w+ област\w*", "RU"),
+)]
+RU_NAME = re.compile(r"^(?:[А-ЯЁ][а-яё'’]+(?:-[А-ЯЁа-яё'’]+)*)(?:\s+(?:[А-ЯЁ][а-яё'’]+(?:-[А-ЯЁа-яё'’]+)*)){0,2}$")
+RU_SPLIT = re.compile(r"\s*,\s*|\s+и\s+|\s+а также\s+")
+RU_TAIL = re.compile(r"\s+(?:на|в|во|у|при|под|около|вблизи|близ|возле)\s+.*$")
+RU_CAPS = re.compile(r"^[А-ЯЁ]{3,}(?:-[А-ЯЁ]{2,})?$")
+RUSSIA = re.compile(r"курск|белгород|брянск", re.I)
+
+
+def ru_segments(text):
+    """[(nom tel qu'écrit ou None si illisible, oblast GeoNames | 'RU' | None)] pour chaque liste de localités."""
+    out = []
+    for m in RU_LIST.finditer(text):
+        pending = []
+        for raw in RU_SPLIT.split(m.group(1)):
+            s = re.sub(r"^(?:а\s+)?также\s+", "", raw.strip(" \t«»\""), flags=re.I)
+            if not s:
+                continue
+            obl = None
+            for pat, r in RU_OBLAST:
+                mm = pat.search(s)
+                if mm:
+                    obl, s = r, s[:mm.start()].strip()   # ce qui suit l'oblast est la suite de la phrase
+                    break
+            s = re.sub(r"\s+(?:в|во|у)$", "", s)
+            s = RU_TAIL.sub("", s).strip()
+            words = [w.capitalize() if RU_CAPS.match(w) else w for w in s.split()]
+            while words and not words[0][:1].isupper():   # « города Херсон », « северо-западнее Вербовое »
+                words.pop(0)
+            s = " ".join(words)
+            pending.append([s if RU_NAME.match(s) else None, None])
+            if obl:
+                for p in pending:
+                    p[1] = obl
+                out += [(n, o) for n, o in pending]
+                pending = []
+        out += [(n, o) for n, o in pending]
+    return out
+
+
+def ru_resolve(segments, idx, russia=False, km=60):
+    """[(nom, oblast, candidat (lon, lat, nom, oblast) | None, motif)]. `russia` : la phrase cite Koursk, Belgorod
+    ou Briansk ; les noms sans oblast y sont alors écartés (localités russes homonymes de localités ukrainiennes)."""
+    res = []
+    for name, obl in segments:
+        if name is None:
+            res.append((name, obl, None, "illisible"))
+            continue
+        k = ru_stem(name)
+        if any(k.startswith(x) for x in RU_NOT):
+            res.append((name, obl, None, "mot courant"))
+            continue
+        if obl == "RU" or (obl is None and russia):
+            res.append((name, obl, None, "Russie"))
+            continue
+        cands = idx.get(k)
+        if not cands:
+            res.append((name, obl, None, "introuvable"))
+            continue
+        if obl:
+            cands = [c for c in cands if c[3] == obl]
+            if not cands:
+                res.append((name, obl, None, "hors oblast cité"))
+                continue
+        if len(cands) == 1:
+            res.append((name, obl, cands[0], "unique"))
+        else:
+            res.append((name, obl, sorted(cands), "homonymes"))
+    sure = [r[2] for r in res if r[3] == "unique"]
+    a = None
+    if sure:
+        xs, ys = sorted(c[0] for c in sure), sorted(c[1] for c in sure)
+        a = (xs[len(xs) // 2], ys[len(ys) // 2])
+    out = []
+    for name, obl, c, why in res:
+        if why != "homonymes":
+            out.append((name, obl, c, why))
+        elif a is None:
+            out.append((name, obl, None, "ambigu"))
+        else:
+            near = [q for q in c if math.hypot((q[0] - a[0]) * 111.2 * math.cos(math.radians(a[1])), (q[1] - a[1]) * 111.2) <= km]
+            out.append((name, obl, near[0], "homonyme levé") if len(near) == 1 else (name, obl, None, "ambigu"))
+    return out
+
+
+def ru_post_cells(post, idx, cell_of):
+    """Mailles (avec répétition) des localités géocodées d'un bilan de groupement du MoD RF."""
+    hits = []
+    for para in re.split(r"\n+", post["text"]):
+        for name, obl, c, why in ru_resolve(ru_segments(para), idx, bool(RUSSIA.search(para))):
+            if c:
+                g = cell_of(c[0], c[1])
+                if g >= 0:
+                    hits.append(g)
+    return hits
 
 
 def gs_month_cells(posts, idx, grid_index):
@@ -287,18 +400,7 @@ def ru_month_cells(posts, idx, grid_index):
         t = p["text"]
         if not re.search(r"группировк\w* войск", t):
             continue
-        hits = []
-        for m in RU_PLACES.finditer(t):
-            for w in RU_CAP.findall(m.group(1)):
-                k = ru_stem(w)
-                if any(k.startswith(x) for x in RU_NOT):
-                    continue
-                cands = idx.get(k)
-                if cands and len(cands) <= 3:
-                    c = cands[0]
-                    g = grid_index(c[0], c[1])
-                    if g >= 0:
-                        hits.append(g)
+        hits = ru_post_cells(p, idx, grid_index)
         if hits:
             days.add(p["date"])
             for g in hits:
