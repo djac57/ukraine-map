@@ -112,7 +112,7 @@ jobs:
       - name: "Construire la carte du front (mois, puis un pas tous les 3 jours sur les 90 derniers jours)"
         run: python scripts/build_front.py raw/viina
         env: { DAILY_DAYS: "90" }
-        timeout-minutes: 90
+        timeout-minutes: 120
         continue-on-error: true
       - name: "Modèle de sens à deux étages (poussée russe probable, poussée possible) : décades"
         run: python scripts/build_direction.py
