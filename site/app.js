@@ -115,7 +115,7 @@ let nowcastOn = !!(document.getElementById("lyrNowcast") && document.getElementB
 // zone grise (contact) mesurée par nos signaux : cochée ; incertitude des cartes (lignes 5 et 95 %) : décochée
 let showContact = !!(document.getElementById("lyrContact") && document.getElementById("lyrContact").checked), showUnc = !!(document.getElementById("lyrUnc") && document.getElementById("lyrUnc").checked);
 // vue « moteur de fusion (test) » (front_fusion.js, scripts/build_fusion.py) : prioritaire sur le nowcast quand elle est cochée
-let fusionOn = false, FUSX = null;
+let fusionOn = !!(document.getElementById("lyrFusion") && document.getElementById("lyrFusion").checked), FUSX = null;   // modèle unique : fusion par défaut (20/10/2026)
 const amode = () => fmode === "equilibre" && !fvar && fusionOn && window.FRONT_FUSION ? "fusion" : fmode === "equilibre" && !fvar && nowcastOn && FR.nowcast ? "nowcast" : fmode;
 const fieldName = () => fvar || amode();
 const mcOf = mo => amode() === "fusion" && mo.mcFus ? mo.mcFus : amode() === "nowcast" && mo.mcNow ? mo.mcNow : mo.mc;
@@ -512,6 +512,9 @@ function overviewArrows(fi, view){
 // par une autre carte dans les 90 jours). Regroupés par camp à 15 km ; seuil : 2 localités, ou 1 source fiable à 80 %.
 // La flèche part de la ligne 50 % de l'instantané précédent vers le barycentre des localités basculées.
 const evCache = {}, EV_DECL = new Set(["dsmlog", "gsua", "modru"]);
+// vue d'ancrage des flèches d'annonces : la fusion déplace la ligne selon le modèle ; les annonces se lisent sur la ligne du
+// nowcast (cartes + signaux de combat), comme avant la bascule
+const evView = () => fieldName() === "fusion" ? "nowcast" : fieldName();
 function eventArrows(fi){
   if (evCache[fi]) return evCache[fi];
   const mo = FR.months[fi], E = FR.events; if (!mo || !mo.ev || !E) return evCache[fi] = [];
@@ -538,7 +541,7 @@ function eventArrows(fi){
       if (c) { c.items.push(p); } else cl.push({sx: p.gx, sy: p.gy, items: [p]});
     }
     // base : ligne 50 % des cartes seules un mois plus tôt (la flèche compare les annonces aux cartes)
-    const fp = frameAt(fi, 30), prevLines = fp >= 0 ? lines50("equilibre", fp) : [], curLines = lines50(fieldName(), fi);
+    const fp = frameAt(fi, 30), prevLines = fp >= 0 ? lines50("equilibre", fp) : [], curLines = lines50(evView(), fi);
     for (const c of cl) {
       const n = c.items.length, sw = c.items.reduce((a, p) => a + p.w, 0), mw = Math.max(...c.items.map(p => p.w));
       // corroboration : une seule carte qui recode ses localités (Wikipédia, DeepStateMap) est une révision, pas une
@@ -915,7 +918,8 @@ window.__uafArrowCheck = function(){
           fails.push({mois: FR.months[fi].date, sens: "annonces contre les " + nm, ru: a.ru, base: ll(a.ax, a.ay), pointe: ll(a.cx, a.cy), ref: ll(...r), mode: a.mode});
         continue;
       }
-      const [gx, gy] = gradAt(ge, a.ax, a.ay);
+      // flèches d'annonces : sens jugé sur le champ des cartes (elles comparent les annonces aux cartes, pas au modèle)
+      const [gx, gy] = gradAt(fullField(evView(), fi) || ge, a.ax, a.ay);
       if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru});
     }
   }
@@ -2040,6 +2044,7 @@ if ($("lyrFusion")) $("lyrFusion").onchange = e => { fusionOn = e.target.checked
     frontFor = -2; legend(); draw(); updateReadout(); drawChart && drawChart(); };
   if (!fusionOn) return done();
   ensureView("fusion", () => { if (!window.FUSION_EXPLAIN) { const sc = document.createElement("script"); sc.src = "fusion_explain.js?v=" + (FRONT_V.fusion || ""); sc.onload = () => { FUSX = window.FUSION_EXPLAIN; draw(); }; document.head.appendChild(sc); } done(); }); };
+if (fusionOn && $("lyrFusion")) setTimeout(() => $("lyrFusion").onchange({target: $("lyrFusion")}), 0);   // fusion par défaut : chargement au démarrage
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
 if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };
 if ($("lyrAdv")) $("lyrAdv").onchange = e => { showAdv = e.target.checked; if (showAdv) loadAdv(() => { legend(); draw(); }); legend(); draw(); };
@@ -2404,8 +2409,12 @@ function updateArea(){
       // changement mesuré sur la vue des sources (fmode : équilibrée, UA, RU, tiers), pas sur le nowcast, plus bruité d'un mois à l'autre
       // estimateur débruité (scripts/build_kmchange.py, data/kmchange_eval.json) : variation de la surface où p ≥ 0,5
       // (tout[1]) plutôt que de l'espérance Σp (tout[0]), qui « avance » dans les secteurs immobiles par diffusion de la zone grise
+      // fusion : variation lue sur akm (champ sans extrapolation de vitesse, surface p ≥ 0,5) : biais 12 mois corrigé (build_fusion v3)
+      const FFm = j => window.FRONT_FUSION && window.FRONT_FUSION.months[j];
       const kmAt = j => { const m = j >= 0 ? FR.months[j] : null; if (!m) return null; const aa = m.a[amode()] || m.a[fmode] || m.a.equilibre;
-        return fvar && m.v && m.v[fvar] ? m.v[fvar].tout[0] : aa.tout[0]; };   // même série que la courbe des km² (décision du 19/10/2026)
+        if (fvar && m.v && m.v[fvar]) return m.v[fvar].tout[0];
+        if (amode() === "fusion" && FFm(j) && FFm(j).akm) return FFm(j).akm.tout[1];
+        return aa.tout[0]; };   // même série que la courbe des km² (décision du 19/10/2026)
       const v0 = kmAt(fi);
       const j12 = frameAt(fi, 365), j1 = frameAt(fi, 30), d12 = j12 >= 0 ? v0 - kmAt(j12) : null, d1 = j1 >= 0 ? v0 - kmAt(j1) : null;
       const r10s = x => fmt(Math.round(Math.abs(x) / 10) * 10), who = x => x >= 0 ? _t("gagnés par la Russie") : _t("repris par l'Ukraine");
@@ -2422,7 +2431,7 @@ function updateArea(){
       if (!window.KMCHANGE && !window.__kmcLoading) { window.__kmcLoading = true; const sc = document.createElement("script"); sc.src = "kmchange.js?v=" + (FRONT_V.kmc || ""); sc.onload = () => updateArea(); document.head.appendChild(sc); }
       const KE = window.KMCHANGE && window.KMCHANGE.errorRecent, KM = window.KMCHANGE && window.KMCHANGE.months && window.KMCHANGE.months[fi];
       // erreur de CETTE série (espérance de la vue active ; nowcast : views.nowcast_esperance), recalculée à chaque mise à jour
-      const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (amode() === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
+      const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (amode() === "fusion" && KV.fusion_p50 ? KV.fusion_p50 : amode() === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
       const E12 = KR && KR.m12 && KR.m12.p50 ? Math.round(KR.m12.p50 / 10) * 10 : THEATRE.errFallback.m12, E1 = KR && KR.m1 && KR.m1.p50 ? Math.round(KR.m1.p50 / 10) * 10 : THEATRE.errFallback.m1, r100 = x => fmt(Math.round(Math.abs(x) / 100) * 100), r10b = x => fmt(Math.round(Math.abs(x) / 10) * 10);
       const hab = (e, x) => _t("écart habituel ± {e} km²", {e: fmt(e)}) + (Math.abs(x) < e ? " " + _t("(dans l'écart habituel)") : "");
       const kmV = (v, j) => { const m = j >= 0 ? FR.months[j] : null; return m && m.a[v] ? m.a[v].tout[0] : NaN; };
@@ -2485,11 +2494,12 @@ function drawDeltaChart(cm){
   const el = document.getElementById("dChart"); if (!el) return;
   const F = FR.months, rows = [];
   for (let i = 0; i < NMF; i++) { const a = F[i], j = i > 0 ? frameAt(i, 30) : -1, b = j >= 0 ? F[j] : null;
-    if (a && b && a.a[cm] && b.a[cm]) rows.push([i, a.a[cm].tout[0] - b.a[cm].tout[0]]); }
+    const fz = k => cm === "fusion" && window.FRONT_FUSION && window.FRONT_FUSION.months[k] && window.FRONT_FUSION.months[k].akm ? window.FRONT_FUSION.months[k].akm.tout[1] : null;
+    if (a && b && a.a[cm] && b.a[cm]) rows.push([i, fz(i) != null && fz(j) != null ? fz(i) - fz(j) : a.a[cm].tout[0] - b.a[cm].tout[0]]); }
   // premier mois : saut de l'invasion depuis le niveau d'avant-guerre (barre tronquée, valeur écrite)
   { const a0 = F[0] && F[0].a[cm]; if (a0 && a0[THEATRE.preKey]) rows.unshift([0, a0[THEATRE.preKey][0]]); }
   if (!rows.length) { el.replaceChildren(); return; }
-  const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (cm === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
+  const KV = window.KMCHANGE && window.KMCHANGE.views, KR = KV ? (cm === "fusion" && KV.fusion_p50 ? KV.fusion_p50 : cm === "nowcast" ? KV.nowcast_esperance : window.KMCHANGE.reference && window.KMCHANGE.reference.esperance) : null;
   const E1 = KR && KR.m1 && KR.m1.p50 ? KR.m1.p50 : THEATRE.errFallback.m1;
   const w = el.clientWidth || 600, h = 130, m = {t: 18, r: 4, b: 20, l: 46};
   const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w - m.r]).paddingInner(0.2);

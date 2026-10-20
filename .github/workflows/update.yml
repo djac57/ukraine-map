@@ -97,10 +97,6 @@ jobs:
         env: { DAILY_DAYS: "90" }
         timeout-minutes: 90
         continue-on-error: true
-      - name: "Variation des km² (estimateur débruité, erreur empirique recalculée)"
-        run: python scripts/build_kmchange.py
-        timeout-minutes: 5
-        continue-on-error: true
       - name: "Modèle de sens à deux étages (poussée russe probable, poussée possible) : décades"
         run: python scripts/build_direction.py
         timeout-minutes: 10
@@ -108,6 +104,10 @@ jobs:
       - name: "Moteur de fusion (vue de test parallèle) : un modèle d'observation par signal, poids réappris chaque mois"
         run: python scripts/build_fusion.py
         timeout-minutes: 20
+        continue-on-error: true
+      - name: "Variation des km² (estimateur débruité, erreur empirique recalculée)"
+        run: python scripts/build_kmchange.py
+        timeout-minutes: 5
         continue-on-error: true
       - name: "Avancée possible d'ici 2 mois : fourchettes par tronçon (affichées seulement si la validation passe)"
         run: python scripts/build_advance.py
