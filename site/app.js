@@ -3001,7 +3001,10 @@ function setLang(code){
   try { localStorage.setItem("uaf-lang", code); } catch(e) {}
 }
 document.querySelectorAll("[data-lang-btn]").forEach(b => b.onclick = () => setLang(b.dataset.langBtn));
-try { const l = localStorage.getItem("uaf-lang"); if (l && document.querySelector(`.intro .i18n[data-lang="${l}"]`)) setLang(l); } catch(e) {}
+{ let l = null; try { l = localStorage.getItem("uaf-lang"); } catch(e) {}
+  // sans choix mémorisé : langue du navigateur (comme la carte), sinon anglais
+  if (!l) { l = "en"; for (const x of (navigator.languages || [navigator.language || ""])) { const c = String(x).slice(0, 2).toLowerCase(); if (["fr", "en", "uk", "ru"].includes(c)) { l = c; break; } } }
+  if (document.querySelector(`.intro .i18n[data-lang="${l}"]`)) setLang(l); }
 legend(); full();
 window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); });
 document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw();

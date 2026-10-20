@@ -173,7 +173,10 @@
     try { localStorage.setItem("uaf-lang", l); } catch(e) {}
   }
   document.querySelectorAll("[data-l]").forEach(b => b.onclick = () => { set(b.dataset.l); document.dispatchEvent(new Event("uaf-lang")); });
-  let l = "fr"; try { l = localStorage.getItem("uaf-lang") || "fr"; } catch(e) {}
+  // langue du navigateur (première langue proposée qui existe ; sinon anglais) ; jamais d'IP : rien n'est envoyé
+  const nav = () => { for (const x of (navigator.languages || [navigator.language || ""])) { const c = String(x).slice(0, 2).toLowerCase(); if (T[c]) return c; } return "en"; };
+  let l = null; try { l = localStorage.getItem("uaf-lang"); } catch(e) {}
+  if (!l || !T[l]) l = nav();
   const q = new URLSearchParams(location.search).get("lang"); if (q && T[q]) l = q;
   set(l);
 })();
