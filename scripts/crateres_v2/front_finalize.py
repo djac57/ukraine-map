@@ -7,6 +7,8 @@
                                       [--from AAAA-MM-JJ] [--csv <sortie.csv>] [--js <sortie.js>]
     # raccourci (tout l'historique, un seul dossier) :
     python -I front_finalize.py all --root <dépôt> --prive <dossier privé> --tmp <dossier> [--csv …] [--js …]
+    # positions publiées (décision du 19/10/2026, décalage J-1) -> site/crateres_points.js :
+    python -I front_finalize.py points --root <dépôt> --prive <dossier privé> [--lag 1] [--js <sortie.js>]
 
 Définitions identiques à ukraine-recherche/sar/crateres_v2/agg_decades.py (règle STRICTE gelée, rules.P ; comptage
 « tous », CRAT_COMPTE=tous, comme data/impacts_troncons_decades_v2.csv actuel) :
@@ -230,9 +232,69 @@ def build(a):
         print(f"{js_out} : aucune ligne (moins de 37 décades de série ?)")
 
 
+D0_PTS = "2024-07-01"     # origine des jours de site/crateres_points.js
+
+
+def points(a):
+    """Positions des détections RETENUES (rules.keep, règle stricte v2), à ≤ 15 km de la ligne du mois (mêmes que les
+    agrégats), dates d'observation ≤ aujourd'hui − a.lag jours (décalage de publication) :
+      window.CRATERES = {generated, upto, d0, precision, cols, pts: [[lon×1e4, lat×1e4, jour depuis d0, côté], …]}
+    côté = 1 si russe (champ « equilibre » du mois, p ≥ 0,5), 0 sinon ; points triés par jour. Pas de score par point
+    (la règle est à seuils : seule la précision d'ensemble, ≈ 73 %, est mesurée)."""
+    import datetime as dt
+    from pyproj import Transformer
+    fr = sl.Front(a.root)
+    today = dt.date.fromisoformat(a.today) if a.today else dt.date.today()
+    upto = (today - dt.timedelta(days=a.lag)).isoformat()
+    o0 = dt.date.fromisoformat(D0_PTS).toordinal()
+    pts, ntile, nfar = [], 0, 0
+    TR = {}
+    for td in sorted(glob.glob(os.path.join(a.prive, "t*_*"))):
+        if not os.path.exists(os.path.join(td, "done.json")) and not a.partial:
+            continue
+        tid = os.path.basename(td)
+        cp = os.path.join(td, "cands.jsonl")
+        if not os.path.exists(cp):
+            continue
+        ntile += 1
+        tj, ti = int(tid[1:4]), int(tid[5:8])
+        G = sl.tile_utm(fr, dict(j0=tj, i0=ti))
+        if G["epsg"] not in TR:
+            TR[G["epsg"]] = Transformer.from_crs(f"EPSG:{G['epsg']}", "EPSG:4326", always_xy=True)
+        R, C, D, S = [], [], [], []
+        for line in open(cp):
+            if not line.endswith("\n") or '"d2": null' in line:
+                continue
+            o = json.loads(line)
+            if o["d1"] < D0_PTS or o["d1"] > upto or not rules.keep(o, rules.P):
+                continue
+            k = fr.sec_side(o["cell"], o["d1"][:7])
+            if k is None:
+                nfar += 1
+                continue
+            R.append(o["r"]); C.append(o["c"]); D.append(dt.date.fromisoformat(o["d1"]).toordinal() - o0)
+            S.append(1 if k[2] == "RU" else 0)
+        if not R:
+            continue
+        lon, lat = TR[G["epsg"]].transform(G["x0"] + (np.array(C) + 0.5) * 10.0, G["y1"] - (np.array(R) + 0.5) * 10.0)
+        pts += [[int(round(x * 1e4)), int(round(y * 1e4)), d, s] for x, y, d, s in zip(lon, lat, D, S)]
+    pts.sort(key=lambda p: (p[2], p[0], p[1]))
+    out = a.js or os.path.join(a.root, "site", "crateres_points.js")
+    obj = dict(generated=dt.date.today().isoformat(), upto=upto, d0=D0_PTS, precision=0.73,
+               cols=["lon_e4", "lat_e4", "jour", "ru"], pts=pts)
+    js = "window.CRATERES=" + json.dumps(obj, separators=(",", ":")) + ";"
+    open(out + ".tmp", "w", encoding="utf-8").write(js)
+    os.replace(out + ".tmp", out)
+    last = dt.date.fromordinal(o0 + pts[-1][2]).isoformat() if pts else "—"
+    print(f"{out} : {len(js) // 1024} Ko, {len(pts)} points ({sum(p[3] for p in pts)} côté russe), {ntile} tuiles, "
+          f"{nfar} retenues hors bande de 15 km écartées, dernière date {last} (≤ {upto})")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("sections", "build", "all"))
+    ap.add_argument("cmd", choices=("sections", "build", "all", "points"))
+    ap.add_argument("--lag", type=int, default=1, help="points : décalage de publication en jours (J-1 par défaut)")
+    ap.add_argument("--today", help="points : date du jour (AAAA-MM-JJ), défaut = date système")
     ap.add_argument("--root", required=True)
     ap.add_argument("--prive")
     ap.add_argument("--out")
@@ -249,6 +311,8 @@ def main():
         sections(a)
     elif a.cmd == "build":
         build(a)
+    elif a.cmd == "points":
+        points(a)
     else:
         os.makedirs(a.tmp, exist_ok=True)
         a.out = os.path.join(a.tmp, "sections_front.csv")

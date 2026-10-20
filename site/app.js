@@ -7,7 +7,7 @@ const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
 const THEATRE = Object.assign({start: "2022-02-24", preKey: "depuis2022", preParts: [["Crimée", "horsCrimee"]], preRest: "Donbass",
   errFallback: {m1: 300, m12: 820}}, window.THEATRE || {});
 const startLabel = () => new Date(THEATRE.start + "T12:00:00Z").toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
-const FRONT_V = {"advance": "50c5ed65a5", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "03bc656851", "kmc": "f6e465f495", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
+const FRONT_V = {"advance": "50c5ed65a5", "asym": "6f2ce78d3c", "combat": "a4e6bd862b", "contact": "9b46989e9e", "crat": "0a75f299ae", "destr": "6d2f393980", "equilibre": "7a06f07c9d", "fusion": "03bc656851", "imp": "ef5999d3d8", "kmc": "f6e465f495", "mcsd": "9b6ef382b7", "nowcast": "1ce82b0877", "pmove": "0f1154ee38", "ru": "b5b82ec662", "sans_dsm": "03273740d9", "sans_enveloppes": "40f92245e0", "sans_gsua": "c74b65e6d5", "sans_indices": "40026841f6", "sans_isw": "f0fb3ffc2c", "sans_medias": "c58ef8f068", "sans_modru": "1f7509b25b", "sans_presence": "cc7057a785", "sans_wiki": "224d1bb2d6", "sens": "4b6e4b5bf6", "strikes": "affd59ed8e", "tg": "9b8caa2896", "tgc": "7f2fa1bf2e", "tiers": "38b65417fc", "ua": "7c482a1db1", "zf": "7d771a092c", "zm": "8763c15158", "zu": "83e7b8a779", "zw": "6a685ca6fd"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -1278,14 +1278,49 @@ function drawTg(k){
   }
   ctx.restore(); ctx.globalAlpha = 1;
 }
-// impacts détectés par Sentinel-2 (indicateur affiché, données figées) : par tronçon de 20 km et par mois, z local des
-// impacts de chaque côté de la ligne (pointillé sombre, le côté se lit par la position ; détail par camp au survol), z ≥ 1
-let showImp = false, IMP = null, impHits = [], impOff = null;
-function loadImp(then){ if (window.IMPACTS) { IMP = window.IMPACTS; return then && then(); }
-  const sc = document.createElement("script"); sc.src = "impacts_troncons.js?v=0"; sc.onload = () => { IMP = window.IMPACTS; if (then) then(); }; document.head.appendChild(sc); }
+// impacts détectés par Sentinel-2 (détecteur v2, indicateur affiché, pas dans le calcul) : en vue d'ensemble, par tronçon
+// de 20 km et par mois, z local des impacts de chaque côté de la ligne (pointillé sombre, le côté se lit par la position ;
+// détail par camp au survol), z ≥ 1 ; au zoom, positions des détections (drawCraters)
+let showImp = false, IMP = null, impHits = [], impOff = null, CRAT = null;
+function loadImp(then){
+  const done = () => { IMP = window.IMPACTS || IMP; CRAT = window.CRATERES || CRAT; if (then) then(); };
+  const need = [["IMPACTS", "impacts_troncons.js", FRONT_V.imp], ["CRATERES", "crateres_points.js", FRONT_V.crat]].filter(x => !window[x[0]]);
+  if (!need.length) return done();
+  let left = need.length;
+  for (const [, f, v] of need) { const sc = document.createElement("script"); sc.src = f + "?v=" + (v || 0);
+    sc.onload = sc.onerror = () => { if (--left === 0) done(); }; document.head.appendChild(sc); } }
+// positions des cratères (crateres_points.js, détections retenues du détecteur v2, publiées à J-1) : au zoom seulement
+// (même seuil que les infrastructures), les 30 jours qui finissent au pas affiché ; en vue d'ensemble, les agrégats
+const CRAT_DAYS = 30;
+function cratWindow(){
+  const a = AX[stepIdx]; if (!a || !CRAT) return null;
+  const [y, m] = D.months[a.m].split("-").map(Number);
+  let end = a.d || new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  if (end > CRAT.upto) end = CRAT.upto;
+  const d0 = Date.parse(CRAT.d0 + "T00:00:00Z"), e = Math.round((Date.parse(end + "T00:00:00Z") - d0) / 864e5);
+  return {end, lo: e - CRAT_DAYS + 1, hi: e, d0};
+}
+function drawCraters(k){
+  const w = cratWindow(); if (!w) return;
+  const P = CRAT.pts; let i = d3.bisector(p => p[2]).left(P, w.lo);
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const halo = C.dark ? "#161616" : "#fbf8f0", ink = C.dark ? "#f2efe6" : "#161616";
+  for (; i < P.length && P[i][2] <= w.hi; i++) {
+    const p = P[i], q = proj([p[0] / 1e4, p[1] / 1e4]), x = q[0] * k + tr.x, y = q[1] * k + tr.y;
+    if (x < -5 || x > W + 5 || y < -5 || y > H + 5) continue;
+    ctx.globalAlpha = 0.55 + 0.45 * (p[2] - w.lo) / CRAT_DAYS;   // plus pâle quand plus ancien dans la fenêtre
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fill();
+    ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill();
+    impHits.push({x, y, pt: true, day: p[2], ru: p[3], d0: w.d0});
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+window.__uafCraters = () => { const w = cratWindow(); const h = impHits.filter(h => h.pt); return w ? {end: w.end, n: h.length, total: CRAT.pts.length, upto: CRAT.upto, first: h.length ? {x: h[0].x, y: h[0].y} : null} : null; };   // contrôle (captures)
 let impFor = "", impImg = null;
 function drawImp(k){
-  impHits = []; if (!IMP) return;
+  impHits = [];
+  if (CRAT && kmPerPx(k) <= INFRA_KMPX) return drawCraters(k);
+  if (!IMP) return;
   const fi = frontIdx(); if (fi < 0) return; const m = FR.months[fi].date.slice(0, 7);
   const PMF = viewFields("pmove"), g = fullField(fieldName(), fi); if (!PMF || !PMF[fi] || !g) { ensureView("pmove", () => draw()); return; }
   const r = k < 1.6 ? 4 : k < 3 ? 2 : 1, key = fi + ":" + r + ":" + fieldName();
@@ -2006,10 +2041,16 @@ function hover(e){
   // info-bulle épinglée par un clic (liens Telegram cliquables) : on la garde tant que la souris reste à moins de 12 px
   if (tip.classList.contains("pin")) { if (e.type === "mousemove" && tipKey && Math.hypot(tipKey[0] - mx, tipKey[1] - my) < 12) return; tip.classList.remove("pin"); }
   if (showImp && impHits.length) {
-    let best = null, bd = 40; for (const h of impHits) { const dd = Math.hypot(h.x - mx, h.y - my); if (dd < bd) { bd = dd; best = h; } }
+    let best = null, bd = 40; for (const h of impHits) { const dd = Math.hypot(h.x - mx, h.y - my); if (dd < (h.pt ? Math.min(bd, 8) : bd)) { bd = dd; best = h; } }
+    if (best && best.pt) {
+      const [y, m, d] = new Date(best.d0 + best.day * 864e5).toISOString().slice(0, 10).split("-");
+      tip.innerHTML = `<div>${_t("cratère possible, observé le {d} ({s})", {d: dayName(y, m, d), s: _t(best.ru ? "côté russe de la ligne" : "côté ukrainien de la ligne")})}</div><div style="color:var(--faint)">${_t("détection automatique (Sentinel-2), ≈ 3 sur 4 sont de vrais cratères")}</div>`;
+      tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
+    }
     if (best) {
       const zs = v => v == null ? "–" : (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1).replace(".", ",");
-      tip.innerHTML = `<div>${_t("impacts détectés (30 j), anomalie locale z : côté russe {r} · côté ukrainien {u}", {r: zs(best.zr), u: zs(best.zu)})}</div><div style="color:var(--faint)">${_t("environ une détection sur six est un vrai cratère ; indice faible, pas une preuve")}</div>`;
+      tip.innerHTML = `<div>${_t("impacts détectés (30 j), anomalie locale z : côté russe {r} · côté ukrainien {u}", {r: zs(best.zr), u: zs(best.zu)})}</div><div style="color:var(--faint)">${_t("détecteur v2 : ≈ 3 détections sur 4 sont de vrais cratères ; zoomez pour voir les positions")}</div>`;
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
     }

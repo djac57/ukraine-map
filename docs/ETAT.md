@@ -923,6 +923,26 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   104 s : table du champ 216 points au lieu de 72, mais moteur plus rapide). `check_arrows.py` : 0 échec. Le poids des
   cartes figées agit dans le champ (o(x)), pas dans δ : il n'a pas de code dans `fusion_explain.js` (méta
   `FRONT_FUSION.figes` : réglage, κ par mois, tronçons figés et cartes réduites du dernier mois).
+- 20/10/2026 : **cratères v2 publiés, AGRÉGATS ET POSITIONS** (décision de l'utilisateur du 19/10/2026 : publier aussi
+  les positions, comme les cartes de C. Molin, avec un décalage J-1). Détecteur v2 calculé sur tout le front
+  (67 tuiles, 2024-07-01 → 2026-10-19) ; règle STRICTE gelée (`scripts/crateres_v2/rules.P`), précision ≈ 0,73.
+  - Agrégats : `data/impacts_troncons_decades_v2.csv` et `site/impacts_troncons.js` (`front_finalize.py build`),
+    z local sur 30 jours par tronçon de 20 km × côté, à partir de 2025-07 (37 décades de série nécessaires).
+  - Positions : `python -I scripts/crateres_v2/front_finalize.py points --root . --prive <dossier privé>` →
+    `site/crateres_points.js`, `window.CRATERES = {generated, upto, d0: "2024-07-01", precision: 0.73,
+    cols: ["lon_e4", "lat_e4", "jour", "ru"], pts: [[lon×1e4, lat×1e4, jours depuis d0, 1 si côté russe], …]}`,
+    triés par jour. Mêmes détections que les agrégats (rules.keep, ≤ 15 km de la ligne du mois, côté du champ
+    « equilibre » du mois) : 3 461 points (999 côté russe), 74 Ko, dates d'observation ≤ aujourd'hui − 1 (`--lag`).
+    Pas de score par point : la règle est à seuils, seule la précision d'ensemble est mesurée.
+  - Site (`app.js` drawImp / drawCraters) : même case « impacts détectés (Sentinel-2) » ; en vue d'ensemble les
+    agrégats (inchangés) ; au zoom (kmPerPx ≤ INFRA_KMPX = 0,8, seuil des infrastructures), les points des 30 jours
+    qui finissent au pas affiché (fin du mois, ou jour du pas récent, plafonné à `upto`), points sombres à halo clair,
+    plus pâles quand plus anciens ; survol : date d'observation, côté, « ≈ 3 sur 4 sont de vrais cratères ».
+    Légende et ⓘ réécrites dans les 4 langues (v2, ≈ 3 sur 4, tout le front depuis juillet 2024, mise à jour
+    mensuelle à venir) ; `stamp.py` empreinte désormais `impacts_troncons.js` (FRONT_V.imp) et
+    `crateres_points.js` (FRONT_V.crat). Page méthode mise à jour.
+  - À faire : brancher la mise à jour mensuelle en CI (l'utilisateur s'en charge ; `.github/` non touché) ; les
+    détections individuelles restent hors dépôt (dossier privé), seules les positions retenues sont publiées.
 
 ---
 
