@@ -123,6 +123,15 @@ quotidien, sans dépendre de `raw/` (jamais versionné, cache CI impossible à r
   (veille du dernier passage incluse) sont remplacés, et seulement si la nouvelle version n'est pas plus pauvre (95 % des
   messages localisés) ; officiels, UCDP, WarSpotting : 90 derniers jours (garde-fou à 90 %). Seules les années touchées
   sont réécrites ; brut absent = fichiers publiés gardés.
+- **État au 20/10/2026, 14 h (commit 08937e8)** : UCDP (→ 08/2026) et WarSpotting (→ 10/10/2026) complets ;
+  Telegram : graine (10 canaux au pas 20, 24/02/2022 → 30/09/2026) + copie CI (04/09 → 18/10) ; état-major
+  2024-05 → 2026-10 et MoD RF 2024-01 → 2026-10 (Telegram + Interfax/RIA). `backfill_telegram.py` tourne en local
+  (nohup + caffeinate ; relance : même commande, `>>` sur `internal/hist/backfill.log`) : phase O en cours (état-major
+  2022 → 2024-05, puis mod_russia 2022 → 2024-01, ~1 h), phase 1 fin estimée ~21/10 04 h, phase 2 ~22/10 06 h
+  (2,5 s par page ; avancement : `scratchpad/tg_eta.py` de la session du 20/10). **À faire ensuite** : relancer les
+  trois reconstructions locales ci-dessus (Telegram `--full`, officiels `--tout` avec `internal/hist/claims`),
+  vérifier les couvertures, committer `data/daily/` ; mesurer la couverture MoD RF 2022-2023 avant toute extension
+  d'Interfax/RIA avant 2026-03 (seulement si elle ajoute des jours).
 - **Limites** : textes Telegram lus APRÈS coup (messages édités : texte final ; messages supprimés : absents) ; canaux
   ouverts après le 24/02/2022 (dva_majors 06/2022, noel_reports 07/2023) : jours antérieurs « non actifs » ; WarSpotting
   sans pertes ukrainiennes ; aucun texte ni nom de canal dans `data/`.
