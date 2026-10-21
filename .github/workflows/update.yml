@@ -4,6 +4,11 @@
 # Secret requis : FIRMS_MAP_KEY. Le dossier raw/ n'est jamais versionné : il vit dans le cache Actions,
 # sauvegardé même si une étape échoue ou expire, pour que le passage suivant reprenne là où il s'est arrêté.
 # Les scripts build*.py refusent d'écraser une sortie publiée par une version plus pauvre (code 3).
+#
+# build_front.py est PARALLÉLISÉ par LOT (docs/ETAT.md § 8) : le job « collecte » récupère et construit les couches
+# légères (artefact « work » = site/ + data/) ; la matrice « front » calcule chaque lot sur un runner (FRONT_VIEWS) et
+# en publie les morceaux (front_parts.py stage) ; le job « assemble » les recolle (front_parts.py assemble) en un front.js
+# OCTET POUR OCTET identique au passage unique, puis enchaîne direction/fusion/kmchange/avancée, les contrôles et le commit.
 name: mise-a-jour
 on:
   push:
@@ -14,11 +19,11 @@ permissions: { contents: write, pages: write, id-token: write }
 concurrency: { group: mise-a-jour, cancel-in-progress: false }
 
 jobs:
-  update:
+  collecte:
     # push : déploiement seul, SAUF si le message du commit contient [build] (relance manuelle sans jeton GitHub)
     if: github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -109,11 +114,74 @@ jobs:
         run: python scripts/fetch_ookla.py
         timeout-minutes: 10
         continue-on-error: true
-      - name: "Construire la carte du front (mois, puis un pas tous les 3 jours sur les 90 derniers jours)"
+
+      - name: "Partager les couches construites (site/ + data/) avec la matrice front et l'assemblage"
+        uses: actions/upload-artifact@v4
+        with:
+          name: work
+          path: |
+            site
+            data
+          include-hidden-files: true
+          retention-days: 1
+
+  front:
+    needs: collecte
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        lot: [vues, sens, sans_dsm, sans_isw, sans_wiki, sans_enveloppes, sans_medias, sans_modru, sans_gsua, sans_presence, sans_indices]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: "Dépendances (nowcast : calcul matriciel)"
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.16.3 pyarrow==21.0.0
+      - name: Restaurer le cache des données brutes (VIINA etc.)
+        uses: actions/cache/restore@v4
+        with: { path: raw, key: "raw-${{ github.run_id }}", restore-keys: "raw-" }
+      - name: "Récupérer les couches construites (site/ + data/)"
+        uses: actions/download-artifact@v4
+        with: { name: work, path: . }
+      - name: "Construire la carte du front — lot ${{ matrix.lot }} (mois, puis un pas tous les 3 jours sur les 90 derniers jours)"
         run: python scripts/build_front.py raw/viina
-        env: { DAILY_DAYS: "90" }
-        timeout-minutes: 120
-        continue-on-error: true
+        env: { DAILY_DAYS: "90", FRONT_VIEWS: "${{ matrix.lot }}" }
+        timeout-minutes: 110
+      - name: "Mettre le lot en paquet pour l'assemblage"
+        run: python scripts/front_parts.py stage staging
+      - name: "Publier le morceau du lot ${{ matrix.lot }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "front-${{ matrix.lot }}"
+          path: staging
+          include-hidden-files: true
+          retention-days: 1
+
+  assemble:
+    needs: [collecte, front]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: "Dépendances (nowcast : calcul matriciel)"
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.16.3 pyarrow==21.0.0
+      - name: Restaurer le cache des données brutes
+        uses: actions/cache/restore@v4
+        with: { path: raw, key: "raw-${{ github.run_id }}", restore-keys: "raw-" }
+      - name: "Récupérer les couches construites (site/ + data/)"
+        uses: actions/download-artifact@v4
+        with: { name: work, path: . }
+      - name: "Récupérer tous les morceaux de la matrice front"
+        uses: actions/download-artifact@v4
+        with: { pattern: "front-*", path: parts_in, merge-multiple: true }
+      - name: "Assembler front.js (surfaces des variantes par date + sensibilité ; identique au passage unique)"
+        run: python scripts/front_parts.py assemble parts_in
+        timeout-minutes: 10
+
       - name: "Modèle de sens à deux étages (poussée russe probable, poussée possible) : décades"
         run: python scripts/build_direction.py
         timeout-minutes: 10
@@ -166,7 +234,7 @@ jobs:
           exit 1
 
   deploy:
-    needs: update
+    needs: assemble
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
