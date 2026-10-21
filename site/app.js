@@ -967,7 +967,7 @@ window.__uafArea = (fi, b, band, v) => { const g = fullField(v || CKV(), fi), a 
 window.__uafLine = (fi, b, v) => lines50(v || CKV(), fi).flat().filter(p => inBox(p[0], p[1], b)).length;
 // contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
 window.__uafArrowCheck = function(){
-  const fails = [], km = FR.grid.size / 1000; let total = 0, reoriented = 0, evN = 0, late = 0, flipChecked = 0, redir = 0, border = 0, revAnnRecent = 0;
+  const fails = [], km = FR.grid.size / 1000; let total = 0, reoriented = 0, evN = 0, late = 0, flipChecked = 0, redir = 0, border = 0;
   const redirList = [], llg = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(v => +v.toFixed(2));
   const VW = CKV();   // vue affichée (fusion par défaut)
   for (let fi = 3; fi < FR.months.length; fi++) {
@@ -1021,10 +1021,7 @@ window.__uafArrowCheck = function(){
       }
       // flèches d'annonces : sens jugé sur le champ des cartes (elles comparent les annonces aux cartes, pas au modèle)
       const [gx, gy] = gradAt(fullField(evView(), fi) || ge, a.ax, a.ay);
-      // dernier recours : gradient ponctuel (trompeur sur les flancs d'un saillant). Sur les pas récents de 3 jours
-      // (fi >= NMF), aucune maille n'a encore basculé sur 30 jours → on retombe toujours sur ce repère faible : non
-      // bloquant (le repère fiable des mailles basculées, ci-dessus, s'applique à tous les pas).
-      if (s * (tx * gx + ty * gy) <= 0) { if (fi < NMF) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru}); else revAnnRecent++; }
+      if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru});
     }
   }
   // têtes (bloquant) : aucune flèche dessinée, de quelque type que ce soit, dont la hampe ou la tête entre en Russie
@@ -1056,7 +1053,7 @@ window.__uafArrowCheck = function(){
     const c = cellOf(pl[li][1], pl[li][2]); if (!(c >= 0 && c < GX * GY) || cellPlace[c] < 0) continue;
     launches++; const g = fullField(VW, fl);
     if (g && g[c] < 0.5) fails.push({mois: D.months[mi], lancement: pl[li][0], p: +g[c].toFixed(2)}); }
-  return {view: VW, total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, revAnnRecent, unc, heads, headMoved, headDropped, headHard, launches};
+  return {view: VW, total, fails, reoriented, evN, late, flipChecked, redir, redirList, border, unc, heads, headMoved, headDropped, headHard, launches};
 };
 function drawArrows(k){
   const fi = frontIdx(); if (fi < 0) return;
