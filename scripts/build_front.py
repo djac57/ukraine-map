@@ -753,6 +753,15 @@ HIST_FREEZE = int(os.environ.get("HIST_FREEZE", "45"))      # jours : plus ancie
 HIST_BUDGET_MIN = float(os.environ.get("HIST_BUDGET_MIN", "0"))   # minutes de recalcul des jours figés périmés (0 : sans limite)
 HIST_ADOPT = os.environ.get("HIST_ADOPT") == "1"     # adopter les entrées sans empreinte (migration, mêmes entrées)
 
+# Parallélisation en CI (docs/ETAT.md § 8) : FRONT_VIEWS désigne le ou les LOTS à construire dans ce passage, séparés par
+# des virgules ; un lot est « vues » (les 4 vues + nowcast + toutes les couches, écrit front.js sans les surfaces des
+# variantes ni la sensibilité), le nom d'une variante « sans X » (front_<variante>.js + parts/front_<variante>.json) ou
+# « sens » (front_sensibilite.csv + parts/front_sens.json). FRONT_VIEWS vide = tout en un seul passage, OCTET POUR OCTET
+# identique au comportement historique. scripts/front_parts.py réassemble les lots (surfaces « v » et sensibilité par date).
+FRONT_VIEWS = os.environ.get("FRONT_VIEWS", "").strip()
+FRONT_LOTS = [x.strip() for x in FRONT_VIEWS.split(",") if x.strip()]
+PARTS = os.path.join(ROOT, "parts")
+
 
 class WindowLayers:
     """Indicateurs de combat d'un pas récent : fenêtre glissante de WINDOW_DAYS jours finissant à la date du pas.
@@ -2575,6 +2584,54 @@ def encode_field(q, prevq):
     return base64.b64encode(bytes(out)).decode()
 
 
+def meta_js(meta):
+    """Sérialisation unique de site/front.js, partagée par main() et par front_parts.py (assemblage des lots).
+    Le réassemblage réinsère les surfaces des variantes (clé « v » par date) et la sensibilité, puis rappelle cette
+    fonction : le front.js reconstruit est alors OCTET POUR OCTET celui d'un passage unique."""
+    return "window.FRONT=" + json.dumps(meta, ensure_ascii=False, separators=(",", ":"),
+                                        default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o)) + ";"
+
+
+def write_manifest(lot, rels):
+    """Lot parallèle : liste des fichiers produits (chemins relatifs à la racine) dans parts/manifest_<lot>.txt."""
+    os.makedirs(PARTS, exist_ok=True)
+    with open(os.path.join(PARTS, f"manifest_{lot}.txt"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(rels) + "\n")
+
+
+def compute_sensitivity(model, P, sig0, v_km, layers, kstrength, fm, crimea, pre):
+    """Analyse de sensibilité : surfaces des quatre vues au dernier instantané pour neuf jeux de paramètres alternatifs.
+    Détachée du pipeline des vues (indépendante : ne lit que le modèle calibré). Rejouée telle quelle dans le lot « sens »."""
+    variants = [
+        ("défaut : camps à un tiers chacun", {}),
+        ("poids par source, sans équilibre des camps", {"camp_balance": False}),
+        ("sans enveloppes ni annonces des médias", {"proxies": False}),
+        ("sans indices de combats (α = 0)", {"alpha": 0.0}),
+        ("sans présence documentée (γ = 0)", {"gamma": 0.0}),
+        ("sans filtre temporel (β = 0)", {"beta": 0.0}),
+        ("σ0 doublés", {"sigma_scale": 2.0}),
+        ("vitesse du front doublée", {"v_scale": 2.0}),
+        ("sans vieillissement des sources (v = 0)", {"v_scale": 0.0}),
+    ]
+    sens = []
+    tail = fm[-13:] if not FAST else fm[-3:]
+    sfields = {"equilibre": (CAMPS, (), None), "ua": (("ua",), (), None), "ru": (("ru",), (), None), "tiers": (("tiers",), (), None)}
+    for name, ch in variants:
+        Pv = dict(P)
+        Pv.update(ch)
+        got = {}
+        model.run(Pv, sig0, v_km, layers, kstrength, tail, sfields,
+                  on_month=lambda m, inp, ps, mc: got.update(ps) if m == tail[-1] else None)
+        row = [name]
+        for f in ("equilibre", "ua", "ru", "tiers"):
+            met = model.metrics(got[f], crimea, pre)
+            row += [met["tout"][0], met["depuis2022"][0]]
+        row.append(model.metrics(got["equilibre"], crimea, pre)["tout"][2])
+        sens.append(row)
+        print(f"  sensibilité · {name} : {row[1]:,} km²", flush=True)
+    return sens
+
+
 def wanted_dates(months, cutoff_day):
     out = {}
     for m in months:
@@ -2873,14 +2930,77 @@ def main():
     sig0, mae, calib, slope = calibrate(model, sample, P)
     kstrength, kdetail = calibrate_claims(model, fm, P)
 
-    fields = {v: (camps, (), None) for v, camps in VIEWS.items()}
-    for name, spec in VARIANTS.items():
+    # spécification de champ (camps, sources retirées, changements de P) pour chaque variante « sans X »
+    def variant_field(spec):
         ch = {}
         if spec.get("presence") is False:
             ch["presence"] = False
         if spec.get("cues") is False:
             ch["cues"] = False
-        fields[name] = (CAMPS, tuple(spec.get("drop", ())), ch or None)
+        return (CAMPS, tuple(spec.get("drop", ())), ch or None)
+
+    # lots parallèles (FRONT_VIEWS) : « vues » = pipeline complet, variantes et sensibilité détachées (voir docs/ETAT.md § 8)
+    allowed = {"vues", "sens"} | set(VARIANTS)
+    bad = [x for x in FRONT_LOTS if x not in allowed]
+    if bad:
+        print(f"build_front.py : lot(s) inconnu(s) dans FRONT_VIEWS : {', '.join(bad)} ; attendus : {', '.join(sorted(allowed))}")
+        sys.exit(2)
+    do_vues = (not FRONT_LOTS) or ("vues" in FRONT_LOTS)
+    do_sens = (not FRONT_LOTS) or ("sens" in FRONT_LOTS)
+    want_variants = [v for v in VARIANTS if v in FRONT_LOTS]
+    if want_variants and do_vues:
+        print(f"build_front.py : lot « vues » demandé avec des variantes {want_variants} ; les variantes sont des lots séparés, ignorées ici")
+        want_variants = []
+
+    # ---------- lots détachés : variantes « sans X » et/ou sensibilité, sans le pipeline des vues ----------
+    if FRONT_LOTS and not do_vues:
+        order = list(months) + sorted(daily)
+
+        def fdate_lot(m):
+            return snap.get(m) or daily[m]
+        if want_variants:
+            vfields = {name: variant_field(VARIANTS[name]) for name in want_variants}
+            qv = {name: {} for name in want_variants}
+            sv = {name: {} for name in want_variants}
+
+            def on_variant(m, inp, ps, mcres):
+                for f, p in ps.items():
+                    met = model.metrics(p, crimea, pre)
+                    s = {k: met[k] for k in ("tout", "depuis2022")}
+                    s["grey_width_km"] = met["grey_width_km"]
+                    sv[f][fdate_lot(m).isoformat()] = s
+                    qv[f][m] = bytes(min(63, int(x * 63 + 0.5)) for x in p)
+            model.run(P, sig0, v_km, layers, kstrength, frames, vfields, on_month=on_variant, mc=False, side=None)
+            os.makedirs(PARTS, exist_ok=True)
+            for name in want_variants:
+                arr, prev = [], None
+                for key in order:
+                    q = qv[name].get(key)
+                    arr.append(None if q is None else encode_field(q, prev))
+                    prev = q if q is not None else prev
+                fjs = f"(window.FRONTP=window.FRONTP||{{}})[{json.dumps(name)}]=" + json.dumps(arr, separators=(",", ":")) + ";"
+                open(os.path.join(ROOT, "site", f"front_{name}.js"), "w").write(fjs)
+                json.dump({"v": sv[name]}, open(os.path.join(PARTS, f"front_{name}.json"), "w", encoding="utf-8"),
+                          ensure_ascii=False, separators=(",", ":"))
+                write_manifest(name, [f"site/front_{name}.js", f"parts/front_{name}.json"])
+                print(f"lot {name} : front_{name}.js + parts/front_{name}.json ({len(sv[name])} instantanés)", flush=True)
+        if do_sens:
+            sens = compute_sensitivity(model, P, sig0, v_km, layers, kstrength, fm, crimea, pre)
+            os.makedirs(PARTS, exist_ok=True)
+            json.dump(sens, open(os.path.join(PARTS, "front_sens.json"), "w", encoding="utf-8"),
+                      ensure_ascii=False, separators=(",", ":"))
+            with open(os.path.join(ROOT, "data", "front_sensibilite.csv"), "w", newline="") as fh:
+                w = csv.writer(fh)
+                w.writerow(["variante"] + [f"{v}_{p}_km2" for v in ("equilibre", "ua", "ru", "tiers") for p in ("tout", "depuis2022")] + ["zone_grise_km2"])
+                w.writerows(sens)
+            write_manifest("sens", ["data/front_sensibilite.csv", "parts/front_sens.json"])
+            print(f"lot sens : front_sensibilite.csv + parts/front_sens.json ({len(sens)} variantes)", flush=True)
+        return
+
+    fields = {v: (camps, (), None) for v, camps in VIEWS.items()}
+    if not FRONT_LOTS:   # passage unique : les variantes sont dans le même run (comportement historique, octet pour octet)
+        for name, spec in VARIANTS.items():
+            fields[name] = variant_field(spec)
 
     U = model.U
     months_out = {m: None for m in months}
@@ -3275,33 +3395,8 @@ def main():
     print(f"zone grise après bande locale ({fm[-1]}) : {lastm_lb['grey']['km2']:,} km², {lastm_lb['grey']['width_km']} km de large ; par strate {lastm_lb['grey'].get('strata')}", flush=True)
     dmc_meta = change_intervals(model, months, dk, months_out, days_out, fm, cons_area)
 
-    variants = [
-        ("défaut : camps à un tiers chacun", {}),
-        ("poids par source, sans équilibre des camps", {"camp_balance": False}),
-        ("sans enveloppes ni annonces des médias", {"proxies": False}),
-        ("sans indices de combats (α = 0)", {"alpha": 0.0}),
-        ("sans présence documentée (γ = 0)", {"gamma": 0.0}),
-        ("sans filtre temporel (β = 0)", {"beta": 0.0}),
-        ("σ0 doublés", {"sigma_scale": 2.0}),
-        ("vitesse du front doublée", {"v_scale": 2.0}),
-        ("sans vieillissement des sources (v = 0)", {"v_scale": 0.0}),
-    ]
-    sens = []
-    tail = fm[-13:] if not FAST else fm[-3:]
-    sfields = {"equilibre": (CAMPS, (), None), "ua": (("ua",), (), None), "ru": (("ru",), (), None), "tiers": (("tiers",), (), None)}
-    for name, ch in variants:
-        Pv = dict(P)
-        Pv.update(ch)
-        got = {}
-        model.run(Pv, sig0, v_km, layers, kstrength, tail, sfields,
-                  on_month=lambda m, inp, ps, mc: got.update(ps) if m == tail[-1] else None)
-        row = [name]
-        for f in ("equilibre", "ua", "ru", "tiers"):
-            met = model.metrics(got[f], crimea, pre)
-            row += [met["tout"][0], met["depuis2022"][0]]
-        row.append(model.metrics(got["equilibre"], crimea, pre)["tout"][2])
-        sens.append(row)
-        print(f"  sensibilité · {name} : {row[1]:,} km²", flush=True)
+    # sensibilité : calculée ici dans le passage unique ; dans un lot « vues » parallèle elle est détachée (lot « sens »)
+    sens = compute_sensitivity(model, P, sig0, v_km, layers, kstrength, fm, crimea, pre) if do_sens else []
 
     # ---------- écriture ----------
     runs, last, n = bytearray(), None, 0
@@ -3396,9 +3491,9 @@ def main():
     }
     if hist_meta:
         meta["hist"] = hist_meta
-    # valeurs numpy (σ local, zone de contact, z) converties en types natifs
-    js = "window.FRONT=" + json.dumps(meta, ensure_ascii=False, separators=(",", ":"),
-                                      default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o)) + ";"
+    # valeurs numpy (σ local, zone de contact, z) converties en types natifs. Dans un lot « vues » parallèle, les surfaces
+    # des variantes (mo["v"]) et la sensibilité sont vides ici : front_parts.py les réinsère par date et rappelle meta_js.
+    js = meta_js(meta)
     open(os.path.join(ROOT, "site", "front.js"), "w", encoding="utf-8").write(js)
     digests = {}
     for f in allf:
@@ -3423,29 +3518,44 @@ def main():
         w = csv.writer(fh)
         w.writerow(["p_predite", "part_occupee_selon_source_retiree", "n_mailles"])
         w.writerows(calib)
-    with open(os.path.join(ROOT, "data", "front_sensibilite.csv"), "w", newline="") as fh:
-        w = csv.writer(fh)
-        w.writerow(["variante"] + [f"{v}_{p}_km2" for v in ("equilibre", "ua", "ru", "tiers") for p in ("tout", "depuis2022")] + ["zone_grise_km2"])
-        w.writerows(sens)
-    page = os.path.join(ROOT, "site", "index.html")
-    s = open(page, encoding="utf-8").read()
-    s2 = re.sub(r'src="front\.js(\?v=[\w-]+)?"', f'src="front.js?v={hashlib.sha1(js.encode()).hexdigest()[:10]}"', s)
-    s2 = re.sub(r'src="front_equilibre\.js(\?v=[\w-]+)?"', f'src="front_equilibre.js?v={digests["equilibre"]}"', s2)
-    s2 = re.sub(r'src="front_nowcast\.js(\?v=[\w-]+)?"', f'src="front_nowcast.js?v={digests["nowcast"]}"', s2)
-    s2 = re.sub(r'src="front_contact\.js(\?v=[\w-]+)?"', f'src="front_contact.js?v={digests["contact"]}"', s2)
-    s2 = re.sub(r'const FRONT_V = \{[^}]*\}', "const FRONT_V = " + json.dumps(digests), s2)
-    if s2 != s:
-        open(page, "w", encoding="utf-8").write(s2)
+    if do_sens:   # dans un lot « vues » pur, la sensibilité est le lot « sens » (CSV + parts/front_sens.json détachés)
+        with open(os.path.join(ROOT, "data", "front_sensibilite.csv"), "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["variante"] + [f"{v}_{p}_km2" for v in ("equilibre", "ua", "ru", "tiers") for p in ("tout", "depuis2022")] + ["zone_grise_km2"])
+            w.writerows(sens)
+    if not FRONT_LOTS:
+        # passage unique : empreinte anti-cache de index.html ici (stamp.py la referait ; gardée pour l'identité octet)
+        page = os.path.join(ROOT, "site", "index.html")
+        s = open(page, encoding="utf-8").read()
+        s2 = re.sub(r'src="front\.js(\?v=[\w-]+)?"', f'src="front.js?v={hashlib.sha1(js.encode()).hexdigest()[:10]}"', s)
+        s2 = re.sub(r'src="front_equilibre\.js(\?v=[\w-]+)?"', f'src="front_equilibre.js?v={digests["equilibre"]}"', s2)
+        s2 = re.sub(r'src="front_nowcast\.js(\?v=[\w-]+)?"', f'src="front_nowcast.js?v={digests["nowcast"]}"', s2)
+        s2 = re.sub(r'src="front_contact\.js(\?v=[\w-]+)?"', f'src="front_contact.js?v={digests["contact"]}"', s2)
+        s2 = re.sub(r'const FRONT_V = \{[^}]*\}', "const FRONT_V = " + json.dumps(digests), s2)
+        if s2 != s:
+            open(page, "w", encoding="utf-8").write(s2)
+    else:
+        # lot « vues » : les sorties produites, pour l'assemblage (front_parts.py). L'index et FRONT_V seront refaits par stamp.py.
+        rels = ["site/front.js"] + [f"site/front_{f}.js" for f in allf] + ["site/front_mcsd.js",
+                "data/front_areas.csv", "data/front_calibration.csv"]
+        write_manifest("vues", rels)
+        if do_sens:
+            os.makedirs(PARTS, exist_ok=True)
+            json.dump(sens, open(os.path.join(PARTS, "front_sens.json"), "w", encoding="utf-8"),
+                      ensure_ascii=False, separators=(",", ":"))
+            write_manifest("sens", ["data/front_sensibilite.csv", "parts/front_sens.json"])
+        print(f"lot vues : {len(rels)} fichiers + parts/manifest_vues.txt", flush=True)
     lastm = [mo for mo in mlist if mo][-1]
     a = lastm["a"]["equilibre"]["tout"]
     print(f"front.js : {len(js) // 1024} Ko · {lastm['date']} : {a[0]:,} km² (95 % {lastm['mc']['tout'][0]:,}–{lastm['mc']['tout'][1]:,}) · "
           f"zone grise {lastm['grey']['km2']:,} km² ({lastm['grey']['width_km']} km) · σ0 {meta['sigma0']} · noyaux {meta['claimStrength']}")
     # indicateur INTERNE de dépendance aux cartes (non publié ; suivi version par version dans docs/ETAT.md)
-    try:
-        import map_dependence
-        print("KPI principal, information hors cartes (a, à faire monter ; interne) : " + json.dumps(map_dependence.summary(map_dependence.measures(os.path.join(ROOT, "site"))), ensure_ascii=False))
-    except Exception as e:  # noqa: BLE001 (diagnostic seulement, ne bloque pas le build)
-        print(f"dépendance aux cartes : non calculée ({e})")
+    if not FRONT_LOTS:   # nécessite tous les champs (variantes comprises) ; sauté dans un lot parallèle
+        try:
+            import map_dependence
+            print("KPI principal, information hors cartes (a, à faire monter ; interne) : " + json.dumps(map_dependence.summary(map_dependence.measures(os.path.join(ROOT, "site"))), ensure_ascii=False))
+        except Exception as e:  # noqa: BLE001 (diagnostic seulement, ne bloque pas le build)
+            print(f"dépendance aux cartes : non calculée ({e})")
 
 
 if __name__ == "__main__":
