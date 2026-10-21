@@ -165,7 +165,8 @@ def champ(CH, choice, lams, rho, decs=None, perm_seed=None):
 
 
 def ecrire(dF, rho):
-    """Fichiers du champ de fusion au jour : site/front_hist_<année>_fusion.js =
+    """Fichiers du champ de fusion au jour (SORTIE DÉDIÉE, parallèle : n'écrase ni les vues en ligne ni l'historique
+    des cartes `front_hist_<année>*.js`) : site/front_fusion_hist_<année>.js =
         (window.FRONT_FUSION_HIST=window.FRONT_FUSION_HIST||{})["<année>"] = {keys, rho, months: [{date, a}]} ;
         (window.FRONTH=window.FRONTH||{})["<année>/fusion"] = [...]   (même codage, mêmes clés que front_hist_<année>.js)
     Hors de Z : champ des cartes du jour ; bande russe : nowcast du jour (domaine validé de la fusion = l'Ukraine)."""
@@ -195,7 +196,7 @@ def ecrire(dF, rho):
             prev = qq
             metas.append({"date": key, "a": areas(p)})
         head = json.dumps({"keys": H["keys"], "rho": rho, "months": metas}, ensure_ascii=False, separators=(",", ":"))
-        path = os.path.join(SITE, f"front_hist_{Y}_fusion.js")
+        path = os.path.join(SITE, f"front_fusion_hist_{Y}.js")
         with open(path, "w", encoding="utf-8") as f:
             f.write(f'(window.FRONT_FUSION_HIST=window.FRONT_FUSION_HIST||{{}})["{Y}"]=' + head + ";\n")
             f.write(f'(window.FRONTH=window.FRONTH||{{}})["{Y}/fusion"]=' + json.dumps(arr, separators=(",", ":")) + ";\n")

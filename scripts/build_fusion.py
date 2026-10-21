@@ -249,6 +249,23 @@ def main():
     sz = [os.path.getsize(os.path.join(SITE, f)) // 1024 for f in ("front_fusion.js", "fusion_explain.js")]
     log(f"écrit site/front_fusion.js ({sz[0]} Ko) et site/fusion_explain.js ({sz[1]} Ko) ; durée totale {time.time() - T0:.0f} s")
 
+    # ---------- fusion QUOTIDIENNE (option, docs/ETAT.md § 6, 21/10/2026) ----------
+    # Champ de fusion RÉANCRÉ au jour (loi de δ, bande et paramètres du mois de référence t appris en walk-forward
+    # strict ; ligne des cartes DU JOUR), 2022-03-01 → J-1, un fichier PAR ANNÉE en SORTIE DÉDIÉE parallèle
+    # (site/front_fusion_hist_<année>.js) : n'écrase ni les vues en ligne ni l'historique des cartes. NE BASCULE PAS la
+    # vue par défaut. Mesuré ≥ fusion v3 mensuelle en Brier (≤ 30 km ET mailles qui changent, 2023-24 et 2025-26) ;
+    # avance sur les bascules non strictement meilleure (cf. rapport) → sortie parallèle, pas de bascule du défaut.
+    # Entrées : site/front_hist_<année>*.js publiés par build_front.py (HIST=jours).
+    if os.environ.get("FUSION_HIST") == "jours":
+        from fusion import decades as DEC
+        if not DEC.disponible():
+            log("fusion quotidienne : site/front_hist_<année>*.js absents (HIST=jours non publié) — ignoré")
+        else:
+            rho = float(os.environ.get("FUSION_HIST_RHO", "0.0"))   # ρ·ΔY sans effet (ΔY médian ≈ 0) ; 0 = réancré au jour
+            dF = DEC.champ(CH, choice, lams, rho)
+            idx = DEC.ecrire(dF, rho)
+            log(f"fusion quotidienne : {len(dF)} jours, écrit site/front_fusion_hist_<année>.js : {idx}")
+
 
 if __name__ == "__main__":
     main()
