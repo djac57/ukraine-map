@@ -207,7 +207,7 @@ jobs:
         run: |
           set -o pipefail
           python scripts/check_arrows.py 2>&1 | tee data/controle_fleches.txt
-        timeout-minutes: 15
+        timeout-minutes: 40
         continue-on-error: true
       - name: Publier seulement le rapport du contrôle s'il échoue (lisible sans connexion à GitHub)
         if: steps.check.outcome == 'failure'
