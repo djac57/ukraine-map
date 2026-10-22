@@ -2763,7 +2763,9 @@ function updateArea(){
   }
   const fi = frontIdx(), el = $("areaBox");
   if (fi < 0) { el.innerHTML = `<div style="grid-column:1/-1"><span class="na">front : pas d'instantané pour ce mois</span></div>`; return; }
-  const mo = FR.months[fi], a = mo.a[amode()], sh = v => (v / UA_KM2 * 100).toFixed(1).replace(".", ",") + "\u00a0%";
+  // l'aire de la vue active peut manquer (ex. aire \u00ab fusion \u00bb non calcul\u00e9e pour un mois) : repli sur l'\u00e9quilibr\u00e9e, puis garde dur
+  const mo = FR.months[fi], a = mo.a[amode()] || mo.a.equilibre, sh = v => (v / UA_KM2 * 100).toFixed(1).replace(".", ",") + "\u00a0%";
+  if (!a || !a.tout) { el.innerHTML = `<div style="grid-column:1/-1"><span class="na">front : pas d'instantan\u00e9 pour ce mois</span></div>`; return; }
   const r10 = v => fmt(Math.round(v/10)*10), mc = mcOf(mo), eq = fmode === "equilibre";
   const crimea = a.tout[0] - a.horsCrimee[0], pre = a.horsCrimee[0] - a.depuis2022[0];
   el.innerHTML = `<div>occupé au ${dateFr(mo.date)} · ${MODEN[amode()]}<b>${r10(a.tout[0])} km²</b>${sh(a.tout[0])} de l'Ukraine · ` +
@@ -2778,7 +2780,9 @@ function lineChart(el, rows, opt){
   const x = d3.scaleBand().domain(d3.range(NM)).range([m.l, w-m.r]).paddingInner(0.18), cx = i => x(i) + x.bandwidth()/2;
   // abscisse d'un instantané : mois au centre de sa bande ; pas récent à sa place dans le mois
   const fx = fi => { if (fi < 0) return cx(0) - x.step() * 0.5;   // point d'avant-guerre (23/02/2022), juste avant le premier mois
-    if (fi < NMF) return cx(fi) + x.step() / 2;   // instantané de FIN de mois : bord droit de sa bande (il touche le mois suivant) const d = FR.months[fi].date, mi = D.months.indexOf(d.slice(0, 7)), nd = new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate();
+    if (fi < NMF) return cx(fi) + x.step() / 2;   // instantané de FIN de mois : bord droit de sa bande (il touche le mois suivant)
+    // pas récent (sous-mensuel) : positionné dans sa bande selon le jour du mois
+    const d = FR.months[fi].date, mi = D.months.indexOf(d.slice(0, 7)), nd = new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate();
     return cx(mi) + ((+d.slice(8, 10) - 0.5) / nd - 0.5) * x.step(); };
   const ext = d3.extent(rows.flatMap(r => r.slice(1).filter(v => v != null)));
   const y = d3.scaleLinear().domain(opt.zero ? [0, ext[1] * 1.05] : [ext[0] * 0.98, ext[1] * 1.01]).nice().range([h-m.b, m.t]);
