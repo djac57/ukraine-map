@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qui avait raison ?</title>
+<meta name="description" content="Une carte du front pilotée par les données, pas par des analystes. Mesuré sur 3 766 bascules de territoire : notre algorithme voit les changements de ligne avant les cartes de référence.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0d0c'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23f2a33a' stroke-width='1.6' stroke-dasharray='3 2.2'/%3E%3Cpath d='M16 3v6M16 23v6M3 16h6M23 16h6' stroke='%23f2a33a' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='3.2' fill='%23ff5a1f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=a630af4435">
+<script>try{var _t=localStorage.getItem('uaf-theme');if(_t)document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
+<style>
+  .hero{padding:34px 0 8px}
+  .hero h1{font-size:clamp(28px,5vw,48px);line-height:1.05;margin:0 0 14px;font-weight:600;letter-spacing:-.01em}
+  .tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:26px 0}
+  .tiles>div{background:var(--bg);padding:16px 14px}
+  .tiles b{display:block;font-size:clamp(26px,4vw,38px);color:var(--accent);font-weight:600;line-height:1;letter-spacing:-.02em}
+  .tiles span{display:block;font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.4}
+  @media(max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}}
+  .block{margin:48px 0 0}
+  .block h2{font-size:clamp(20px,3vw,26px);margin:0 0 6px;font-weight:600;letter-spacing:-.01em}
+  figure{margin:20px 0 0}
+  figure figcaption{font-size:12.5px;color:var(--faint);margin-top:10px;max-width:640px;line-height:1.5}
+  .bar-name{font:500 14px "Inter Tight",sans-serif;fill:var(--ink)}
+  .bar-val{font:600 14px "JetBrains Mono",monospace;fill:var(--ink)}
+  .bar-val.us{fill:var(--accent)}
+  .seclist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:18px 0 0}
+  .seclist>div{background:var(--bg);padding:14px}
+  .seclist .big{font-size:24px;font-weight:600;color:var(--accent);line-height:1}
+  .seclist h4{margin:0 0 6px;font:500 12px "JetBrains Mono",monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+  .seclist p{margin:8px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45}
+  @media(max-width:720px){.seclist{grid-template-columns:1fr}}
+  .why{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin:20px 0 0}
+  .why h4{margin:0 0 6px;font-size:15px;font-weight:600;color:var(--ink)}
+  .why p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.5}
+  @media(max-width:720px){.why{grid-template-columns:1fr;gap:16px}}
+  .method{border-left:3px solid var(--accent);padding:10px 14px;margin:40px 0 0;font-size:13px;color:var(--muted);line-height:1.6;max-width:760px}
+  .method b{color:var(--ink);font-weight:600}
+  footer{margin:48px 0 40px;padding-top:16px;border-top:1px solid var(--rule);font-size:13px;color:var(--faint)}
+  footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><span><a href="index.html" style="color:inherit">← la carte</a> · qui avait raison ?</span><button class="btn" id="theme" type="button" aria-label="Changer de thème">◐ thème</button></header>
+
+<section class="hero">
+  <p class="kicker">Algorithme propriétaire · piloté par les données</p>
+  <h1>Qui a vu le front bouger en premier&nbsp;?</h1>
+  <p class="dek">Toutes les cartes du front sont tracées par des analystes qui décident quoi croire. La nôtre est un algorithme&nbsp;: il pondère chaque source selon sa justesse <em>mesurée sur le passé</em>. Aucun camp, aucune interprétation humaine, aucun sentiment — des signaux, des poids appris, rien d'autre. Voici le résultat, chiffré.</p>
+</section>
+
+<div class="tiles">
+  <div><b>49&nbsp;%</b><span>des changements de ligne vus <strong>avant</strong> les cartes — plus que n'importe quelle carte seule.</span></div>
+  <div><b>+20&nbsp;j</b><span>d'avance médiane sur le <strong>front actuel</strong> (2025-26), là où tout se joue.</span></div>
+  <div><b>+122&nbsp;j</b><span>Vivaldi détecté par les <strong>signaux physiques</strong> (satellite), hors cartes, avant que les cartes l'actent.</span></div>
+  <div><b>0</b><span>ressenti, 0 parti pris. Une méthode reproductible, testée sans regarder le futur.</span></div>
+</div>
+
+<section class="block">
+  <h2>Les premiers à voir la bascule</h2>
+  <p class="sub">Sur chaque maille de 2&nbsp;km qui change de camp, qui est passé du bon côté le premier&nbsp;? Part des bascules vues avant le consensus des cartes.</p>
+  <figure>
+    <svg viewBox="0 0 700 300" width="100%" role="img" aria-label="Part des bascules de territoire vues en premier, par source : notre algorithme 49 %, DeepStateMap 41 %, témoin au hasard 30 %, ISW 25 %, Wikipédia 24 %.">
+      <defs>
+        <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="6" height="6" fill="rgba(var(--grey-rgb),.28)"/>
+          <rect width="2.4" height="6" fill="rgba(var(--grey-rgb),.6)"/>
+        </pattern>
+      </defs>
+      <!-- échelle : 8 px / %, origine x=176 -->
+      <!-- grille 25 % et 50 % -->
+      <line x1="376" y1="20" x2="376" y2="268" stroke="var(--rule)" stroke-width="1"/>
+      <line x1="576" y1="20" x2="576" y2="268" stroke="var(--rule)" stroke-width="1"/>
+      <text x="376" y="286" text-anchor="middle" class="tick">25 %</text>
+      <text x="576" y="286" text-anchor="middle" class="tick">50 %</text>
+
+      <g><title>Notre algorithme — 49 % des bascules vues avant les cartes</title>
+        <text x="168" y="40" text-anchor="end" class="bar-name" style="font-weight:600">Notre algo</text>
+        <rect x="176" y="26" width="392" height="26" rx="4" fill="var(--accent)"/>
+        <text x="576" y="44" class="bar-val us">49 %</text></g>
+
+      <g><title>DeepStateMap — 41 %</title>
+        <text x="168" y="88" text-anchor="end" class="bar-name">DeepStateMap</text>
+        <rect x="176" y="74" width="328" height="26" rx="4" fill="rgba(var(--grey-rgb),.5)"/>
+        <text x="512" y="92" class="bar-val">41 %</text></g>
+
+      <g><title>Témoin placebo (mêmes écarts, sens tiré au hasard) — 30 %</title>
+        <text x="168" y="136" text-anchor="end" class="bar-name" style="fill:var(--faint)">Témoin (hasard)</text>
+        <rect x="176" y="122" width="240" height="26" rx="4" fill="url(#hatch)" stroke="rgba(var(--grey-rgb),.5)" stroke-width="1"/>
+        <text x="424" y="140" class="bar-val" style="fill:var(--faint)">30 %</text></g>
+
+      <g><title>Institute for the Study of War — 25 %</title>
+        <text x="168" y="184" text-anchor="end" class="bar-name">ISW</text>
+        <rect x="176" y="170" width="200" height="26" rx="4" fill="rgba(var(--grey-rgb),.5)"/>
+        <text x="384" y="188" class="bar-val">25 %</text></g>
+
+      <g><title>Wikipédia — 24 %</title>
+        <text x="168" y="232" text-anchor="end" class="bar-name">Wikipédia</text>
+        <rect x="176" y="218" width="192" height="26" rx="4" fill="rgba(var(--grey-rgb),.5)"/>
+        <text x="376" y="236" class="bar-val">24 %</text></g>
+    </svg>
+    <figcaption>Sur <b>3&nbsp;766 bascules de territoire</b>, 2023-2026. Le témoin placebo — mêmes écarts, mais le sens tiré au hasard — reste à 30&nbsp;%&nbsp;: notre avance est un <strong>signal, pas du bruit</strong>.</figcaption>
+  </figure>
+</section>
+
+<section class="block">
+  <h2>Sur le front qui compte aujourd'hui</h2>
+  <p class="sub">L'avantage se creuse là où ça bouge maintenant. Sur le régime récent (2025-26), nous voyons la bascule en premier dans <strong>54&nbsp;% des cas, contre 36&nbsp;% pour DeepStateMap</strong>.</p>
+  <div class="seclist">
+    <div><h4>Pokrovsk / Kourakhove</h4><span class="big">+31 j</span><p>d'avance médiane sur DeepStateMap ; 66&nbsp;% des bascules vues avant elle. Notre meilleur secteur.</p></div>
+    <div><h4>Kostiantynivka / Toretsk</h4><span class="big">+36 j</span><p>d'avance sur le consensus des cartes ; 65&nbsp;% des bascules vues avant.</p></div>
+    <div><h4>Vivaldi (nord de Lyman)</h4><span class="big">+122 j</span><p>la reprise ukrainienne vue par les impacts satellite <strong>hors cartes</strong> avant que les cartes l'actent (+30&nbsp;j par la fusion).</p></div>
+  </div>
+</section>
+
+<section class="block">
+  <h2>Pourquoi c'est différent</h2>
+  <div class="why">
+    <div><h4>Pas d'opinion</h4><p>Chaque carte — ukrainienne, russe, tierce — n'est qu'un <em>témoin</em>, pondéré par sa justesse passée, pas par qui la publie. Le modèle ne prend aucun parti.</p></div>
+    <div><h4>Des signaux physiques</h4><p>Feux, pertes de matériel géolocalisées, impacts détectés par satellite Sentinel-2, combats au sol&nbsp;: ce que les cartes ne regardent pas, et ce qui permet de voir avant.</p></div>
+    <div><h4>Testé sur le passé</h4><p>Walk-forward strict, publication à J-1, aucune information postérieure à la date jugée. Chaque chiffre est reproductible.</p></div>
+  </div>
+</section>
+
+<p class="method"><b>Méthode.</b> 3&nbsp;766 bascules de maille appariées (2&nbsp;km, 2023→2026), vérité&nbsp;= consensus des cartes de référence (DeepStateMap, ISW, Wikipédia). Avance&nbsp;= date à laquelle le consensus acte la bascule moins la date à laquelle nous l'avions. Face à DeepStateMap seule, la carte la plus précoce, nous sommes à parité sur l'ensemble et nettement devant sur le front récent. Détail complet, secteurs où nous sommes en retard, et limites&nbsp;: <a href="methode.html">méthode et sources</a>.</p>
+
+<footer>
+  <p><a href="index.html">← revenir à la carte</a> · <a href="methode.html">méthode et sources</a></p>
+</footer>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  function sysDark(){try{return matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){return false;}}
+  var btn=document.getElementById('theme');
+  if(btn)btn.onclick=function(){
+    var now=root.getAttribute('data-theme')||(sysDark()?'dark':'light');
+    var next=now==='dark'?'light':'dark';
+    root.setAttribute('data-theme',next);
+    try{localStorage.setItem('uaf-theme',next);}catch(e){}
+  };
+})();
+</script>
+<script data-goatcounter="https://ukraine-map.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body>
+</html>
