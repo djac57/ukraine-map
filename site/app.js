@@ -117,7 +117,11 @@ let showContact = !!(document.getElementById("lyrContact") && document.getElemen
 // vue « moteur de fusion (test) » (front_fusion.js, scripts/build_fusion.py) : prioritaire sur le nowcast quand elle est cochée
 let fusionOn = !!(document.getElementById("lyrFusion") && document.getElementById("lyrFusion").checked), FUSX = null;   // modèle unique : fusion par défaut (20/10/2026)
 const amode = () => fmode === "equilibre" && !fvar && fusionOn && window.FRONT_FUSION ? "fusion" : fmode === "equilibre" && !fvar && nowcastOn && FR.nowcast ? "nowcast" : fmode;
-const fieldName = () => fvar || amode();
+// ---------- replay quotidien (vue dédiée, données front_fusion_hist_<année>.js chargées à la demande) ----------
+// état isolé ; quand REPLAY.on, le champ affiché est REPLAY.field (sur UCELLS), à l'indice fixe REPLAY.fi
+const REPLAY = {on: false, fi: 0, field: null, fieldArr: [null], years: Object.create(null),
+  gran: "m", raw: false, idx: 0, monthAxis: null, dayAxis: null, saved: null, timer: null, bar: null, btn: null};
+const fieldName = () => REPLAY.on ? "__replay" : (fvar || amode());
 const mcOf = mo => amode() === "fusion" && mo.mcFus ? mo.mcFus : amode() === "nowcast" && mo.mcNow ? mo.mcNow : mo.mc;
 const BASEMAP_V = "7934ff79a1";
 let showBase = !!(document.getElementById("lyrBase") && document.getElementById("lyrBase").checked), baseGeo = null;
@@ -156,7 +160,7 @@ for (let i = (AX.length ? AX[AX.length - 1].m + 1 : 0); i < NM; i++) if (!firstD
 let stepIdx = AX.length - 1;
 const lastFront = FR.months.reduce((a, m, i) => m ? i : a, -1);
 // après le dernier instantané (règle J-1), on garde le dernier front connu plutôt qu'une carte vide
-const frontIdx = () => { const a = AX[stepIdx]; if (!a) return -1; if (a.f >= 0) return a.f;
+const frontIdx = () => { if (REPLAY.on) return REPLAY.fi; const a = AX[stepIdx]; if (!a) return -1; if (a.f >= 0) return a.f;
   return stepIdx > AX.findIndex(x => x.f === lastFront) ? lastFront : -1; };
 // ouverture : le mois en cours (dernier pas) ; le front affiché y est le dernier instantané connu (règle J-1)
 // instantané le plus récent daté au plus tard (date de fi) − jours (+ 3 jours de tolérance) : pour les vitesses
@@ -199,6 +203,7 @@ function buildCombo(view){
   return out;
 }
 function viewFields(view){
+  if (view === "__replay") return REPLAY.fieldArr;
   if (fieldCache[view]) return fieldCache[view];
   if (isCombo(view)) { const F = buildCombo(view); if (F) fieldCache[view] = F; return F; }
   const enc = window.FRONTP && window.FRONTP[view]; if (!enc) return null;
@@ -2102,6 +2107,166 @@ $("play").onclick = () => {
 };
 if ($("speed")) $("speed").onchange = () => { if (timer) { clearInterval(timer); timer = setInterval(playTick, playMs()); } };
 if ($("gran")) $("gran").onchange = () => { if (timer) { stop(); $("play").click(); } };
+
+// ======================= replay quotidien =======================
+// Rejoue toute la guerre jour par jour : charge front_fusion_hist_<année>.js à la demande (par année), vue mensuelle
+// par défaut, champ lissé (moyenne glissante causale) pour éviter le scintillement du réancrage quotidien, avec une
+// option « ce que le modèle savait ce jour-là » qui montre le champ brut réancré de chaque jour (walk-forward strict).
+let rpSavedSlider = null, rpSavedPlay = null;
+// décodage RLE (même format que viewFields / FRONTP) : un Uint8Array sur UCELLS par jour, chaîné sur le précédent
+function replayDecode(enc){
+  const out = []; let prev = new Uint8Array(UCELLS.length);
+  for (const e of enc) {
+    if (!e) { out.push(null); continue; }
+    const b = atob(e), q = new Uint8Array(UCELLS.length); let o = 0, i = 0;
+    while (i < b.length) { const v = b.charCodeAt(i++); let n = 0, sh = 0, c; do { c = b.charCodeAt(i++); n |= (c & 127) << sh; sh += 7; } while (c & 128);
+      if (v === 255) q.set(prev.subarray(o, o + n), o); else q.fill(v, o, o + n); o += n; }
+    out.push(q); prev = q;
+  }
+  return out;
+}
+function replayBuildAxis(){
+  REPLAY.monthAxis = D.months.filter(m => m >= "2022-03");          // un pas par mois (défaut)
+  const days = [], end = new Date((D.lastDay || (REPLAY.monthAxis[REPLAY.monthAxis.length - 1] + "-28")) + "T00:00:00Z");
+  for (let d = new Date("2022-03-01T00:00:00Z"); d <= end; d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10));
+  REPLAY.dayAxis = days;                                            // un pas par jour calendaire (option)
+}
+const replayAxis = () => REPLAY.gran === "d" ? REPLAY.dayAxis : REPLAY.monthAxis;
+// borne haute de recherche pour un pas (mois « YYYY-MM » → fin de mois ; jour « YYYY-MM-DD » → le jour même)
+const replayUpper = i => { const e = replayAxis()[i]; return e.length === 7 ? e + "-31" : e; };
+function replayEnsureYear(y, cb){
+  const st = REPLAY.years[y] || (REPLAY.years[y] = {state: 0, cbs: []});
+  if (st.state === 2 || st.state === 3) return cb && cb(st);
+  st.cbs.push(cb);
+  if (st.state === 1) return;
+  st.state = 1;
+  const sc = document.createElement("script");
+  sc.src = "front_fusion_hist_" + y + ".js?v=" + (FRONT_V.fusion || "");
+  sc.onerror = () => { st.state = 3; st.cbs.splice(0).forEach(f => f && f(st)); };
+  sc.onload = () => {
+    const H = window.FRONT_FUSION_HIST && window.FRONT_FUSION_HIST[y], enc = window.FRONTH && window.FRONTH[y + "/fusion"];
+    if (!H || !enc) { st.state = 3; } else { st.keys = H.keys; st.surf = H.months; st.fields = replayDecode(enc); st.state = 2; }
+    st.cbs.splice(0).forEach(f => f && f(st));
+  };
+  document.head.appendChild(sc);
+}
+// indice du dernier jour ≤ borne (keys triées croissant)
+function replaySnap(st, upper){ let best = 0; for (let i = 0; i < st.keys.length; i++) { if (st.keys[i] <= upper) best = i; else break; } return best; }
+// champ affiché : brut (option « ce que le modèle savait ») ou moyenne glissante causale (lissé, défaut)
+function replayFieldAt(st, j){
+  const W = REPLAY.raw ? 1 : (REPLAY.gran === "d" ? 7 : 21);
+  if (W <= 1 || !st.fields[j]) return st.fields[j];
+  const N = UCELLS.length, acc = new Float32Array(N); let cnt = 0;
+  for (let k = Math.max(0, j - W + 1); k <= j; k++) { const f = st.fields[k]; if (!f) continue; for (let u = 0; u < N; u++) acc[u] += f[u]; cnt++; }
+  if (!cnt) return st.fields[j];
+  const q = new Uint8Array(N); for (let u = 0; u < N; u++) q[u] = Math.round(acc[u] / cnt);
+  return q;
+}
+function replayPaint(){
+  const i = REPLAY.idx, e = replayAxis()[i], upper = replayUpper(i), y = upper.slice(0, 4), st = REPLAY.years[y];
+  const label = e.length === 7 ? monthName(e.slice(0, 4), e.slice(5, 7)) : (([Y, M, Dd]) => dayName(Y, M, Dd))(e.split("-"));
+  if (!st || st.state === 1) { $("mLabel").textContent = _t("replay · chargement {y}…", {y}); $("mSub").innerHTML = label; return; }
+  if (st.state === 3 || !st.keys || !st.keys.length) { $("mLabel").textContent = label; $("mSub").innerHTML = _t("replay : données indisponibles pour {y}", {y}); return; }
+  const j = replaySnap(st, upper);
+  REPLAY.field = replayFieldAt(st, j); REPLAY.fieldArr[0] = REPLAY.field;
+  frontFor = -2;                                                    // forcer la reconstruction du champ (indice fixe)
+  draw();
+  const a = st.surf[j] && st.surf[j].a, occ = a && a.tout ? Math.round(a.tout[0] / 100) * 100 : null;
+  $("mLabel").textContent = label;
+  $("mSub").innerHTML = (occ != null ? _t("{v} km² occupés", {v: fmt(occ)}) : "")
+    + (REPLAY.raw ? " · " + _t("champ du jour (brut)") : " · " + _t("lissé"));
+}
+function replayShow(i){
+  REPLAY.idx = Math.max(0, Math.min(replayAxis().length - 1, i)); slider.value = REPLAY.idx;
+  const y = replayUpper(REPLAY.idx).slice(0, 4);
+  replayEnsureYear(y, () => { if (REPLAY.on) replayPaint(); });     // (re)dessine une fois l'année chargée
+  const ny = replayUpper(Math.min(replayAxis().length - 1, REPLAY.idx + 1)).slice(0, 4);
+  if (ny !== y) replayEnsureYear(ny, null);                         // préchargement de l'année suivante (lecture fluide)
+  replayPaint();
+}
+function replayStop(){ if (REPLAY.timer) { clearInterval(REPLAY.timer); REPLAY.timer = null; } $("play").textContent = playLabel(); }
+function replayPlay(){
+  if (REPLAY.timer) return replayStop();
+  if (REPLAY.idx >= replayAxis().length - 1) REPLAY.idx = 0;
+  $("play").textContent = pauseLabel();
+  const tick = () => { if (REPLAY.idx >= replayAxis().length - 1) { replayShow(REPLAY.idx); return replayStop(); } replayShow(REPLAY.idx + 1); };
+  tick(); REPLAY.timer = setInterval(tick, playMs());
+}
+function replayToggle(on){
+  if (on === REPLAY.on) return;
+  REPLAY.on = on;
+  const panel = $("panel");
+  if (on){
+    stop(); replayStop();
+    // sauvegarde de l'état des couches (restauré à la sortie du replay)
+    REPLAY.saved = {fvar, showFront, showLines, step: stepIdx, sliderMax: slider.max, dsm: rawOn.dsm, isw: rawOn.isw, wiki: rawOn.wiki,
+      showContact, showUnc, showAsym, showDestr, showCombat, showArrows, showTg, showFire, showLoss, showUcdp, showArcs, showImp, showAdv, showPm, showClaims, showStates};
+    // le replay ne montre que le champ de contrôle fusionné : toutes les autres couches sont neutralisées
+    showContact = showUnc = showAsym = showDestr = showCombat = showArrows = showTg = showFire = false;
+    showLoss = showUcdp = showArcs = showImp = showAdv = showPm = showClaims = showStates = false;
+    rawOn.dsm = rawOn.isw = rawOn.wiki = false; fvar = null; showFront = true; showLines = true;
+    // décocher (sans déclencher onchange) les cases des couches neutralisées, et accorder la légende
+    REPLAY.saved.cbs = {};
+    ["lyrContact","lyrUnc","lyrAsym","lyrDestr","lyrCombat","lyrArrows","lyrTg","lyrFire","lyrLoss","lyrUcdp","lyrArcs","lyrImp","lyrAdv","lyrPm","lyrClaims","lyrStates"]
+      .forEach(cid => { const cb = document.getElementById(cid); if (cb) { REPLAY.saved.cbs[cid] = cb.checked; cb.checked = false; } });
+    REPLAY.saved.rawcb = [...document.querySelectorAll("input[data-raw]")].map(cb => { const v = cb.checked; cb.checked = false; return [cb, v]; });
+    syncMapLegend();
+    if (panel) { panel.open = false; panel.style.pointerEvents = "none"; panel.style.opacity = "0.5"; }
+    replayBuildAxis(); slider.max = replayAxis().length - 1;
+    REPLAY.bar.hidden = false; REPLAY.btn.setAttribute("aria-pressed", "true");
+    if (!rpSavedSlider) { rpSavedSlider = slider.oninput; rpSavedPlay = $("play").onclick; }
+    slider.oninput = () => { replayStop(); replayShow(+slider.value); };
+    $("play").onclick = () => replayPlay();
+    replayShow(0);                                                   // départ en mars 2022 : la guerre se rejoue en avançant
+  } else {
+    replayStop();
+    const s = REPLAY.saved || {};
+    showContact = s.showContact; showUnc = s.showUnc; showAsym = s.showAsym; showDestr = s.showDestr; showCombat = s.showCombat;
+    showArrows = s.showArrows; showTg = s.showTg; showFire = s.showFire; showLoss = s.showLoss; showUcdp = s.showUcdp;
+    showArcs = s.showArcs; showImp = s.showImp; showAdv = s.showAdv; showPm = s.showPm; showClaims = s.showClaims; showStates = s.showStates;
+    fvar = s.fvar; showFront = s.showFront; showLines = s.showLines; rawOn.dsm = s.dsm; rawOn.isw = s.isw; rawOn.wiki = s.wiki;
+    Object.entries(s.cbs || {}).forEach(([cid, v]) => { const cb = document.getElementById(cid); if (cb) cb.checked = v; });
+    (s.rawcb || []).forEach(([cb, v]) => { cb.checked = v; });
+    syncMapLegend();
+    if (panel) { panel.style.pointerEvents = ""; panel.style.opacity = ""; }
+    REPLAY.bar.hidden = true; REPLAY.btn.setAttribute("aria-pressed", "false");
+    if (rpSavedSlider) { slider.oninput = rpSavedSlider; $("play").onclick = rpSavedPlay; }
+    slider.max = s.sliderMax != null ? s.sliderMax : AX.length - 1;
+    frontFor = -2; $("play").textContent = playLabel();
+    legend(); setStep(s.step != null ? s.step : stepIdx);
+  }
+}
+// injection de l'interface (index.html non modifié) : bouton Replay dans .controls + barre d'options dessous
+(function replayUI(){
+  const controls = document.querySelector(".controls"); if (!controls || !slider) return;
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "btn mini"; btn.id = "replayBtn"; btn.setAttribute("aria-pressed", "false");
+  btn.style.minWidth = "72px"; btn.textContent = _t("⟲ replay");
+  btn.title = _t("Rejouer toute la guerre jour par jour");
+  btn.onclick = () => replayToggle(!REPLAY.on);
+  controls.appendChild(btn); REPLAY.btn = btn;
+  const bar = document.createElement("div");
+  bar.className = "controls"; bar.id = "replayBar"; bar.hidden = true; bar.style.margin = "4px 0 0";
+  const gran = document.createElement("select"); gran.className = "mini"; gran.setAttribute("aria-label", _t("pas du replay"));
+  gran.innerHTML = `<option value="m">${_t("par mois")}</option><option value="d">${_t("par jour")}</option>`;
+  gran.onchange = () => { const cur = replayAxis()[REPLAY.idx]; REPLAY.gran = gran.value; replayBuildAxis(); slider.max = replayAxis().length - 1;
+    // garder la même date après changement de granularité
+    const want = cur.length === 7 ? cur : cur.slice(0, 7), ax = replayAxis();
+    let k = ax.findIndex(x => (x.length === 7 ? x : x.slice(0, 7)) >= want); if (k < 0) k = ax.length - 1;
+    replayShow(k); };
+  const rawLbl = document.createElement("label"); rawLbl.className = "chk"; rawLbl.style.margin = "0 0 0 4px";
+  const rawCb = document.createElement("input"); rawCb.type = "checkbox"; rawCb.id = "replayRaw"; rawCb.setAttribute("autocomplete", "off");
+  rawCb.onchange = () => { REPLAY.raw = rawCb.checked; replayPaint(); };
+  const rawTxt = document.createElement("span"); rawTxt.textContent = _t("ce que le modèle savait ce jour-là");
+  rawLbl.append(rawCb, " ", rawTxt);
+  bar.append(gran, rawLbl); controls.parentNode.insertBefore(bar, controls.nextSibling); REPLAY.bar = bar;
+  REPLAY.relabel = () => { btn.textContent = _t("⟲ replay"); btn.title = _t("Rejouer toute la guerre jour par jour");
+    gran.options[0].textContent = _t("par mois"); gran.options[1].textContent = _t("par jour"); rawTxt.textContent = _t("ce que le modèle savait ce jour-là");
+    if (REPLAY.on) replayPaint(); };
+})();
+document.addEventListener("uaf-lang", () => { if (REPLAY.relabel) REPLAY.relabel(); });
+// ===================== fin replay quotidien =====================
+
 function setMode(m){ mode = m; $("modePts").setAttribute("aria-pressed", m === "pts"); $("modeDen").setAttribute("aria-pressed", m === "den"); legend(); draw(); }
 $("modePts").onclick = () => setMode("pts"); $("modeDen").onclick = () => setMode("den");
 // comparaison 2021 retirée le 18/10/2026 (décision de l'utilisateur) : la normale 2012-2021 ne sert plus qu'au calcul des feux anormaux
