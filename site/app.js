@@ -2806,7 +2806,6 @@ function layerNotes(){
   if (showFront || showLines) {
     if (fi < 0) n.push(_t("front : pas d'instantané pour ce mois"));
     else if (!AX[stepIdx] || AX[stepIdx].f < 0) n.push(_t("front : {d} (dernier disponible, J-1)", {d: frameLabel(fi)}));
-    else if (AX[stepIdx].d) n.push(_t("front : estimation au {d} (pas de {s} jours, signaux de combat sur {w} jours)", {d: frameLabel(fi), s: FR.stepDays || 3, w: FR.windowDays || 14}));
   }
   if (showFire) {
     if (!covered[cur]) n.push(_t("feux : aucune donnée S-NPP ce mois-ci"));
