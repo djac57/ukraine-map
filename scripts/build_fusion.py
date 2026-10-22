@@ -288,6 +288,29 @@ def main():
             log(f"refit des poids au jour : {len(dF)} jours, cadence {cad}, signaux {mj.signaux}, "
                 f"{mj.n_refit} réapprentissages ; écrit site/front_fusion_refit_hist_<année>.js : {idx}")
 
+    # ---------- refit des poids au jour + BANDE conformale RECALIBRÉE au jour (option, docs/ETAT.md § 6, 22/10/2026) ----
+    # « champ_bande » : comme FUSION_REFIT, mais la bande (λ par secteur) est RECALCULÉE au pas JOUR sur la loi
+    # quotidienne (conformal LOCAL par secteur, walk-forward strict J-1), au lieu d'hériter de la bande MENSUELLE.
+    # Validation (scratchpad/.../bench_band_*.json, rapport de fusion § « bande au jour ») : sur 2025-26 les TROIS
+    # critères passent (Brier ≤ 30 km 0,02547 ≤ v3 0,02550, avance 100,6 ≥ 94,1 j, couverture médiane 0,951/secteur),
+    # MAIS sur 2023-24 (réglage) la refit-poids perd l'avance (91,0 < 102,4) et la bande étroite dégrade les mailles qui
+    # changent (0,4282 > 0,3872) et sous-couvre (médiane 0,93) → NE FRANCHIT PAS « ≥ v3 sur les DEUX régimes » : SORTIE
+    # PARALLÈLE dédiée (site/front_fusion_refit_bande_hist_<année>.js), vue par défaut INCHANGÉE. Pass 1 (besoin
+    # conformal, 21 λ × tous les jours) ~930 s. Entrées : HIST=jours + data/daily/ + data/viirs_api_<année>.csv.
+    if os.environ.get("FUSION_REFIT_BANDE"):
+        from fusion import decades as DEC
+        from fusion import moteur_jour as MJ
+        if not DEC.disponible():
+            log("refit + bande au jour : site/front_hist_<année>*.js absents (HIST=jours non publié) — ignoré")
+        else:
+            cad = int(os.environ.get("FUSION_REFIT_BANDE", "7"))
+            mj = MJ.MoteurJour(M, R, CH, choice, lams, cadence=cad)
+            NEED, dates, months = mj.besoins_jour()
+            dF = mj.champ_bande(NEED, dates, months)
+            idx = MJ.ecrire(dF, cad, suffixe="refit_bande")
+            log(f"refit + bande au jour : {len(dF)} jours, cadence {cad}, {len(NEED)} jours de besoin conformal ; "
+                f"écrit site/front_fusion_refit_bande_hist_<année>.js : {idx}")
+
 
 if __name__ == "__main__":
     main()
