@@ -110,6 +110,7 @@ window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); }
 let fmode = "equilibre", fvar = null, showStates = false;
 const rawOn = {dsm: false, isw: false, wiki: false};
 let showClaims = false, claimHits = [];
+let showEcartMod = false, ecartHits = [];
 // nowcast (signaux de combat) : par défaut sur la vue équilibrée sans variante de sources ; « cartes seules » sinon
 let nowcastOn = true, showCombat = false;   // signaux de combat toujours pris en compte (case masquée)
 // zone grise (contact) mesurée par nos signaux : cochée ; incertitude des cartes (lignes 5 et 95 %) : décochée
@@ -1646,6 +1647,21 @@ function drawFront(k){
       }
     }
   }
+  // écart « MoD RF / nous » (couche dédiée, décochée) : localités que le MoD RF revendique « prises » mais que
+  // notre ligne fusionnée attribue encore à l'Ukraine ; marqueur losange couleur UA, contour pointillé et estompé
+  // si le géocodage est douteux (reprise ancienne ou homonyme) ; info-bulle au zoom seulement (ecartHits)
+  ecartHits = [];
+  if (showEcartMod && window.ECART_MOD && ECART_MOD.localites_surrevendiquees) {
+    const sz = 4 / k;
+    for (const l of ECART_MOD.localites_surrevendiquees) {
+      const q = proj([l.lon, l.lat]);
+      ctx.beginPath(); ctx.moveTo(q[0], q[1] - sz); ctx.lineTo(q[0] + sz, q[1]); ctx.lineTo(q[0], q[1] + sz); ctx.lineTo(q[0] - sz, q[1]); ctx.closePath();
+      if (l.suspect) { ctx.globalAlpha = 0.5; ctx.strokeStyle = C.uactl; ctx.lineWidth = 1.2 / k; ctx.setLineDash([2 / k, 2 / k]); ctx.stroke(); ctx.setLineDash([]); }
+      else { ctx.globalAlpha = 0.9; ctx.fillStyle = C.uactl; ctx.fill(); }
+      ecartHits.push({x: q[0] * k + tr.x, y: q[1] * k + tr.y, l});
+    }
+    ctx.globalAlpha = 1; ctx.setLineDash([]);
+  }
   ctx.globalAlpha = 1;
 }
 // ---------- couches UCDP et arcs de missiles ----------
@@ -2200,14 +2216,14 @@ function replayToggle(on){
     stop(); replayStop();
     // sauvegarde de l'état des couches (restauré à la sortie du replay)
     REPLAY.saved = {fvar, showFront, showLines, step: stepIdx, sliderMax: slider.max, dsm: rawOn.dsm, isw: rawOn.isw, wiki: rawOn.wiki,
-      showContact, showUnc, showAsym, showDestr, showCombat, showArrows, showTg, showFire, showLoss, showUcdp, showArcs, showImp, showAdv, showPm, showClaims, showStates};
+      showContact, showUnc, showAsym, showDestr, showCombat, showArrows, showTg, showFire, showLoss, showUcdp, showArcs, showImp, showAdv, showPm, showClaims, showEcartMod, showStates};
     // le replay ne montre que le champ de contrôle fusionné : toutes les autres couches sont neutralisées
     showContact = showUnc = showAsym = showDestr = showCombat = showArrows = showTg = showFire = false;
-    showLoss = showUcdp = showArcs = showImp = showAdv = showPm = showClaims = showStates = false;
+    showLoss = showUcdp = showArcs = showImp = showAdv = showPm = showClaims = showEcartMod = showStates = false;
     rawOn.dsm = rawOn.isw = rawOn.wiki = false; fvar = null; showFront = true; showLines = true;
     // décocher (sans déclencher onchange) les cases des couches neutralisées, et accorder la légende
     REPLAY.saved.cbs = {};
-    ["lyrContact","lyrUnc","lyrAsym","lyrDestr","lyrCombat","lyrArrows","lyrTg","lyrFire","lyrLoss","lyrUcdp","lyrArcs","lyrImp","lyrAdv","lyrPm","lyrClaims","lyrStates"]
+    ["lyrContact","lyrUnc","lyrAsym","lyrDestr","lyrCombat","lyrArrows","lyrTg","lyrFire","lyrLoss","lyrUcdp","lyrArcs","lyrImp","lyrAdv","lyrPm","lyrClaims","lyrEcartMod","lyrStates"]
       .forEach(cid => { const cb = document.getElementById(cid); if (cb) { REPLAY.saved.cbs[cid] = cb.checked; cb.checked = false; } });
     REPLAY.saved.rawcb = [...document.querySelectorAll("input[data-raw]")].map(cb => { const v = cb.checked; cb.checked = false; return [cb, v]; });
     syncMapLegend();
@@ -2223,7 +2239,7 @@ function replayToggle(on){
     const s = REPLAY.saved || {};
     showContact = s.showContact; showUnc = s.showUnc; showAsym = s.showAsym; showDestr = s.showDestr; showCombat = s.showCombat;
     showArrows = s.showArrows; showTg = s.showTg; showFire = s.showFire; showLoss = s.showLoss; showUcdp = s.showUcdp;
-    showArcs = s.showArcs; showImp = s.showImp; showAdv = s.showAdv; showPm = s.showPm; showClaims = s.showClaims; showStates = s.showStates;
+    showArcs = s.showArcs; showImp = s.showImp; showAdv = s.showAdv; showPm = s.showPm; showClaims = s.showClaims; showEcartMod = s.showEcartMod; showStates = s.showStates;
     fvar = s.fvar; showFront = s.showFront; showLines = s.showLines; rawOn.dsm = s.dsm; rawOn.isw = s.isw; rawOn.wiki = s.wiki;
     Object.entries(s.cbs || {}).forEach(([cid, v]) => { const cb = document.getElementById(cid); if (cb) cb.checked = v; });
     (s.rawcb || []).forEach(([cb, v]) => { cb.checked = v; });
@@ -2307,6 +2323,7 @@ document.querySelectorAll("[data-raw]").forEach(cb => cb.onchange = () => { rawO
 if ($("lyrImp")) $("lyrImp").onchange = e => { showImp = e.target.checked; if (showImp) loadImp(() => draw()); legend(); draw(); };
 if ($("lyrTg")) $("lyrTg").onchange = e => { showTg = e.target.checked; if (showTg) loadTg(() => draw()); legend(); draw(); };
 if ($("lyrClaims")) $("lyrClaims").onchange = e => { showClaims = e.target.checked; legend(); draw(); };
+if ($("lyrEcartMod")) $("lyrEcartMod").onchange = e => { showEcartMod = e.target.checked; legend(); draw(); };
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
@@ -2430,6 +2447,22 @@ function hover(e){
     tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return; }
   // vue d'ensemble : aucune info-bulle (même seuil que les infrastructures)
   if (kmPerPx(tr.k) > INFRA_KMPX) { tip.style.display = "none"; return; }
+  // écart MoD/nous : info-bulle courte, au zoom seulement (règle « carte simple ») ; nom, notre p(russe), dernière annonce, profondeur
+  if (showEcartMod && ecartHits.length) {
+    let best = null, bd = 9;
+    for (const h of ecartHits) { const d = Math.hypot(h.x - mx, h.y - my); if (d < bd) { bd = d; best = h; } }
+    if (best) {
+      const l = best.l, dt = new Date(l.dd + "T12:00:00Z");
+      const date = dt.toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
+      tip.innerHTML = `<div class="r"><span>${_t("revendiquée « prise » par le MoD RF, tenue par l'UA selon nous")}</span><b>${topoC(l.nom)}</b></div>` +
+        `<div class="r"><span>${_t("notre probabilité russe")}</span><b>${Math.round(l.p * 100)} %</b></div>` +
+        `<div class="r"><span>${_t("dernière annonce")}</span><b>${date}</b></div>` +
+        `<div class="r"><span>${_t("derrière notre ligne")}</span><b>${_t("{v} km", {v: dec(l.prof)})}</b></div>` +
+        (l.suspect ? `<div style="color:var(--faint)">${_t("géocodage douteux (reprise ancienne ou homonyme) : hors du décompte crédible")}</div>` : "");
+      tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
+    }
+  }
   // les détails ouverts par un clic restent affichés tant que la souris ne s'éloigne pas de plus de 12 px
   if (e.type === "mousemove" && tipFull && tipKey && Math.hypot(tipKey[0] - mx, tipKey[1] - my) < 12) return;
   const near = tipKey && Math.hypot(tipKey[0] - mx, tipKey[1] - my) < 12;
@@ -2596,6 +2629,7 @@ function legend(){
   const raws = Object.entries(rawOn).filter(([, v]) => v).map(([s]) => s);
   if (raws.length) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("tracés bruts, au pas affiché :")}</span>` + raws.map(s => `<span><i style="border-top:3px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>${_t("tracé {s} : limite de sa zone russe (statut par localité, VIINA)", {s: s === "dsm" ? "DeepStateMap" : s === "isw" ? "ISW" : "Wikipedia"})}</span>`).join("");
   if (showClaims) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i><i style="background:${C.cool};border-radius:0;clip-path:polygon(0 0,100% 0,50% 100%)"></i>${_t("annonces officielles (30 jours ; pâles : 30 à 60 jours) : rouge, prise annoncée par la Russie ; bleu, reprise annoncée par l'Ukraine ; cliquer un triangle : date et confirmation par une autre carte")}</span>`;
+  if (showEcartMod && window.ECART_MOD) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.uactl};border-radius:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)"></i>${_t("écart MoD RF / nous : {n} localités que le MoD RF revendique « prises » mais que notre ligne attribue encore à l'Ukraine (losange pointillé : géocodage douteux) ; soit environ {km} km² (r = 10 km, ± 2 000), un ruban le long du front ; notre instantané est mensuel (au {d}), zoomez pour le détail", {n: ECART_MOD.n_surrevendiquees_ua, km: fmt(ECART_MOD.ecart_km2_r10), d: ECART_MOD.notre_date})}</span>`;
   if (showArrows) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée russe")}</span><span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée ukrainienne")}</span>` +
     `<span>${_t("flèche pleine : la ligne a bougé dans ce sens (km par 30 jours, sur 90 jours)")}</span>` +
     `<span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px;box-shadow:-4px 0 0 -1px ${C.uactl}"></i>${_t("flèche avec un cercle : localités qui ont changé de camp selon les sources (30 jours)")}</span>` +
