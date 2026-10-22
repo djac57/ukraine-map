@@ -326,6 +326,19 @@ const TX = {
   "annonce état-major ukr.": ["Ukr. General Staff claim", "заява Генштабу ЗСУ", "заявление Генштаба ВСУ"],
   "Wikipédia": ["Wikipedia", "Вікіпедія", "Википедия"],
   "avancée {c}": ["{c} advance", "{c} просування", "{c} продвижение"],
+  // --- vue replay quotidien (app.js) ---
+  "⟲ replay": ["⟲ replay", "⟲ повтор", "⟲ повтор"],
+  "Rejouer toute la guerre jour par jour": ["Replay the whole war day by day", "Відтворити всю війну день за днем", "Воспроизвести всю войну день за днём"],
+  "pas du replay": ["replay step", "крок відтворення", "шаг воспроизведения"],
+  "par mois": ["by month", "за місяцями", "по месяцам"],
+  "par jour": ["by day", "за днями", "по дням"],
+  "ce que le modèle savait ce jour-là": ["what the model knew that day", "що модель знала того дня", "что модель знала в тот день"],
+  "replay · chargement {y}…": ["replay · loading {y}…", "відтворення · завантаження {y}…", "воспроизведение · загрузка {y}…"],
+  "replay : données indisponibles pour {y}": ["replay: data unavailable for {y}", "відтворення: дані недоступні за {y}", "воспроизведение: данные недоступны за {y}"],
+  "{v} km² occupés": ["{v} km² occupied", "{v} км² зайнято", "{v} км² занято"],
+  "champ du jour (brut)": ["day's field (raw)", "поле дня (сирі дані)", "поле дня (сырые данные)"],
+  "lissé": ["smoothed", "згладжено", "сглажено"],
+  "pertes : pas encore publiées (mois complet + 1 jour)": ["losses: not yet published (full month + 1 day)", "втрати: ще не опубліковані (повний місяць + 1 день)", "потери: ещё не опубликованы (полный месяц + 1 день)"],
 };
 const IDX = {en: 0, uk: 1, ru: 2};
 window.I18N = UI;
