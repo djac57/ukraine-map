@@ -321,7 +321,10 @@ def main():
     # Vivaldi (−1 mois) strictement meilleures. Réglages gelés a=0,35 ss=0,8 wmin=0 (FUSION_ROBUSTE_A/SS/WMIN). SORTIE
     # PARALLÈLE dédiée (site/front_fusion_robuste_hist_<année>.js), vue par défaut INCHANGÉE (l'utilisateur confirme la bascule).
     # Entrées : site/front_hist_<année>*.js (HIST=jours) + data/daily/ + data/viirs_api_<année>.csv (feux).
-    if os.environ.get("FUSION_ROBUSTE"):
+    # PRODUITE PAR DÉFAUT (22/10/2026) : champ PUBLIÉ du site pour qu'une vue puisse l'afficher ; no-op propre (log « ignoré »)
+    # tant que HIST=jours ne publie pas front_hist_<année>*.js. Désactivable par FUSION_ROBUSTE=0. Coût ≈ +80 s (pas de pass
+    # conformal : dec = loi mensuelle ré-ancrée, frz = loi au jour SANS refit des poids, puis mélange par la vitesse locale).
+    if os.environ.get("FUSION_ROBUSTE", "1") != "0":
         from fusion import decades as DEC
         from fusion import moteur_jour as MJ
         if not DEC.disponible():
