@@ -266,6 +266,28 @@ def main():
             idx = DEC.ecrire(dF, rho)
             log(f"fusion quotidienne : {len(dF)} jours, écrit site/front_fusion_hist_<année>.js : {idx}")
 
+    # ---------- refit QUOTIDIEN des POIDS (option, docs/ETAT.md § 6, 22/10/2026) ----------
+    # « moteur_jour » : la loi a posteriori de δ est RECALCULÉE chaque jour sur la ligne des cartes du jour, à partir de
+    # signaux de POSITION lus au pas QUOTIDIEN (data/daily/, causal, publication ≤ d) ; les POIDS des signaux sont
+    # réappris jour par jour en walk-forward strict (cible = δ vrai mensuel, consensus à +2 mois). SORTIE DÉDIÉE
+    # parallèle (site/front_fusion_refit_hist_<année>.js), vue par défaut INCHANGÉE. Cadence `FUSION_REFIT` (jours entre
+    # deux réapprentissages ; coût). Mesuré sur 2025-26 (docs/ETAT.md § 6, rapport de fusion) : avance sur les bascules
+    # +4 j vs v3, mailles qui changent meilleures, MAIS Brier ≤ 30 km légèrement dégradé (bande conformale mensuelle
+    # appliquée à une loi quotidienne) → NE FRANCHIT PAS « ≥ v3 sur Brier ET avance » : parallèle, pas de bascule.
+    # Entrées : site/front_hist_<année>*.js (HIST=jours) + data/daily/ + data/viirs_api_<année>.csv (feux).
+    if os.environ.get("FUSION_REFIT"):
+        from fusion import decades as DEC
+        from fusion import moteur_jour as MJ
+        if not DEC.disponible():
+            log("refit des poids au jour : site/front_hist_<année>*.js absents (HIST=jours non publié) — ignoré")
+        else:
+            cad = int(os.environ.get("FUSION_REFIT", "7"))
+            mj = MJ.MoteurJour(M, R, CH, choice, lams, cadence=cad)
+            dF = mj.champ()
+            idx = MJ.ecrire(dF, cad)
+            log(f"refit des poids au jour : {len(dF)} jours, cadence {cad}, signaux {mj.signaux}, "
+                f"{mj.n_refit} réapprentissages ; écrit site/front_fusion_refit_hist_<année>.js : {idx}")
+
 
 if __name__ == "__main__":
     main()
