@@ -120,8 +120,12 @@ let fusionOn = !!(document.getElementById("lyrFusion") && document.getElementByI
 const amode = () => fmode === "equilibre" && !fvar && fusionOn && window.FRONT_FUSION ? "fusion" : fmode === "equilibre" && !fvar && nowcastOn && FR.nowcast ? "nowcast" : fmode;
 // ---------- replay quotidien (vue dédiée, données front_fusion_hist_<année>.js chargées à la demande) ----------
 // état isolé ; quand REPLAY.on, le champ affiché est REPLAY.field (sur UCELLS), à l'indice fixe REPLAY.fi
-const REPLAY = {on: false, fi: 0, field: null, fieldArr: [null], years: Object.create(null),
-  gran: "m", raw: false, idx: 0, monthAxis: null, dayAxis: null, saved: null, timer: null, bar: null, btn: null};
+const REPLAY = {on: false, fi: 0, field: null, fieldArr: [null], years: Object.create(null), yearsBySrc: Object.create(null),
+  src: "fusion", gran: "m", raw: false, idx: 0, monthAxis: null, dayAxis: null, saved: null, timer: null, bar: null, btn: null};
+// source de données du replay : "fusion" (standard, front_fusion_hist_<y>.js) ou "fusion_robuste" (robuste aux fronts
+// rapides, front_fusion_robuste_hist_<y>.js, produite par build_fusion.py). Un cache d'années PAR source (yearsBySrc) ;
+// REPLAY.years pointe toujours vers le cache de la source courante (échangé dans replaySetSrc).
+REPLAY.yearsBySrc.fusion = REPLAY.years;
 const fieldName = () => REPLAY.on ? "__replay" : (fvar || amode());
 const mcOf = mo => amode() === "fusion" && mo.mcFus ? mo.mcFus : amode() === "nowcast" && mo.mcNow ? mo.mcNow : mo.mc;
 const BASEMAP_V = "7934ff79a1";
@@ -2240,11 +2244,12 @@ function replayEnsureYear(y, cb){
   st.cbs.push(cb);
   if (st.state === 1) return;
   st.state = 1;
+  const src = REPLAY.src, winVar = src === "fusion_robuste" ? "FRONT_FUSION_ROBUSTE_HIST" : "FRONT_FUSION_HIST";
   const sc = document.createElement("script");
-  sc.src = "front_fusion_hist_" + y + ".js?v=" + (FRONT_V.fusion || "");
+  sc.src = "front_" + src + "_hist_" + y + ".js?v=" + (FRONT_V.fusion || "");
   sc.onerror = () => { st.state = 3; replayReboundAxis(); st.cbs.splice(0).forEach(f => f && f(st)); };
   sc.onload = () => {
-    const H = window.FRONT_FUSION_HIST && window.FRONT_FUSION_HIST[y], enc = window.FRONTH && window.FRONTH[y + "/fusion"];
+    const H = window[winVar] && window[winVar][y], enc = window.FRONTH && window.FRONTH[y + "/" + src];
     if (!H || !enc) { st.state = 3; } else { st.keys = H.keys; st.surf = H.months; st.fields = replayDecode(enc); st.state = 2; }
     replayReboundAxis();                                            // borner l'axe jour dès que la dernière année est connue
     st.cbs.splice(0).forEach(f => f && f(st));
@@ -2272,7 +2277,10 @@ function replayFullField(q){
 }
 // flèches « localités changées de camp » datées au jour affiché : on prend l'instantané mensuel le plus récent ≤ au jour
 // (son mo.ev porte déjà la fenêtre glissante de 30 jours) et on GÂTE à la ligne de contrôle DU JOUR (champ fusion quotidien,
-// ≤ 10 km, via le garde-fou « au contact » d'eventArrows). Les flèches de poussée (gradient) et d'annonces restent à venir.
+// ≤ 10 km, via le garde-fou « au contact » d'eventArrows). Ces flèches d'annonces sont DIRIGÉES (« qui avance ») au jour.
+// Au jour sont aussi affichés : la bande d'incertitude 5 %/95 % (isolignes du champ du jour, cf. replayToggle). Les flèches
+// de poussée par GRADIENT (couche « mouvements de ligne », mcsd mensuel) et la prévision 2 mois exigent des champs
+// quotidiens précalculés (build_front.py) : non encore produits au jour.
 function replayEventArrows(upper){
   let fi = -1;
   for (let i = 0; i < FR.months.length; i++) { const m = FR.months[i]; if (m && m.ev && m.date && m.date <= upper) fi = i; }
@@ -2327,6 +2335,19 @@ function replayShow(i){
   if (ny !== y) replayEnsureYear(ny, null);                         // préchargement de l'année suivante (lecture fluide)
   replayPaint();
 }
+// bascule de la source du replay (fusion standard ↔ fusion robuste) : on conserve la date courante, on échange le cache
+// d'années (yearsBySrc), on reconstruit l'axe jour (le dernier jour disponible peut différer d'une source à l'autre) et on
+// repeint. La donnée robuste est produite en parallèle (build_fusion.py) ; si son fichier est absent, replayPaint affiche
+// « données indisponibles » (chargement en échec), sans casser la vue standard.
+function replaySetSrc(src){
+  if (src === REPLAY.src) return;
+  replayStop();
+  REPLAY.src = src;
+  REPLAY.years = REPLAY.yearsBySrc[src] || (REPLAY.yearsBySrc[src] = Object.create(null));
+  replayBuildAxis();
+  slider.max = replayAxis().length - 1;
+  replayShow(Math.min(REPLAY.idx, replayAxis().length - 1));
+}
 function replayStop(){ if (REPLAY.timer) { clearInterval(REPLAY.timer); REPLAY.timer = null; } $("play").textContent = playLabel(); }
 function replayPlay(){
   if (REPLAY.timer) return replayStop();
@@ -2344,8 +2365,8 @@ function replayToggle(on){
     // sauvegarde de l'état des couches (restauré à la sortie du replay)
     REPLAY.saved = {fvar, showFront, showLines, step: stepIdx, sliderMax: slider.max, dsm: rawOn.dsm, isw: rawOn.isw, wiki: rawOn.wiki,
       showContact, showUnc, showAsym, showDestr, showCombat, showArrows, showTg, showFire, showLoss, showUcdp, showArcs, showImp, showAdv, showPm, showClaims, showEcartMod, showStates};
-    // le replay ne montre que le champ de contrôle fusionné : toutes les autres couches sont neutralisées
-    showContact = showUnc = showAsym = showDestr = showCombat = showArrows = showTg = showFire = false;
+    // le replay ne montre que le champ de contrôle fusionné (+ sa bande d'incertitude au jour) : les autres couches neutralisées
+    showContact = showAsym = showDestr = showCombat = showArrows = showTg = showFire = false;
     showLoss = showUcdp = showArcs = showImp = showAdv = showPm = showClaims = showEcartMod = showStates = false;
     rawOn.dsm = rawOn.isw = rawOn.wiki = false; fvar = null; showFront = true; showLines = true;
     // décocher (sans déclencher onchange) les cases des couches neutralisées, et accorder la légende
@@ -2353,6 +2374,9 @@ function replayToggle(on){
     ["lyrContact","lyrUnc","lyrAsym","lyrDestr","lyrCombat","lyrArrows","lyrTg","lyrFire","lyrLoss","lyrUcdp","lyrArcs","lyrImp","lyrAdv","lyrPm","lyrClaims","lyrEcartMod","lyrStates"]
       .forEach(cid => { const cb = document.getElementById(cid); if (cb) { REPLAY.saved.cbs[cid] = cb.checked; cb.checked = false; } });
     REPLAY.saved.rawcb = [...document.querySelectorAll("input[data-raw]")].map(cb => { const v = cb.checked; cb.checked = false; return [cb, v]; });
+    // bande d'incertitude AU JOUR : les isolignes 5 % / 95 % du champ de contrôle quotidien (calculées dans buildFront à
+    // partir du champ du jour sur UCELLS). On la montre d'emblée et on garde sa case cochée pour que la légende l'affiche.
+    showUnc = true; { const uncb = document.getElementById("lyrUnc"); if (uncb) uncb.checked = true; }
     syncMapLegend();
     if (panel) { panel.open = false; panel.style.pointerEvents = "none"; panel.style.opacity = "0.5"; }
     replayBuildAxis(); slider.max = replayAxis().length - 1;
@@ -2385,13 +2409,15 @@ function replayToggle(on){
 }
 // Un seul contrôle (index.html) : le sélecteur « pas » (#gran) pilote tout.
 //   Mois → timeline normale, carte complète AVEC les flèches de mouvement.
-//   Jour → vue fusion quotidienne (REPLAY), champ de contrôle quotidien + flèches datées « localités changées de camp »
-//          (instantané mensuel ≤ au jour, fenêtre 30 j, gâtées à la ligne du jour) ; poussées/annonces au jour : à venir.
-// L'option brut/lissé (#replayRaw) et le libellé (#granNote) n'apparaissent qu'au pas Jour.
+//   Jour → vue fusion quotidienne (REPLAY), champ de contrôle quotidien + bande d'incertitude 5 %/95 % au jour + flèches
+//          datées et DIRIGÉES « localités changées de camp » (instantané mensuel ≤ au jour, fenêtre 30 j, gâtées à la
+//          ligne du jour). Source basculable fusion standard ↔ robuste (#rpSrc). Gradient/prévision au jour : à venir.
+// L'option brut/lissé (#replayRaw), la source (#rpSrc) et le libellé (#granNote) n'apparaissent qu'au pas Jour.
 function replayUISync(on){
   // .chk porte display:inline-flex qui l'emporte sur [hidden] : on pilote donc display explicitement (hidden pour l'a11y)
-  for (const id of ["rawWrap", "granNote"]) { const el = document.getElementById(id); if (el) { el.hidden = !on; el.style.display = on ? "" : "none"; } }
+  for (const id of ["rawWrap", "granNote", "rpSrc"]) { const el = document.getElementById(id); if (el) { el.hidden = !on; el.style.display = on ? "" : "none"; } }
   const g = document.getElementById("gran"); if (g && g.value !== (on ? "d" : "m")) g.value = on ? "d" : "m";
+  const rs = document.getElementById("rpSrc"); if (rs && on) rs.value = REPLAY.src;   // refléter la source courante
 }
 // bascule Mois/Jour en conservant la date courante dans les deux sens
 function setGranMode(g){
@@ -2411,8 +2437,10 @@ function setGranMode(g){
 (function replayUI(){
   const gran = document.getElementById("gran"), rawCb = document.getElementById("replayRaw");
   const help = document.getElementById("granHelp"), helpTxt = document.getElementById("granHelpText");
+  const rpSrc = document.getElementById("rpSrc");
   if (gran) gran.onchange = () => setGranMode(gran.value);
   if (rawCb) rawCb.onchange = () => { REPLAY.raw = rawCb.checked; replayPaint(); };
+  if (rpSrc) rpSrc.onchange = () => replaySetSrc(rpSrc.value);   // fusion standard ↔ fusion robuste (comparaison au même jour)
   if (help && helpTxt) help.onclick = () => { helpTxt.hidden = !helpTxt.hidden; };
   REPLAY.relabel = () => { if (REPLAY.on) replayPaint(); };
 })();

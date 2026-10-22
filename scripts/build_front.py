@@ -3608,6 +3608,17 @@ def main():
         # lot « vues » : les sorties produites, pour l'assemblage (front_parts.py). L'index et FRONT_V seront refaits par stamp.py.
         rels = ["site/front.js"] + [f"site/front_{f}.js" for f in allf] + ["site/front_mcsd.js",
                 "data/front_areas.csv", "data/front_calibration.csv"]
+        # historique par jour (HIST=jours) : front_hist_<année>.js + front_hist_<année>_<vue>.js, écrits par write_hist
+        # ci-dessus (quand side is not None). On les fait REMONTER du lot « vues » (runner de la matrice) vers le job
+        # « assemble » : c'est là que build_fusion.py les consomme (DEC.disponible) pour la fusion quotidienne ET la fusion
+        # robuste, et là qu'ils sont publiés — sans quoi le replay au pas Jour (champ, bande d'incertitude, couches riches)
+        # et la vue fusion robuste restent en 404. Globbés : seuls les fichiers réellement écrits sont listés (HIST éteint →
+        # aucun, donc pas d'échec de stage ; front_parts.stage refuse un fichier absent). Les front_fusion_hist_* et
+        # front_fusion_robuste_hist_* sont, eux, produits par build_fusion.py DANS le job assemble : ils n'ont pas besoin du
+        # manifeste (déjà en place au moment de la publication).
+        if side is not None:   # write_hist a tourné ce build (HIST actif) : les front_hist_* en place sont à jour
+            import glob as _glob_hist
+            rels += sorted(os.path.relpath(p, ROOT) for p in _glob_hist.glob(os.path.join(ROOT, "site", "front_hist_*.js")))
         write_manifest("vues", rels)
         if do_sens:
             os.makedirs(PARTS, exist_ok=True)
