@@ -2887,6 +2887,27 @@ def main():
     if hist:
         raw_c = {d.strftime("%Y%m%d"): None for d in list(hist.values()) + list(snap.values()) + list(daily.values())}
     status, last_viina = read_status(list(snap.values()) + list(daily.values()), extra=raw_c)
+    # Base de contrôle (VIINA, dérivée des cartes) PROLONGÉE PAR PERSISTANCE jusqu'à J-1 (limit). VIINA traîne de
+    # quelques jours derrière les signaux (feux FIRMS à J-1) : sans cela, les pas récents dont la date dépasse le
+    # dernier instantané VIINA étaient supprimés par la boucle ci-dessous et l'accueil capait à la dernière carte
+    # (~J-4). On recopie le dernier statut VIINA complet connu (status[last_viina]) sur les pas récents manquants
+    # ≤ limit. Chaque frame 19→J-1 se reconstruit alors avec : (a) base = dernier contrôle connu — son âge élargit σ
+    # (carry_forward + stale utilisent la date du pas : σ0 + v·âge, la bande s'ouvre légèrement sur la queue) ;
+    # (b) signaux de combat FRAIS (fenêtre WINDOW_DAYS finissant à la date du pas, feux jusqu'à J-1) ; (c) déclarations
+    # DeepState datées (apply_dsm_log) de ces jours. Jamais au-delà de J-1 (limit) — règle de prudence. Backtest
+    # ukraine-recherche/analyses/sans_cartes : 3 j de persistance = perte de précision négligeable (96 % à +3 mois).
+    lim_s = limit.strftime("%Y%m%d")
+    src_day = last_viina if (last_viina in status and last_viina <= lim_s) else max((d for d in status if d <= lim_s), default=None)
+    if src_day:
+        nf = 0
+        for d in daily.values():
+            ds = d.strftime("%Y%m%d")
+            if ds not in status and ds <= lim_s:
+                status[ds] = dict(status[src_day])
+                nf += 1
+        if nf:
+            print(f"base de contrôle prolongée par persistance : {nf} pas récents recopiés du dernier VIINA "
+                  f"({src_day[:4]}-{src_day[4:6]}-{src_day[6:]}) jusqu'à J-1 ({limit}) — nowcast, âge → σ qui s'ouvre", flush=True)
     for m, d in list(snap.items()):
         if d.strftime("%Y%m%d") not in status:
             print(f"  {m} : pas de données VIINA au {d} — mois ignoré")
