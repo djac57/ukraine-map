@@ -11,9 +11,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - name: "Dépendances (comme la prod)"
+      - name: "Dépendances (venv Mac via .path, versions exactes)"
         run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.16.3 pyarrow==21.0.0
       - name: "Restaurer le cache des données brutes (VIINA complet attendu)"
         uses: actions/cache/restore@v4
@@ -22,6 +20,7 @@ jobs:
         run: |
           set -e
           echo "=== OS / arch ==="; sw_vers; uname -m
+          echo "=== python (doit être le venv 3.12) ==="; which python; python --version
           echo "=== deps ==="; python -c "import numpy, scipy, pyarrow; print('OK numpy', numpy.__version__, '| scipy', scipy.__version__, '| pyarrow', pyarrow.__version__)"
           echo "=== cache raw présent ? ==="; ls raw 2>/dev/null | head || echo "PAS de raw"
           echo "=== VIINA en cache (doit être volumineux, pas superficiel) ==="; du -sh raw/viina 2>/dev/null || echo "pas de raw/viina"
