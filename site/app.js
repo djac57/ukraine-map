@@ -343,7 +343,19 @@ function validVertex(x, y){
   }
   return !(ua && band);
 }
-// ligne 50 % d'un champ complet (GX*GY) déjà construit : runs de sommets valides
+function lines50(view, i){
+  const g = fullField(view, i); if (!g) return [];
+  const cs = d3.contours().size([GX, GY]).thresholds([0.5])(g)[0].coordinates, runs = [];
+  for (const poly of cs) for (const ring of poly) {
+    let cur = [];
+    for (const [x, y] of ring) { if (validVertex(x, y)) cur.push([x, y]); else { if (cur.length > 2) runs.push(cur); cur = []; } }
+    if (cur.length > 2) runs.push(cur);
+  }
+  return runs;
+}
+// ligne 50 % d'un champ complet (GX*GY) DÉJÀ construit (champ de contrôle quotidien du replay) : même tracé que lines50,
+// mais sans passer par fullField/une vue. Utilisé seulement par le replay (chemin cur d'eventArrows) ; lines50 ci-dessus
+// reste STRICTEMENT identique à la version publiée (iso-comportement du garde-fou « au contact » sur les mois).
 function linesOfField(g){
   if (!g) return [];
   const cs = d3.contours().size([GX, GY]).thresholds([0.5])(g)[0].coordinates, runs = [];
@@ -354,7 +366,6 @@ function linesOfField(g){
   }
   return runs;
 }
-function lines50(view, i){ return linesOfField(fullField(view, i)); }
 // normale locale d'une polyligne au sommet t (tangente sur ±2 à ±6 sommets, la première non dégénérée)
 function polyNormal(run, t, w0){
   for (const w of [w0 || 2, (w0 || 2) + 1, (w0 || 2) + 2, (w0 || 2) + 4]) {
@@ -663,7 +674,11 @@ function eventArrows(fi, cur){
       if (bdCur * km > 10) continue;
       // une prise annoncée en pleine zone adverse (p < 0,3 pour une prise russe, > 0,7 pour une ukrainienne) n'est pas
       // reflétée par les cartes : invraisemblable ou trop précoce, pas de flèche
-      const pc = cur ? cur.pc : fullField(fieldName(), fi), pv = pc ? pc[Math.round(cy - 0.5) * GX + Math.round(cx - 0.5)] : 0.5;
+      // champ de contrôle courant : celui de la vue affichée ; aux PAS RÉCENTS la vue « fusion » n'a pas d'instantané
+      // (indices quotidiens absents de FRONTP.fusion) → repli sur la vue d'ancrage des annonces (evView, = nowcast pour la
+      // fusion), celle qui porte déjà la ligne courante. Sans ce repli, pc est null aux pas récents : les flèches de sens
+      // ne peuvent plus être calculées et DISPARAISSENT (d'autant que le replay vide les caches qui les masquaient).
+      const pc = cur ? cur.pc : (fullField(fieldName(), fi) || fullField(evView(), fi)), pv = pc ? pc[Math.round(cy - 0.5) * GX + Math.round(cx - 0.5)] : 0.5;
       if (camp === 1 ? pv < 0.3 : pv > 0.7) continue;
       let bx = null, by = null, bd = 1e9;
       for (const run of prevLines) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; bx = x; by = y; } }
@@ -970,6 +985,8 @@ window.__uafReplayEvents = () => { const R = REPLAY.evArrows; if (!R) return nul
 // diagnostic (headless) : passe le replay au pas jour et affiche une date « YYYY-MM-DD » (chargement de l'année asynchrone)
 window.__uafReplayGoto = day => { if (!REPLAY.on || REPLAY.gran !== "d") setGranMode("d");
   const ax = replayAxis(); let k = ax.indexOf(day); if (k < 0) k = ax.findIndex(x => x >= day); if (k < 0) k = ax.length - 1; replayShow(k); return {idx: k, day: ax[k], year: ax[k].slice(0, 4), state: (REPLAY.years[ax[k].slice(0, 4)] || {}).state}; };
+// diagnostic (headless) : état des flèches dessinées (couche mouvements) et du replay
+window.__uafDraw = () => { const ax = replayAxis(); let fi = -9; try { fi = frontIdx(); } catch(e) {} return {showArrows, arrows: arrowList.length, mcsd: !!(window.FRONTP && window.FRONTP.mcsd), fusion: !!window.FRONT_FUSION, fusionP: !!(window.FRONTP && window.FRONTP.fusion), replayOn: REPLAY.on, gran: REPLAY.gran, front: fi, view: fieldName(), ev: fi >= 0 ? eventArrows(fi).length : null, replayEv: REPLAY.evArrows ? REPLAY.evArrows.arrows.length : null, nAxis: ax ? ax.length : 0, lastAxis: ax && ax.length ? ax[ax.length - 1] : null, lastDay: REPLAY.lastDay || null}; };
 // diagnostic (headless) : état d'affichage (zoom, info-bulle, pas) pour les tests mobiles
 window.__uafState = () => ({k: tr.k, x: tr.x, y: tr.y, tip: tip.style.display, step: stepIdx, nsteps: AX.length, fvar, nowcast: amode() === "nowcast",
   checks: Object.fromEntries([...document.querySelectorAll('input[type="checkbox"]')].map(c => [c.id || c.dataset.raw || c.dataset.var, c.checked]))});
@@ -2171,6 +2188,29 @@ function replayBuildAxis(){
   const days = [], end = new Date((D.lastDay || (REPLAY.monthAxis[REPLAY.monthAxis.length - 1] + "-28")) + "T00:00:00Z");
   for (let d = new Date("2022-03-01T00:00:00Z"); d <= end; d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10));
   REPLAY.dayAxis = days;                                            // un pas par jour calendaire (option)
+  REPLAY.fullDayAxis = days;                                        // axe complet (avant bornage au dernier jour de données)
+  REPLAY.endYear = days.length ? days[days.length - 1].slice(0, 4) : null;   // dernière année de l'axe
+  replayReboundAxis();                                             // borner tout de suite si l'année est déjà chargée
+}
+// borne l'axe jour (et la barre) au DERNIER JOUR pour lequel une donnée de fusion existe : l'axe calendaire va jusqu'à
+// aujourd'hui, mais front_fusion_hist s'arrête quelques jours plus tôt (J-1). Sans ce bornage, la lecture reste collée
+// au dernier champ dispo (ex. 16 oct) au lieu de FINIR net au dernier jour réel. On attend le sort de la dernière année
+// de l'axe (chargée ou en échec), puis on coupe à la dernière clé disponible la plus récente.
+function replayReboundAxis(){
+  if (!REPLAY.fullDayAxis || !REPLAY.endYear) return;
+  const endSt = REPLAY.years[REPLAY.endYear];
+  if (!endSt || (endSt.state !== 2 && endSt.state !== 3)) return;
+  let last = null;
+  for (const y in REPLAY.years) { const st = REPLAY.years[y]; if (st.state === 2 && st.keys && st.keys.length) { const lk = st.keys[st.keys.length - 1]; if (!last || lk > last) last = lk; } }
+  if (!last) return;
+  REPLAY.lastDay = last;
+  const cut = REPLAY.fullDayAxis.filter(d => d <= last);
+  if (!cut.length || cut.length === REPLAY.dayAxis.length) return;
+  REPLAY.dayAxis = cut;
+  if (REPLAY.gran === "d") {
+    slider.max = replayAxis().length - 1;
+    if (REPLAY.idx > replayAxis().length - 1) { REPLAY.idx = replayAxis().length - 1; slider.value = REPLAY.idx; if (REPLAY.on) replayPaint(); }
+  }
 }
 const replayAxis = () => REPLAY.gran === "d" ? REPLAY.dayAxis : REPLAY.monthAxis;
 // borne haute de recherche pour un pas (mois « YYYY-MM » → fin de mois ; jour « YYYY-MM-DD » → le jour même)
@@ -2183,10 +2223,11 @@ function replayEnsureYear(y, cb){
   st.state = 1;
   const sc = document.createElement("script");
   sc.src = "front_fusion_hist_" + y + ".js?v=" + (FRONT_V.fusion || "");
-  sc.onerror = () => { st.state = 3; st.cbs.splice(0).forEach(f => f && f(st)); };
+  sc.onerror = () => { st.state = 3; replayReboundAxis(); st.cbs.splice(0).forEach(f => f && f(st)); };
   sc.onload = () => {
     const H = window.FRONT_FUSION_HIST && window.FRONT_FUSION_HIST[y], enc = window.FRONTH && window.FRONTH[y + "/fusion"];
     if (!H || !enc) { st.state = 3; } else { st.keys = H.keys; st.surf = H.months; st.fields = replayDecode(enc); st.state = 2; }
+    replayReboundAxis();                                            // borner l'axe jour dès que la dernière année est connue
     st.cbs.splice(0).forEach(f => f && f(st));
   };
   document.head.appendChild(sc);
@@ -2303,7 +2344,7 @@ function replayToggle(on){
     replayShow(0);                                                   // départ en mars 2022 : la guerre se rejoue en avançant
   } else {
     replayStop();
-    REPLAY.evArrows = null;
+    REPLAY.evArrows = null; REPLAY.gran = "m";                       // cohérence : on repasse au pas mois
     const s = REPLAY.saved || {};
     showContact = s.showContact; showUnc = s.showUnc; showAsym = s.showAsym; showDestr = s.showDestr; showCombat = s.showCombat;
     showArrows = s.showArrows; showTg = s.showTg; showFire = s.showFire; showLoss = s.showLoss; showUcdp = s.showUcdp;
@@ -2317,6 +2358,9 @@ function replayToggle(on){
     if (rpSavedSlider) { slider.oninput = rpSavedSlider; $("play").onclick = rpSavedPlay; }
     slider.max = s.sliderMax != null ? s.sliderMax : AX.length - 1;
     frontFor = -2; $("play").textContent = playLabel();
+    // NE PAS vider evCache/arrowCache ici : les flèches de la carte normale sont cachées par fi et restent valides (la vue
+    // restaurée est celle d'avant le replay) ; les recalculer au retour les fait disparaître aux PAS RÉCENTS, où la vue
+    // fusion n'a pas d'instantané (pc null). Le repli de pc (eventArrows) les garde correctes dans tous les cas.
     legend(); setStep(s.step != null ? s.step : stepIdx);
   }
 }
