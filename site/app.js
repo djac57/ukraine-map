@@ -715,7 +715,13 @@ function eventArrows(fi, cur){
         if (nn) fl = [x / nn, y / nn]; }
       const fc = pc && POLD ? flippedCentroid(pc, POLD, cx, cy, camp) : null;
       const sh = !pc || !POLD ? null : lineShift(prevLines, curLines, pc, POLD, cx, cy, camp);
-      let arr = sh ? {ax: sh.ax, ay: sh.ay, ux: sh.ux, uy: sh.uy, len: sh.len, mode: "déplacement"} : null;
+      // reflux franc (ex. Koursk) : quand plusieurs localités annoncées ont réellement basculé, le barycentre basculé
+      // (mailles puis localités) prime sur le glissement de ligne. Sur une poche en 2D, lineShift compare deux centroïdes
+      // (ancienne ligne désormais tenue → nouvelle ligne naguère adverse) tous deux proches du cœur de la poche : leur
+      // différence est bruitée et peut contredire le vrai sens de la reprise, faisant tomber la flèche « sans sens »
+      // (against). Un vrai basculement de mailles donne, lui, un sens net vers le sol repris.
+      const flipFirst = flipN >= 2;
+      let arr = (!flipFirst && sh) ? {ax: sh.ax, ay: sh.ay, ux: sh.ux, uy: sh.uy, len: sh.len, mode: "déplacement"} : null;
       for (const [tgt, mode] of [[fc, "bascule"], [fl, "localités"]]) {
         if (!tgt || arr) continue;
         let ax = null, ay = null, ad = 1e9;
@@ -734,21 +740,23 @@ function eventArrows(fi, cur){
           if (sl > 1e-6) { arr.ux = sx / sl; arr.uy = sy / sl; }
         }
       }
+      if (!arr && sh) arr = {ax: sh.ax, ay: sh.ay, ux: sh.ux, uy: sh.uy, len: sh.len, mode: "déplacement"};
       if (!arr) {
         const gp = pc ? gradAt(pc, bx, by) : [0, 0], gn = Math.hypot(gp[0], gp[1]);
         if (gn < 1e-4) continue;
         const sgn = camp === 1 ? -1 : 1, ux = sgn * gp[0] / gn, uy = sgn * gp[1] / gn;
         arr = {ax: bx, ay: by, ux, uy, len: Math.hypot(cx - bx, cy - by), mode: "gradient"};
       }
+      const dbg = {m: arr.mode, fl: !!fl, fc: !!fc, sh: !!sh, ff: flipFirst, flipN};
       // la direction retenue doit aller vers les localités basculées et vers les mailles basculées quand ces repères
       // existent (à plus de 1 km de la base) ; sinon le sens n'est pas établi : repère creux, sans direction
       const against = [fl, fc].some(t => t && Math.hypot(t[0] - arr.ax, t[1] - arr.ay) * km >= 1 && (t[0] - arr.ax) * arr.ux + (t[1] - arr.ay) * arr.uy <= 0);
-      if (against) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, undirected: true, items: c.items}); continue; }
+      if (against) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, undirected: true, items: c.items, dbg: {...dbg, br: "against"}}); continue; }
       const gd = guardDir(POLD, pc, arr.ax, arr.ay, arr.ux, arr.uy, camp === 1, c.items.map(q => [q.gx, q.gy, q.w]));
-      if (gd.st === "incertaine" && !gd.dir) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, undirected: true, items: c.items, why: gd.why}); continue; }
+      if (gd.st === "incertaine" && !gd.dir) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, undirected: true, items: c.items, why: gd.why, dbg: {...dbg, br: "gd-incertaine", why: gd.why}}); continue; }
       const L = Math.max(arr.len, 4 / km);
       out.push({ax: arr.ax, ay: arr.ay, cx: arr.ax + gd.ux * L, cy: arr.ay + gd.uy * L, ru: camp === 1, n, w: sw, dkm: bd * km, late: false,
-                items: c.items, dir: [gd.ux, gd.uy], mode: arr.mode, bary: [cx, cy], refs: [fl, fc], reoriented: gd.st !== "ok", uncertain: gd.st === "incertaine", why: gd.why});
+                items: c.items, dir: [gd.ux, gd.uy], mode: arr.mode, bary: [cx, cy], refs: [fl, fc], reoriented: gd.st !== "ok", uncertain: gd.st === "incertaine", why: gd.why, dbg: {...dbg, br: "ok", st: gd.st}});
     }
   }
   return cur ? out : (evCache[fi] = out);
@@ -986,6 +994,7 @@ window.__uafEvents = fi => eventArrows(fi).map(a => { const p = proj.invert([gAf
   const ll = (x, y) => proj.invert([gAff[0] + x * gAff[2], gAff[1] + y * gAff[2]]).map(v => +v.toFixed(3));
   return {lon: +p[0].toFixed(2), lat: +p[1].toFixed(2), from: [+b[0].toFixed(2), +b[1].toFixed(2)], ru: a.ru, n: a.n, w: +a.w.toFixed(2), dkm: +a.dkm.toFixed(1), late: !!a.late,
     undirected: !!a.undirected, mode: a.mode || null, dir: a.dir ? a.dir.map(v => +v.toFixed(2)) : null, bary: a.bary ? ll(...a.bary) : null,
+    dbg: a.dbg || null,
     locs: (a.items || []).map(q => [...ll(q.gx, q.gy), +q.w.toFixed(2), [...q.srcs].join("+"), !!q.flipped])}; });
 // diagnostic (headless) : flèches « changements de camp » du replay au jour affiché, en coordonnées géographiques
 window.__uafReplayEvents = () => { const R = REPLAY.evArrows; if (!R) return null;
