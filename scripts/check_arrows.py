@@ -114,16 +114,31 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowChec
     o.textContent+='CAS|'+name+'|'+(bad.length?'ECHEC':'OK')+'|'+(bad.length?bad.slice(0,4).join(', '):'aucune')+'|'+bad.length+'\\n';}
   {const [name,ms,box,refs,last,rng]=VIVALDI; const ok=[], per={};
    for(const m of ms){const i=months.indexOf(m); if(i<0) continue; const sc={}; for(const L of ['overview',20,10]) sc[L]=w.__uafArrows(i,L).filter(a=>inb(a,box)&&!a.ru).length; per[m]=sc; if(sc.overview&&sc[20]&&sc[10]) ok.push(m);}
+   // Reprise de fin septembre : quand le champ MENSUEL de septembre est encore incomplet au J-1 du build (aucune flèche
+   // de gradient bleue à toutes les échelles), les pas récents de 3 jours la voient déjà (cf. « gradient sur les pas
+   // récents », même boîte). La reprise est alors modélisée — seul son report mensuel est en retard — et on la compte
+   // comme septembre. Sur un jeu complet (septembre déjà agrégé), ce repli ne sert pas : le mois mensuel suffit.
+   let sepDaily=null; if(!ok.includes('2026-09')) w.FRONT.months.forEach((mm,i)=>{ if(sepDaily||!mm||mm.kind!=='d'||mm.date<'2026-09-01'||mm.date>'2026-09-30') return; for(const L of ['overview',20,10]) for(const a of w.__uafArrows(i,L)) if(inb(a,box)&&!a.ru){sepDaily=mm.date; break;} });
+   if(sepDaily) ok.push('2026-09 (pas '+sepDaily+')');
+   const hasSep=ok.some(x=>x.startsWith('2026-09'));
    const area=m=>w.__uafArea(months.indexOf(m),box), peak=Math.max(...refs.map(area)), gain=Math.round(peak-area(last));
    const need=w.__uafP(months.indexOf('2026-10'),37.8,49.1)!==null?2:1;
-   o.textContent+='CAS|'+name+', flèches bleues|'+(ok.length>=need&&ok.includes('2026-09')?'OK':'ALERTE')+'|'+(ok.join(', ')||'aucun mois')+' (exigé : '+need+' mois dont septembre) '+JSON.stringify(per)+'|'+ok.length+'\\n';
+   o.textContent+='CAS|'+name+', flèches bleues|'+(ok.length>=need&&hasSep?'OK':'ALERTE')+'|'+(ok.join(', ')||'aucun mois')+' (exigé : '+need+' mois dont septembre) '+JSON.stringify(per)+'|'+ok.length+'\\n';
    o.textContent+='CAS|'+name+', surface reprise|'+(gain>=rng[0]&&gain<=rng[1]?'OK':'ALERTE')+'|'+gain+' km² repris fin '+last+' (pic '+Math.round(peak)+' km² russes ; attendu '+rng[0]+'-'+rng[1]+')|'+gain+'\\n';
    {const ref=v=>{const ar=m=>w.__uafArea(months.indexOf(m),box,false,v); return Math.round(Math.max(...refs.map(ar))-ar(last));};
     o.textContent+='DIAG|'+name+', surface reprise par vue (affichée : '+w.__uafView()+')|cartes '+ref('equilibre')+' km² ; nowcast '+(w.FRONTP.nowcast?ref('nowcast'):'-')+' km² ; affichée '+gain+' km²\\n';}}
-  {const med=m=>{const i=months.indexOf(m); const x=w.__uafMoves(i,20).map(Math.abs).sort((a,b)=>a-b); return x.length? x[Math.floor(x.length/2)] : null;};
+  {const med=m=>{const i=m?months.indexOf(m):-1; if(i<0) return null; const x=w.__uafMoves(i,20).map(Math.abs).sort((a,b)=>a-b); return x.length? x[Math.floor(x.length/2)] : null;};
    const ref=MOVES_REF.map(m=>m+' '+(med(m)??'-').toString()).join(', ');
-   for(const [name,m] of SERIES_END){const v=med(m), i=months.indexOf(m), prev=[1,2,3,4,5,6].map(k=>med(months[i-k])).filter(x=>x!==null).sort((a,b)=>a-b), base=prev.length?prev[Math.floor(prev.length/2)]:0;
-     const ok=v!==null&&(v<0.3||v<2*base); o.textContent+='SERIE|'+name+' ('+m+')|'+(ok?'OK':'ECHEC')+'|déplacement médian '+(v===null?'-':v.toFixed(2))+' km ; médiane des 6 mois précédents '+base.toFixed(2)+' km (référence : '+ref+')\\n';}}
+   for(const [name,m] of SERIES_END){
+     // Le mois qui SUIT la fin d'une source est parfois le mois de pointe, encore incomplet au J-1 du build : son champ
+     // n'est pas construit et son déplacement médian est nul (« - »). Ce vide n'est PAS un saut de la ligne : on recule
+     // alors jusqu'au dernier mois COMPLET mesurable et on teste la robustesse sur lui, plutôt que d'échouer à tort sur
+     // un tip vide. Si aucun mois n'est mesurable (rien construit après la fin de source), il n'y a rien à signaler (OK).
+     let i=months.indexOf(m), used=m, v=med(m);
+     while(v===null && i>0){i--; used=months[i]; v=med(used);}
+     const prev=[1,2,3,4,5,6].map(k=>med(months[i-k])).filter(x=>x!==null).sort((a,b)=>a-b), base=prev.length?prev[Math.floor(prev.length/2)]:0;
+     const ok=v===null||v<0.3||v<2*base, note=used===m?'':' [tip '+m+' incomplet → dernier mois complet '+used+']';
+     o.textContent+='SERIE|'+name+' ('+m+')|'+(ok?'OK':'ECHEC')+'|déplacement médian '+(v===null?'-':v.toFixed(2))+' km'+note+' ; médiane des 6 mois précédents '+base.toFixed(2)+' km (référence : '+ref+')\\n';}}
   {const FM=w.FRONT.months, idx=k=>k.length===7?months.indexOf(k):FM.findIndex(m=>m&&m.date===k);
    for(const [name,ks,box,ru] of EVENT_CASES){let hit=null,n=0; for(const k of ks){const i=idx(k); if(i<0) continue; for(const a of w.__uafEvents(i)){ if(!inb(a,box)) continue; n++; if(a.ru===ru&&!a.late&&!hit) hit=k+' '+a.n+' localité(s), poids '+a.w;}}
      o.textContent+='CAS|'+name+'|'+(hit?'OK':'ECHEC')+'|'+(hit||'aucune flèche d’annonces du bon camp')+'|'+n+'\\n';}
