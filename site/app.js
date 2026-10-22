@@ -343,8 +343,9 @@ function validVertex(x, y){
   }
   return !(ua && band);
 }
-function lines50(view, i){
-  const g = fullField(view, i); if (!g) return [];
+// ligne 50 % d'un champ complet (GX*GY) déjà construit : runs de sommets valides
+function linesOfField(g){
+  if (!g) return [];
   const cs = d3.contours().size([GX, GY]).thresholds([0.5])(g)[0].coordinates, runs = [];
   for (const poly of cs) for (const ring of poly) {
     let cur = [];
@@ -353,6 +354,7 @@ function lines50(view, i){
   }
   return runs;
 }
+function lines50(view, i){ return linesOfField(fullField(view, i)); }
 // normale locale d'une polyligne au sommet t (tangente sur ±2 à ±6 sommets, la première non dégénérée)
 function polyNormal(run, t, w0){
   for (const w of [w0 || 2, (w0 || 2) + 1, (w0 || 2) + 2, (w0 || 2) + 4]) {
@@ -613,9 +615,11 @@ const evCache = {}, EV_DECL = new Set(["dsmlog", "gsua", "modru"]);
 // vue d'ancrage des flèches d'annonces : la fusion déplace la ligne selon le modèle ; les annonces se lisent sur la ligne du
 // nowcast (cartes + signaux de combat), comme avant la bascule
 const evView = () => fieldName() === "fusion" ? "nowcast" : fieldName();
-function eventArrows(fi){
-  if (evCache[fi]) return evCache[fi];
-  const mo = FR.months[fi], E = FR.events; if (!mo || !mo.ev || !E) return evCache[fi] = [];
+// cur (optionnel, replay au pas jour) : {pc, lines} du champ de contrôle DU JOUR, substitué à la vue courante pour
+// le gâtage « au contact » et la vraisemblance ; la base/POLD reste sur les cartes (equilibre), chargées sur tout l'historique
+function eventArrows(fi, cur){
+  if (!cur && evCache[fi]) return evCache[fi];
+  const mo = FR.months[fi], E = FR.events; if (!mo || !mo.ev || !E) return cur ? [] : (evCache[fi] = []);
   const rel = E.reliability, src = E.sources, km = FR.grid.size / 1000, out = [];
   // « en retard sur les cartes » se juge sur le champ des CARTES SEULES un mois plus tôt (et non sur le nowcast, qui
   // anticipe déjà les poussées en cours : il ferait passer pour des confirmations des annonces que seules nos données
@@ -639,7 +643,7 @@ function eventArrows(fi){
       if (c) { c.items.push(p); } else cl.push({sx: p.gx, sy: p.gy, items: [p]});
     }
     // base : ligne 50 % des cartes seules un mois plus tôt (la flèche compare les annonces aux cartes)
-    const fp = frameAt(fi, 30), prevLines = fp >= 0 ? lines50("equilibre", fp) : [], curLines = lines50(evView(), fi);
+    const fp = frameAt(fi, 30), prevLines = fp >= 0 ? lines50("equilibre", fp) : [], curLines = cur ? cur.lines : lines50(evView(), fi);
     for (const c of cl) {
       const n = c.items.length, sw = c.items.reduce((a, p) => a + p.w, 0), mw = Math.max(...c.items.map(p => p.w));
       // corroboration : une seule carte qui recode ses localités (Wikipédia, DeepStateMap) est une révision, pas une
@@ -659,7 +663,7 @@ function eventArrows(fi){
       if (bdCur * km > 10) continue;
       // une prise annoncée en pleine zone adverse (p < 0,3 pour une prise russe, > 0,7 pour une ukrainienne) n'est pas
       // reflétée par les cartes : invraisemblable ou trop précoce, pas de flèche
-      const pc = fullField(fieldName(), fi), pv = pc ? pc[Math.round(cy - 0.5) * GX + Math.round(cx - 0.5)] : 0.5;
+      const pc = cur ? cur.pc : fullField(fieldName(), fi), pv = pc ? pc[Math.round(cy - 0.5) * GX + Math.round(cx - 0.5)] : 0.5;
       if (camp === 1 ? pv < 0.3 : pv > 0.7) continue;
       let bx = null, by = null, bd = 1e9;
       for (const run of prevLines) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; bx = x; by = y; } }
@@ -722,7 +726,7 @@ function eventArrows(fi){
                 items: c.items, dir: [gd.ux, gd.uy], mode: arr.mode, bary: [cx, cy], refs: [fl, fc], reoriented: gd.st !== "ok", uncertain: gd.st === "incertaine", why: gd.why});
     }
   }
-  return evCache[fi] = out;
+  return cur ? out : (evCache[fi] = out);
 }
 // déplacement de la ligne 50 % à moins de 15 km d'un agrégat d'annonces : barycentre des sommets de l'ancienne ligne
 // passés du côté du camp qui annonce → barycentre des sommets de la nouvelle ligne qui étaient du côté adverse.
@@ -958,6 +962,14 @@ window.__uafEvents = fi => eventArrows(fi).map(a => { const p = proj.invert([gAf
   return {lon: +p[0].toFixed(2), lat: +p[1].toFixed(2), from: [+b[0].toFixed(2), +b[1].toFixed(2)], ru: a.ru, n: a.n, w: +a.w.toFixed(2), dkm: +a.dkm.toFixed(1), late: !!a.late,
     undirected: !!a.undirected, mode: a.mode || null, dir: a.dir ? a.dir.map(v => +v.toFixed(2)) : null, bary: a.bary ? ll(...a.bary) : null,
     locs: (a.items || []).map(q => [...ll(q.gx, q.gy), +q.w.toFixed(2), [...q.srcs].join("+"), !!q.flipped])}; });
+// diagnostic (headless) : flèches « changements de camp » du replay au jour affiché, en coordonnées géographiques
+window.__uafReplayEvents = () => { const R = REPLAY.evArrows; if (!R) return null;
+  const ll = (x, y) => proj.invert([gAff[0] + x * gAff[2], gAff[1] + y * gAff[2]]).map(v => +v.toFixed(3));
+  return {fi: R.fi, snap: FR.months[R.fi] && FR.months[R.fi].date, n: R.arrows.length,
+    arrows: R.arrows.map(a => ({base: ll(a.ax, a.ay), head: ll(a.cx, a.cy), ru: a.ru, late: !!a.late, uncertain: !!a.uncertain, undirected: !!a.undirected, n: a.n, dkm: +a.dkm.toFixed(1)}))}; };
+// diagnostic (headless) : passe le replay au pas jour et affiche une date « YYYY-MM-DD » (chargement de l'année asynchrone)
+window.__uafReplayGoto = day => { if (!REPLAY.on || REPLAY.gran !== "d") setGranMode("d");
+  const ax = replayAxis(); let k = ax.indexOf(day); if (k < 0) k = ax.findIndex(x => x >= day); if (k < 0) k = ax.length - 1; replayShow(k); return {idx: k, day: ax[k], year: ax[k].slice(0, 4), state: (REPLAY.years[ax[k].slice(0, 4)] || {}).state}; };
 // diagnostic (headless) : état d'affichage (zoom, info-bulle, pas) pour les tests mobiles
 window.__uafState = () => ({k: tr.k, x: tr.x, y: tr.y, tip: tip.style.display, step: stepIdx, nsteps: AX.length, fvar, nowcast: amode() === "nowcast",
   checks: Object.fromEntries([...document.querySelectorAll('input[type="checkbox"]')].map(c => [c.id || c.dataset.raw || c.dataset.var, c.checked]))});
@@ -1953,6 +1965,7 @@ function draw(){
   if (showPm) drawPm(k);
   if (showAdv) drawAdv(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
   if (showArrows) { drawArrows(k); drawEventArrows(k); }
+  if (REPLAY.on && REPLAY.gran === "d" && REPLAY.evArrows) drawReplayEventArrows(k);
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
 
   // villes : en coordonnées écran, seuil selon le zoom
@@ -2190,6 +2203,47 @@ function replayFieldAt(st, j){
   const q = new Uint8Array(N); for (let u = 0; u < N; u++) q[u] = Math.round(acc[u] / cnt);
   return q;
 }
+// champ complet (GX*GY) à partir du champ de contrôle du jour (sur UCELLS) : bande russe à 1, reste 0, mailles du modèle remplies
+function replayFullField(q){
+  const g = new Float32Array(GX * GY);
+  for (let c = 0; c < GX * GY; c++) g[c] = ruMask && ruMask[c] && cellPlace[c] === -1 ? 1 : 0;
+  for (let u = 0; u < UCELLS.length; u++) g[UCELLS[u]] = q[u] / 63;
+  return g;
+}
+// flèches « localités changées de camp » datées au jour affiché : on prend l'instantané mensuel le plus récent ≤ au jour
+// (son mo.ev porte déjà la fenêtre glissante de 30 jours) et on GÂTE à la ligne de contrôle DU JOUR (champ fusion quotidien,
+// ≤ 10 km, via le garde-fou « au contact » d'eventArrows). Les flèches de poussée (gradient) et d'annonces restent à venir.
+function replayEventArrows(upper){
+  let fi = -1;
+  for (let i = 0; i < FR.months.length; i++) { const m = FR.months[i]; if (m && m.ev && m.date && m.date <= upper) fi = i; }
+  if (fi < 0 || !REPLAY.field) return null;
+  const pc = replayFullField(REPLAY.field), lines = linesOfField(pc);
+  return {fi, arrows: eventArrows(fi, {pc, lines})};
+}
+// rendu des flèches d'événements du replay (base → tête déjà gardée par eventArrows ; pas de re-garde de tête)
+function drawReplayEventArrows(k){
+  const R = REPLAY.evArrows; if (!R || !R.arrows.length) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const a of R.arrows) {
+    const sx = (gAff[0] + a.ax * gAff[2]) * k + tr.x, sy = (gAff[1] + a.ay * gAff[2]) * k + tr.y;
+    const ov = k < 1.6, col = a.ru ? C.front : C.uactl;
+    if (a.late) {
+      const r = ov ? 3.5 : 5; ctx.globalAlpha = 0.7; ctx.strokeStyle = col; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI); ctx.stroke(); continue;
+    }
+    const L0 = Math.hypot(a.cx - a.ax, a.cy - a.ay); if (L0 < 1e-6) continue;
+    const w = evWidth(a, k), dx = (a.cx - a.ax) / L0, dy = (a.cy - a.ay) / L0;
+    const PX = arrowPx(L0 * FR.grid.size / 1000, k, a.uncertain, w), L = PX.len, hs = Math.min(PX.hs, L * 0.28);
+    const ex = sx + dx * L, ey = sy + dy * L, hx = -dy, hy = dx;
+    const path = () => { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs, ey - dy * hs); };
+    const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
+    ctx.globalAlpha = 0.95; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = w;
+    if (a.uncertain) { ctx.setLineDash([4, 3]); ctx.lineWidth = Math.max(2, w); ctx.lineCap = "butt"; path(); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke(); ctx.fillStyle = col; }
+    else { path(); ctx.stroke(); head(); ctx.fill(); }
+    const rb = ov ? 3 : 4.5; ctx.fillStyle = C.bg; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(sx, sy, rb, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
 function replayPaint(){
   const i = REPLAY.idx, e = replayAxis()[i], upper = replayUpper(i), y = upper.slice(0, 4), st = REPLAY.years[y];
   const label = e.length === 7 ? monthName(e.slice(0, 4), e.slice(5, 7)) : (([Y, M, Dd]) => dayName(Y, M, Dd))(e.split("-"));
@@ -2197,6 +2251,7 @@ function replayPaint(){
   if (st.state === 3 || !st.keys || !st.keys.length) { $("mLabel").textContent = label; $("mSub").innerHTML = _t("replay : données indisponibles pour {y}", {y}); return; }
   const j = replaySnap(st, upper);
   REPLAY.field = replayFieldAt(st, j); REPLAY.fieldArr[0] = REPLAY.field;
+  REPLAY.evArrows = replayEventArrows(upper);                       // flèches datées « changements de camp » au jour affiché
   frontFor = -2;                                                    // forcer la reconstruction du champ (indice fixe)
   draw();
   const a = st.surf[j] && st.surf[j].a, occ = a && a.tout ? Math.round(a.tout[0] / 100) * 100 : null;
@@ -2248,6 +2303,7 @@ function replayToggle(on){
     replayShow(0);                                                   // départ en mars 2022 : la guerre se rejoue en avançant
   } else {
     replayStop();
+    REPLAY.evArrows = null;
     const s = REPLAY.saved || {};
     showContact = s.showContact; showUnc = s.showUnc; showAsym = s.showAsym; showDestr = s.showDestr; showCombat = s.showCombat;
     showArrows = s.showArrows; showTg = s.showTg; showFire = s.showFire; showLoss = s.showLoss; showUcdp = s.showUcdp;
@@ -2266,8 +2322,9 @@ function replayToggle(on){
 }
 // Un seul contrôle (index.html) : le sélecteur « pas » (#gran) pilote tout.
 //   Mois → timeline normale, carte complète AVEC les flèches de mouvement.
-//   Jour → vue fusion quotidienne (REPLAY), champ de contrôle seul, pas de flèches (limite de données, libellé honnête).
-// L'option brut/lissé (#replayRaw) et le libellé « contrôle seul » (#granNote) n'apparaissent qu'au pas Jour.
+//   Jour → vue fusion quotidienne (REPLAY), champ de contrôle quotidien + flèches datées « localités changées de camp »
+//          (instantané mensuel ≤ au jour, fenêtre 30 j, gâtées à la ligne du jour) ; poussées/annonces au jour : à venir.
+// L'option brut/lissé (#replayRaw) et le libellé (#granNote) n'apparaissent qu'au pas Jour.
 function replayUISync(on){
   // .chk porte display:inline-flex qui l'emporte sur [hidden] : on pilote donc display explicitement (hidden pour l'a11y)
   for (const id of ["rawWrap", "granNote"]) { const el = document.getElementById(id); if (el) { el.hidden = !on; el.style.display = on ? "" : "none"; } }
