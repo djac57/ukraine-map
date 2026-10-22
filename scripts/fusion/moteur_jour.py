@@ -485,7 +485,66 @@ def sdD_of(e):
     return e["SDe"].astype(np.float64)
 
 
-def ecrire(dF, cadence, suffixe="refit"):
+# ---- fusion quotidienne ROBUSTE aux fronts rapides (mélange v3 ⊕ dec ⊕ frz pondéré par la vitesse du front) ----------
+# Diagnostic (ukraine-recherche/analyses/fusion_quotidienne_RAPPORT.md, 22/10/2026) : sur les fronts rapides (2023-24) le
+# REFIT quotidien des poids PERD l'avance (il « tient moins longtemps ») et la bande au jour sur-affûte les mailles qui
+# changent et sous-couvre les secteurs volatils ; aucun réglage de bande seul ne tient les 3 critères dans les 2 régimes.
+# Solution retenue (validée walk-forward sur 2023-24 ET 2025-26, bootstrap) : NE PAS refiter les poids au jour (la loi au
+# jour avec poids MENSUELS « frz » préserve l'avance), et MÉLANGER trois champs par maille, pondéré par la VITESSE LOCALE
+# du front (causale, |vloc| du mois de référence, standardisée par secteur) :
+#     f = w_k · [ (1−a)·f_dec + a·f_frz ] + (1−w_k) · f_v3,   w_k = clip(1 − max(z_k,0)/ss, wmin, 1)
+#   - z_k : vitesse standardisée du secteur k ; secteur RAPIDE → w_k bas → on régularise vers v3/mensuel (préserve avance
+#     et mailles qui changent, là où le pas quotidien « tient moins longtemps ») ; secteur CALME → w_k ≈ 1 → fusion au jour ;
+#   - f_dec : loi MENSUELLE de δ reportée, ligne des cartes DU JOUR (decades.champ) — bon Brier, bonnes mailles changeantes ;
+#   - f_frz : loi au jour (signaux quotidiens frais), poids MENSUELS, bande mensuelle (MoteurJour(refit=False).champ) —
+#     porte l'avance et la détection précoce (Vivaldi un mois plus tôt) ; a = fraction de loi au jour dans la part fusion ;
+#   - f_v3 : champ de fusion MENSUEL en production (monthly reporté).
+# Mesuré ≥ v3 (aux barres d'erreur près) sur les TROIS critères dans les DEUX régimes ; mailles qui changent et détection
+# Vivaldi strictement meilleures. Réglages gelés (a, ss, wmin) ci-dessous. SORTIE PARALLÈLE, défaut INCHANGÉ.
+ROB_A = float(os.environ.get("FUSION_ROBUSTE_A", "0.35"))      # fraction de loi AU JOUR (frz) dans la part fusion
+ROB_SS = float(os.environ.get("FUSION_ROBUSTE_SS", "0.8"))     # échelle de la vitesse dans le gate (petit = gate raide)
+ROB_WMIN = float(os.environ.get("FUSION_ROBUSTE_WMIN", "0.0"))  # poids FUSION minimal dans les secteurs les plus rapides
+
+
+def vitesse_secteur(M, t):
+    """z : vitesse locale |vloc| du mois t moyennée par secteur (près de la ligne, ≤ 15 km), standardisée entre secteurs
+    présents (0 hors présence). Causale (vloc utilise t et t−2, connus à t)."""
+    v = np.abs(M.vloc(t))
+    nz = np.abs(np.nan_to_num(S.SDe[t], nan=999)) <= 15
+    num = np.bincount(S.sinv, weights=v * nz, minlength=S.nS)
+    den = np.bincount(S.sinv, weights=nz.astype(float), minlength=S.nS)
+    spd = num / np.maximum(den, 1)
+    pres = den >= 5
+    z = np.zeros(S.nS)
+    if pres.sum() >= 3:
+        mu = float(spd[pres].mean()); sdv = max(float(spd[pres].std()), 1e-6)
+        z[pres] = (spd[pres] - mu) / sdv
+    return z
+
+
+def melange_robuste(M, F, dF_dec, dF_frz, a=None, ss=None, wmin=None):
+    """{indice du jour: champ uint8 (6 bits) sur Z} — mélange v3 ⊕ dec ⊕ frz pondéré par la vitesse locale du front.
+    F : champs de fusion MENSUELS {t: p sur Z ∈ [0,1]} ; dF_dec/dF_frz : champs quotidiens {j: uint8 sur Z}."""
+    from .champ import quant
+    a = ROB_A if a is None else a
+    ss = ROB_SS if ss is None else ss
+    wmin = ROB_WMIN if wmin is None else wmin
+    D = DEC.lire()
+    out, spd = {}, {}
+    for j, e in enumerate(D):
+        t = e["t"]
+        if t not in F or j not in dF_dec or j not in dF_frz:
+            continue
+        if t not in spd:
+            spd[t] = vitesse_secteur(M, t)[S.sinv]            # z de vitesse par maille Z (via son secteur)
+        w = np.clip(1.0 - np.maximum(spd[t], 0.0) / ss, wmin, 1.0)
+        fday = (1.0 - a) * (dF_dec[j].astype(np.float32) / 63.0) + a * (dF_frz[j].astype(np.float32) / 63.0)
+        p = w * fday + (1.0 - w) * np.asarray(F[t], np.float32)
+        out[j] = np.round(quant(p) * 63).astype(np.uint8)
+    return out
+
+
+def ecrire(dF, cadence, suffixe="refit", winvar="FRONT_FUSION_REFIT_HIST"):
     """Écrit la sortie PARALLÈLE dédiée `site/front_fusion_{suffixe}_hist_<année>.js` (même format que decades.ecrire)."""
     import json
     from .socle import SITE, encode_field, decode_seq
@@ -513,7 +572,7 @@ def ecrire(dF, cadence, suffixe="refit"):
         head = json.dumps({"keys": H["keys"], "cadence": cadence, "months": metas}, ensure_ascii=False, separators=(",", ":"))
         path = os.path.join(SITE, f"front_fusion_{suffixe}_hist_{Y}.js")
         with open(path, "w", encoding="utf-8") as f:
-            f.write(f'(window.FRONT_FUSION_REFIT_HIST=window.FRONT_FUSION_REFIT_HIST||{{}})["{Y}"]=' + head + ";\n")
+            f.write(f'(window.{winvar}=window.{winvar}||{{}})["{Y}"]=' + head + ";\n")
             f.write(f'(window.FRONTH=window.FRONTH||{{}})["{Y}/fusion_{suffixe}"]=' + json.dumps(arr, separators=(",", ":")) + ";\n")
         index[Y] = {"n": sum(1 for x in arr if x), "ko": os.path.getsize(path) // 1024}
     return index

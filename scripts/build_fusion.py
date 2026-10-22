@@ -311,6 +311,30 @@ def main():
             log(f"refit + bande au jour : {len(dF)} jours, cadence {cad}, {len(NEED)} jours de besoin conformal ; "
                 f"écrit site/front_fusion_refit_bande_hist_<année>.js : {idx}")
 
+    # ---------- fusion quotidienne ROBUSTE aux fronts rapides (option, docs/ETAT.md § 6, 22/10/2026) ----------------------
+    # « melange_robuste » : mélange par maille v3 ⊕ dec (loi mensuelle, ligne du jour) ⊕ frz (loi AU JOUR, poids MENSUELS),
+    # pondéré par la VITESSE LOCALE du front (causale, par secteur) : secteurs rapides régularisés vers v3/mensuel (préserve
+    # avance + mailles qui changent, là où le refit quotidien « tenait moins longtemps »), fusion au jour là où c'est calme.
+    # Lève le blocage du § précédent (le refit + bande au jour échouait sur 2023-24). Validation walk-forward 2 régimes
+    # (ukraine-recherche/analyses/fusion_quotidienne_RAPPORT.md, bootstrap) : ≥ v3 (aux barres d'erreur près) sur les TROIS
+    # critères (Brier ≤ 30 km, mailles qui changent, avance) dans 2023-24 ET 2025-26 ; mailles qui changent et détection
+    # Vivaldi (−1 mois) strictement meilleures. Réglages gelés a=0,35 ss=0,8 wmin=0 (FUSION_ROBUSTE_A/SS/WMIN). SORTIE
+    # PARALLÈLE dédiée (site/front_fusion_robuste_hist_<année>.js), vue par défaut INCHANGÉE (l'utilisateur confirme la bascule).
+    # Entrées : site/front_hist_<année>*.js (HIST=jours) + data/daily/ + data/viirs_api_<année>.csv (feux).
+    if os.environ.get("FUSION_ROBUSTE"):
+        from fusion import decades as DEC
+        from fusion import moteur_jour as MJ
+        if not DEC.disponible():
+            log("fusion robuste : site/front_hist_<année>*.js absents (HIST=jours non publié) — ignoré")
+        else:
+            dF_dec = DEC.champ(CH, choice, lams, 0.0)
+            mjf = MJ.MoteurJour(M, R, CH, choice, lams, refit=False)
+            dF_frz = mjf.champ()
+            dF = MJ.melange_robuste(M, F, dF_dec, dF_frz)
+            idx = MJ.ecrire(dF, 0, suffixe="robuste", winvar="FRONT_FUSION_ROBUSTE_HIST")
+            log(f"fusion robuste : {len(dF)} jours, a={MJ.ROB_A} ss={MJ.ROB_SS} wmin={MJ.ROB_WMIN}, signaux {mjf.signaux} ; "
+                f"écrit site/front_fusion_robuste_hist_<année>.js : {idx}")
+
 
 if __name__ == "__main__":
     main()
