@@ -306,7 +306,14 @@ def check_legend():
     leg = leg[:leg.index('<div class="controls">')]
     rows = re.findall(r'<div data-lyr="([^"]+)"[^>]*>(.*?)</div>', leg)
     errs, n = [], 0
+    # Les cases des barres de CONTRÔLE (lecteur de replay : brut/lissé, et options de calque) ne sont pas des calques de
+    # carte et n'ont pas d'entrée de légende : on les repère par leur conteneur .controls (par opposition au panneau des
+    # calques #panel) et on les exclut du contrôle, pour ne pas alourdir la légende d'une carte volontairement simple.
+    ctl = [(m.start(), m.end()) for m in re.finditer(r'<div class="controls"[^>]*>.*?</div>', page, re.S)]
+    in_ctl = lambda p: any(a <= p < b for a, b in ctl)
     for m in re.finditer(r'<input type="checkbox"([^>]*)>', page):
+        if in_ctl(m.start()):
+            continue
         attrs = m.group(1)
         idm, rawm = re.search(r'id="([^"]+)"', attrs), re.search(r'data-raw="([^"]+)"', attrs)
         key = idm.group(1) if idm else ("raw:" + rawm.group(1) if rawm else None)
