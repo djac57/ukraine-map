@@ -648,6 +648,15 @@ function eventArrows(fi){
       const ok = srcs.size >= 2 || (decl && n >= 2) || (srcs.has("dsmlog") && mw >= 0.8);
       if (!ok) continue;
       const cx = c.items.reduce((a, p) => a + p.gx * p.w, 0) / sw, cy = c.items.reduce((a, p) => a + p.gy * p.w, 0) / sw;
+      // garde-fou « au contact » (22/10/2026) : l'agrégat doit rester près de la LIGNE DE CONTRÔLE COURANTE.
+      // Sinon des flèches « localité changée de camp » flottent en plein territoire tenu — bleu au milieu du
+      // rouge, ou loin derrière la ligne reprise (ex. reconquête de Kherson, novembre 2022, où des localités
+      // reprises bien à l'ouest restaient fléchées en zone désormais sûre). Distance du barycentre à la ligne
+      // 50 % courante (≈ proximité du contact) ≤ 10 km, sinon pas de flèche. S'applique aux deux camps ; les
+      // flèches réellement au front (rouges comprises) sont à moins de 10 km de la ligne et restent intactes.
+      let bdCur = 1e9;
+      for (const run of curLines) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bdCur) bdCur = d; }
+      if (bdCur * km > 10) continue;
       // une prise annoncée en pleine zone adverse (p < 0,3 pour une prise russe, > 0,7 pour une ukrainienne) n'est pas
       // reflétée par les cartes : invraisemblable ou trop précoce, pas de flèche
       const pc = fullField(fieldName(), fi), pv = pc ? pc[Math.round(cy - 0.5) * GX + Math.round(cx - 0.5)] : 0.5;
@@ -2121,8 +2130,11 @@ $("play").onclick = () => {
   playTick = () => { s++; if (s >= L.length) return stop(); setStep(L[s]); if (s === L.length - 1) stop(); };
   playTick(); timer = setInterval(playTick, playMs());
 };
-if ($("speed")) $("speed").onchange = () => { if (timer) { clearInterval(timer); timer = setInterval(playTick, playMs()); } };
-if ($("gran")) $("gran").onchange = () => { if (timer) { stop(); $("play").click(); } };
+if ($("speed")) $("speed").onchange = () => {
+  if (timer) { clearInterval(timer); timer = setInterval(playTick, playMs()); }
+  if (REPLAY.timer) { clearInterval(REPLAY.timer); replayStop(); replayPlay(); }   // au pas Jour : relancer à la nouvelle vitesse
+};
+// #gran (Mois/Jour) est câblé plus bas dans replayUI() : il pilote l'unique bascule du replay
 
 // ======================= replay quotidien =======================
 // Rejoue toute la guerre jour par jour : charge front_fusion_hist_<année>.js à la demande (par année), vue mensuelle
@@ -2229,7 +2241,7 @@ function replayToggle(on){
     syncMapLegend();
     if (panel) { panel.open = false; panel.style.pointerEvents = "none"; panel.style.opacity = "0.5"; }
     replayBuildAxis(); slider.max = replayAxis().length - 1;
-    REPLAY.bar.hidden = false; REPLAY.btn.setAttribute("aria-pressed", "true");
+    replayUISync(true);
     if (!rpSavedSlider) { rpSavedSlider = slider.oninput; rpSavedPlay = $("play").onclick; }
     slider.oninput = () => { replayStop(); replayShow(+slider.value); };
     $("play").onclick = () => replayPlay();
@@ -2245,40 +2257,44 @@ function replayToggle(on){
     (s.rawcb || []).forEach(([cb, v]) => { cb.checked = v; });
     syncMapLegend();
     if (panel) { panel.style.pointerEvents = ""; panel.style.opacity = ""; }
-    REPLAY.bar.hidden = true; REPLAY.btn.setAttribute("aria-pressed", "false");
+    replayUISync(false);
     if (rpSavedSlider) { slider.oninput = rpSavedSlider; $("play").onclick = rpSavedPlay; }
     slider.max = s.sliderMax != null ? s.sliderMax : AX.length - 1;
     frontFor = -2; $("play").textContent = playLabel();
     legend(); setStep(s.step != null ? s.step : stepIdx);
   }
 }
-// injection de l'interface (index.html non modifié) : bouton Replay dans .controls + barre d'options dessous
+// Un seul contrôle (index.html) : le sélecteur « pas » (#gran) pilote tout.
+//   Mois → timeline normale, carte complète AVEC les flèches de mouvement.
+//   Jour → vue fusion quotidienne (REPLAY), champ de contrôle seul, pas de flèches (limite de données, libellé honnête).
+// L'option brut/lissé (#replayRaw) et le libellé « contrôle seul » (#granNote) n'apparaissent qu'au pas Jour.
+function replayUISync(on){
+  // .chk porte display:inline-flex qui l'emporte sur [hidden] : on pilote donc display explicitement (hidden pour l'a11y)
+  for (const id of ["rawWrap", "granNote"]) { const el = document.getElementById(id); if (el) { el.hidden = !on; el.style.display = on ? "" : "none"; } }
+  const g = document.getElementById("gran"); if (g && g.value !== (on ? "d" : "m")) g.value = on ? "d" : "m";
+}
+// bascule Mois/Jour en conservant la date courante dans les deux sens
+function setGranMode(g){
+  if (g === "d"){
+    if (REPLAY.on) return;
+    const wantM = D.months[AX[stepIdx] ? AX[stepIdx].m : cur] || D.months[cur];   // « YYYY-MM » du pas courant
+    REPLAY.gran = "d"; replayToggle(true);
+    const ax = replayAxis(); let k = ax.findIndex(x => (x.length === 7 ? x : x.slice(0, 7)) >= wantM);
+    if (k < 0) k = ax.length - 1; replayShow(k);
+  } else {
+    if (!REPLAY.on) { if (timer) { stop(); $("play").click(); } return; }   // déjà au pas mois : (re)lance la lecture si besoin
+    const cur2 = replayAxis()[REPLAY.idx] || "", wantM = cur2.slice(0, 7);       // mois du jour affiché
+    replayToggle(false);
+    const mi = D.months.indexOf(wantM); if (mi >= 0) setMonth(mi);
+  }
+}
 (function replayUI(){
-  const controls = document.querySelector(".controls"); if (!controls || !slider) return;
-  const btn = document.createElement("button");
-  btn.type = "button"; btn.className = "btn mini"; btn.id = "replayBtn"; btn.setAttribute("aria-pressed", "false");
-  btn.style.minWidth = "72px"; btn.textContent = _t("⟲ replay");
-  btn.title = _t("Rejouer toute la guerre jour par jour");
-  btn.onclick = () => replayToggle(!REPLAY.on);
-  controls.appendChild(btn); REPLAY.btn = btn;
-  const bar = document.createElement("div");
-  bar.className = "controls"; bar.id = "replayBar"; bar.hidden = true; bar.style.margin = "4px 0 0";
-  const gran = document.createElement("select"); gran.className = "mini"; gran.setAttribute("aria-label", _t("pas du replay"));
-  gran.innerHTML = `<option value="m">${_t("par mois")}</option><option value="d">${_t("par jour")}</option>`;
-  gran.onchange = () => { const cur = replayAxis()[REPLAY.idx]; REPLAY.gran = gran.value; replayBuildAxis(); slider.max = replayAxis().length - 1;
-    // garder la même date après changement de granularité
-    const want = cur.length === 7 ? cur : cur.slice(0, 7), ax = replayAxis();
-    let k = ax.findIndex(x => (x.length === 7 ? x : x.slice(0, 7)) >= want); if (k < 0) k = ax.length - 1;
-    replayShow(k); };
-  const rawLbl = document.createElement("label"); rawLbl.className = "chk"; rawLbl.style.margin = "0 0 0 4px";
-  const rawCb = document.createElement("input"); rawCb.type = "checkbox"; rawCb.id = "replayRaw"; rawCb.setAttribute("autocomplete", "off");
-  rawCb.onchange = () => { REPLAY.raw = rawCb.checked; replayPaint(); };
-  const rawTxt = document.createElement("span"); rawTxt.textContent = _t("ce que le modèle savait ce jour-là");
-  rawLbl.append(rawCb, " ", rawTxt);
-  bar.append(gran, rawLbl); controls.parentNode.insertBefore(bar, controls.nextSibling); REPLAY.bar = bar;
-  REPLAY.relabel = () => { btn.textContent = _t("⟲ replay"); btn.title = _t("Rejouer toute la guerre jour par jour");
-    gran.options[0].textContent = _t("par mois"); gran.options[1].textContent = _t("par jour"); rawTxt.textContent = _t("ce que le modèle savait ce jour-là");
-    if (REPLAY.on) replayPaint(); };
+  const gran = document.getElementById("gran"), rawCb = document.getElementById("replayRaw");
+  const help = document.getElementById("granHelp"), helpTxt = document.getElementById("granHelpText");
+  if (gran) gran.onchange = () => setGranMode(gran.value);
+  if (rawCb) rawCb.onchange = () => { REPLAY.raw = rawCb.checked; replayPaint(); };
+  if (help && helpTxt) help.onclick = () => { helpTxt.hidden = !helpTxt.hidden; };
+  REPLAY.relabel = () => { if (REPLAY.on) replayPaint(); };
 })();
 document.addEventListener("uaf-lang", () => { if (REPLAY.relabel) REPLAY.relabel(); });
 // ===================== fin replay quotidien =====================

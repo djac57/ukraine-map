@@ -69,9 +69,13 @@
 <div class="controls">
   <button class="btn" id="play" type="button" style="min-width:86px">▶</button>
   <input type="range" id="slider" min="0" max="0" value="0" aria-label="Mois">
-  <select id="gran" class="mini" aria-label="pas"><option value="all" data-t="grAll">mois + jours récents</option><option value="w" data-t="grW">par semaine (3 derniers mois)</option><option value="m" data-t="grM">par mois</option><option value="q" data-t="grQ">par trimestre</option><option value="y" data-t="grY">par an</option></select>
+  <select id="gran" class="mini" aria-label="pas"><option value="m" data-t="grMois">Mois</option><option value="d" data-t="grJour">Jour</option></select>
   <select id="speed" class="mini" aria-label="vitesse"><option value="0.5">×0,5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option></select>
+  <label class="chk" id="rawWrap" hidden style="margin:0 0 0 2px;display:none"><input type="checkbox" id="replayRaw" autocomplete="off"> <span data-t="rpRaw" data-tt="rpRawTip" title="">brut</span></label>
+  <span id="granNote" hidden data-t="rpDayNote" data-tt="rpDayNoteTip" title="" style="font-size:12px;color:var(--faint);align-self:center;display:none">contrôle seul · pas de flèches à ce pas</span>
+  <button class="btn mini" id="granHelp" type="button" data-tt="rpHelp" title="" aria-label="à propos du replay" style="min-width:26px">ⓘ</button>
 </div>
+<p class="hint" id="granHelpText" hidden data-t="rpHelpText" style="margin:2px 0 0">Rejoue le front dans le temps. Au pas « Mois » : carte complète avec les flèches de mouvement. Au pas « Jour » : le champ de contrôle quotidien (fusion), plus fin mais sans flèches — l'historique au jour le jour n'existe que pour le contrôle.</p>
 
 <details class="panel layers" id="panel">
 <summary data-t="layers">calques</summary>
@@ -153,10 +157,10 @@
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=adb36d30d0"></script>
-<script src="front_equilibre.js?v=7a06f07c9d"></script>
-<script src="front_nowcast.js?v=1ce82b0877"></script>
-<script src="front_contact.js?v=9b46989e9e"></script>
-<script src="front.js?v=dd3baae0b2"></script>
+<script src="front_equilibre.js?v=5c3266ff78"></script>
+<script src="front_nowcast.js?v=e6ea9a216c"></script>
+<script src="front_contact.js?v=432b5ff1cf"></script>
+<script src="front.js?v=fd42e25dd0"></script>
 <script src="osint.js?v=46ed380b81"></script>
 <script src="ecart_mod.js?v=530f561d6f"></script>
 <script>
