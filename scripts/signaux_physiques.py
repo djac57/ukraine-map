@@ -192,6 +192,12 @@ def _bench():
         p = z0(PHYS[t, k])
         return [a, s, g, abs(a), abs(s), abs(g), p, abs(p)]
 
+    def f_P_noS2(t, k):                   # physique SANS la composante S2 10 m (pour isoler l'apport propre du S2)
+        a, g = z0(AZz[t, k]), z0(TGz[t, k])
+        comp = [v for v in (AZz[t, k], TGz[t, k]) if not np.isnan(v)]
+        p = float(np.mean(comp)) if comp else 0.0
+        return [a, g, abs(a), abs(g), p, abs(p)]
+
     def f_base(t, k):                    # 2ᵉ étage PRODUCTION : momentum (publié) + asym PUBLIÉE + Telegram (sans S2)
         m1, m3 = z0(mom(t, k, 1, YP)), z0(mom(t, k, 3, YP))
         return [m1, m3, z0(FA[t, k]), z0(FAz[t, k]), z0(TGz[t, k]), z0(TG[t, k])]
@@ -284,6 +290,21 @@ def _bench():
         if dep and alert:
             pr(f"   -> bascule cartes {dates[dep]} ; 1re alerte S2 (RU−UA ≥ 2) {dates[alert]} ; "
                f"avance = {(DATE[dep]-DATE[alert]).days} jours")
+    pr("\n" + "=" * 74)
+    pr("(E) APPORT PROPRE DU S2 10 m — AUC hors-cartes AVEC vs SANS la composante S2 (même entrée)")
+    pr("=" * 74)
+    pr("   mesure : AUC(M + bloc physique) − AUC(M + bloc physique SANS S2) ; vérité = champ des cartes, movers.")
+    for title, tgt, X, mv, q in [("Va bouger ≥1 km — tuiles CALMES", "move", 1.0, False, True),
+                                 ("Qui pousse (movers) ≥1 km — tuiles CALMES", "sens", 1.0, True, True),
+                                 ("Va bouger ≥1 km — TOUT le front", "move", 1.0, False, None),
+                                 ("Qui pousse (movers) ≥1 km — TOUT le front", "sens", 1.0, True, None)]:
+        a_full = collect(lambda t, k: f_M(t, k) + f_P(t, k), tgt, X, movers=mv, quiet=q)
+        a_no = collect(lambda t, k: f_M(t, k) + f_P_noS2(t, k), tgt, X, movers=mv, quiet=q)
+        d = "" if (np.isnan(a_full[0]) or np.isnan(a_no[0])) else f"   apport S2 = {a_full[0]-a_no[0]:+.3f}"
+        pr(f"\n### {title}")
+        pr(f"   M+P sans S2   AUC {a_no[0]:.3f}  (n={a_no[1]}, pos={a_no[2]})")
+        pr(f"   M+P avec S2   AUC {a_full[0]:.3f}  (n={a_full[1]}, pos={a_full[2]}){d}")
+
     OUT.close()
     print("\nécrit", os.path.join(OUTDIR, "integration.txt"))
 
