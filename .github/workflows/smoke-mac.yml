@@ -1,0 +1,28 @@
+# Test de fumée du runner self-hosted (Mac) : valide Python, dépendances et accès au cache raw/ (VIINA complet).
+# Déclenchement MANUEL seulement. Ne publie rien, ne déploie rien. À supprimer une fois la bascule prod validée.
+name: smoke-mac
+on:
+  push: { paths: [".github/workflows/smoke-mac.yml"] }
+  workflow_dispatch: {}
+concurrency: { group: smoke-mac, cancel-in-progress: true }
+jobs:
+  smoke:
+    runs-on: [self-hosted, m5]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: "Dépendances (comme la prod)"
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.16.3 pyarrow==21.0.0
+      - name: "Restaurer le cache des données brutes (VIINA complet attendu)"
+        uses: actions/cache/restore@v4
+        with: { path: raw, key: "smoke-${{ github.run_id }}", restore-keys: "raw-" }
+      - name: "Vérifications"
+        run: |
+          set -e
+          echo "=== OS / arch ==="; sw_vers; uname -m
+          echo "=== deps ==="; python -c "import numpy, scipy, pyarrow; print('OK numpy', numpy.__version__, '| scipy', scipy.__version__, '| pyarrow', pyarrow.__version__)"
+          echo "=== cache raw présent ? ==="; ls raw 2>/dev/null | head || echo "PAS de raw"
+          echo "=== VIINA en cache (doit être volumineux, pas superficiel) ==="; du -sh raw/viina 2>/dev/null || echo "pas de raw/viina"
+          echo "=== scripts lisibles ? ==="; python -c "import ast; ast.parse(open('scripts/build_front.py').read()); print('build_front.py OK')"
