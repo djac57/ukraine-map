@@ -31,6 +31,11 @@ Drapeaux (seuils choisis en walk-forward, voir le rapport) :
      |a| ≥ 0,4 deux mois de suite) OU (indice additif D_UA ≥ 1,5 ET P(bouge) ≥ 80e centile des 12 mois précédents)],
      D_UA = Σ min(max(anomalie, −1), 5) / 2 sur : 5 × asymétrie publiée, Telegram z(UA − RU), S2 (si disponible) ;
   4  ancienne règle « poussée possible » seule (pour comparaison, non affichée).
+Indice HORS-CARTES (signaux_physiques.py, reco du RAPPORT détecteur de contre-offensives du 22/10/2026) : sur les tuiles
+CALMES sur les cartes (|ΔY 60 j| < 1 km), le bloc physique seul (asymétrie publiée + S2 + Telegram, AUCUNE carte) signale
+une bascule que le momentum des cartes ne voit pas venir (gain +0,03 à +0,06 d'AUC sur ces tuiles, sert le KPI
+hors-cartes). Exposé en bits d'`indices` (1024/2048/4096/8192) et en 7ᵉ colonne (score signé) ; INDICE seulement, jamais
+une flèche autonome, jamais dans P(mouvement) ni P(sens). Coupe-circuit : SENS_HORS_CARTES=0.
 Agrégats seulement (tronçons de 24 km), aucun texte Telegram, aucun suivi d'unités ; pas = décades (10, 20, fin de
 mois) jusqu'à la date limite J-7 du build.
 """
@@ -44,6 +49,9 @@ import sys
 from collections import defaultdict
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import signaux_physiques as sp   # noqa: E402  (bloc de signaux physiques : indice hors-cartes, cohérent avec la validation)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE = os.path.join(ROOT, "site")
@@ -486,7 +494,10 @@ def clipz(v):
     return float(np.clip(v, -1, 5)) / 2
 
 
-FLAG, CUE, DUA = {}, {}, {}
+# indice HORS-CARTES (activé par défaut ; SENS_HORS_CARTES=0 pour le couper). Signaux physiques seuls, sur les tuiles
+# CALMES sur les cartes : indice concordant, JAMAIS une flèche autonome (85-92 % de fausses alertes seul, RAPPORT § 3).
+HORS_CARTES = os.environ.get("SENS_HORS_CARTES", "1") != "0"
+FLAG, CUE, DUA, HC = {}, {}, {}, {}
 for key, x in F.items():
     s, k = key
     r = ROWS[key]
@@ -517,6 +528,15 @@ for key, x in F.items():
     c |= 128 if x[4] <= -0.5 else 0                   # reprise ukrainienne récente
     c |= 256 if s2 is not None else 0                 # S2 disponible
     c |= 512 if tg_ok(steps[s]) else 0                # Telegram disponible
+    # Indice HORS-CARTES : tuile CALME sur les cartes (|ΔY 60 j| < 1 km) où le bloc physique (asym publiée + S2 +
+    # Telegram, aucune carte) signale une bascule que le momentum ne voit pas venir (RAPPORT reco 1-2, sert le KPI
+    # hors-cartes). Indice seulement : n'entre PAS dans P(mouvement), P(sens), ni dans une flèche.
+    y2 = MON.get((month_add(mfs[s], -2), k), r)["y"]
+    calm = sp.calm_on_maps(r["y"], y2)
+    hc, nhc = sp.hors_cartes_score(asym_z=5.0 * x[0], s2_asym=s2, tg_z=(x[6] if tg_ok(steps[s]) else None))
+    HC[key] = (hc, calm)
+    if HORS_CARTES:
+        c |= sp.hors_cartes_cue(calm, hc, nhc, s2 is not None)
     CUE[key] = c
 
 
@@ -548,6 +568,15 @@ for X in (1.0, 2.0):
                                      rappel=round(float((a & (y == 1)).sum() / max(y.sum(), 1)), 3),
                                      base=round(float(y.mean()), 4) if len(y) else None,
                                      alertes_mois=round(len(tm) / nm, 2), fausses_mois=round(len(tf) / nm, 2))
+# indice hors-cartes : couverture et pouvoir de SENS sur les tuiles CALMES (vérité : champ des cartes, movers ≥ 1 km)
+hc_cue = sum(1 for v in CUE.values() if v & 1024)
+calm_mv = [key for key in HC if HC[key][1] and HC[key][0] is not None
+           and ("UA", 1.0) + key in TGT and TGT[("UA", 1.0) + key] + TGT[("RU", 1.0) + key] == 1
+           and steps[key[0]].isoformat() >= "2023-03"]
+VAL["hors_cartes"] = dict(cues=hc_cue, n_calmes_movers=len(calm_mv),
+                          auc_sens_calmes_1km=(auc([HC[key][0] for key in calm_mv],
+                                                   [TGT[("UA", 1.0) + key] for key in calm_mv]) if calm_mv else None),
+                          note="indice physique seul sur tuiles calmes ; validation walk-forward complète : signaux_physiques.py --bench")
 say("validation interne (vérité : champ des cartes, 2023-03+) : " + json.dumps(VAL, ensure_ascii=False))
 
 # ---------------------------------------------------------------- sortie
@@ -559,22 +588,30 @@ for s, d in enumerate(steps):
         if key not in F:
             continue
         pm = ROWS[key]["pm"]
-        if pm < 0.10 and not FLAG[key] & 3:
+        # on garde aussi les tuiles calmes portant l'indice hors-cartes : c'est là (pm bas) que les cartes sont muettes
+        if pm < 0.10 and not FLAG[key] & 3 and not (CUE[key] & 1024):
             continue
         pu = PUA.get(key)
+        hc, calm = HC.get(key, (None, False))
         lst.append([(k % 1000) * TILE + TILE // 2, (k // 1000) * TILE + TILE // 2, round(pm * 100),
-                    None if pu is None else round((1 - pu) * 100), FLAG[key], CUE[key]])
+                    None if pu is None else round((1 - pu) * 100), FLAG[key], CUE[key],
+                    # indice hors-cartes signé (+ reprise UA, − poussée RU) sur une tuile calme sur les cartes, sinon null
+                    round(hc, 2) if (HORS_CARTES and calm and hc is not None) else None])
     out_steps.append(d.isoformat())
     rows.append(lst)
 meta = {
     "generated": dt.date.today().isoformat(), "tileCells": TILE, "stepDays": 10,
-    "columns": ["colonne", "ligne", "P(bouge) %", "P(sens RU | bouge) % (null : pas encore appris)", "drapeaux", "indices"],
+    "columns": ["colonne", "ligne", "P(bouge) %", "P(sens RU | bouge) % (null : pas encore appris)", "drapeaux", "indices",
+                "indice hors-cartes signé (null hors tuile calme ; + reprise UA, − poussée RU)"],
     "flags": {"1": "poussée russe probable", "2": "poussée possible (UA, règle améliorée)", "4": "ancienne règle « poussée possible » (comparaison, non affichée)"},
     "cues": {"1": "Telegram : activité russe signalée en excès (z ≤ −1)", "2": "Telegram : activité ukrainienne signalée en excès (z ≥ 1)",
              "4": "impacts S2 plus denses côté ukrainien", "8": "impacts S2 plus denses côté russe",
              "16": "combats derrière la ligne ukrainienne", "32": "combats derrière la ligne russe",
              "64": "gain russe récent (3 mois)", "128": "reprise ukrainienne récente (3 mois)",
-             "256": "Sentinel-2 disponible", "512": "Telegram disponible"},
+             "256": "Sentinel-2 disponible", "512": "Telegram disponible",
+             "1024": "indice HORS-CARTES : tuile calme sur les cartes + signal physique de bascule (signaux_physiques.py)",
+             "2048": "indice hors-cartes orienté reprise UA", "4096": "indice hors-cartes orienté poussée RU",
+             "8192": "indice hors-cartes appuyé par l'asymétrie S2 (composante la plus sûre)"},
     "rules": {"fleche_ru": f"P(bouge) ≥ {Q_RU}e centile des 12 mois précédents ET P(sens RU) ≥ {P_RU}",
               "poussee_possible": f"P(UA | bouge) ≥ {P_UA} ET (ancienne règle OU (indice additif D_UA ≥ {D_UA} ET P(bouge) ≥ {Q_GATE}e centile))"},
     "sources": {"telegram": TG_SRC, "telegram_jusqua": TG_LAST, "sentinel2": (S2DECS[0] + " → " + S2DECS[-1]) if S2DECS else None},
