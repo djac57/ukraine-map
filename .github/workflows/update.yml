@@ -143,8 +143,8 @@ jobs:
         with: { name: work, path: . }
       - name: "Construire la carte du front — lot ${{ matrix.lot }} (mois, puis un pas tous les 3 jours sur les 90 derniers jours)"
         run: python scripts/build_front.py raw/viina
-        env: { DAILY_DAYS: "90", FRONT_VIEWS: "${{ matrix.lot }}" }
-        timeout-minutes: 110
+        env: { DAILY_DAYS: "90", FRONT_VIEWS: "${{ matrix.lot }}", HIST: "${{ matrix.lot == 'vues' && 'jours' || '' }}", HIST_BUDGET_MIN: "15", HIST_FROM: "2025-01" }
+        timeout-minutes: 120
       - name: "Mettre le lot en paquet pour l'assemblage"
         run: python scripts/front_parts.py stage staging
       - name: "Publier le morceau du lot ${{ matrix.lot }}"
