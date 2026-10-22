@@ -261,6 +261,7 @@ const go=n=>{ if((!w.FRONTP||!w.__uafGoto)&&n<80) return setTimeout(()=>go(n+1),
 def check_i18n(chrome):
     """Bloquant : aucun mot-témoin français en EN, UK, RU."""
     import json
+    import tempfile
     ok = True
     for lang in ("en", "uk", "ru"):
         path = os.path.join(SITE, "_check_i18n.html")
@@ -273,8 +274,22 @@ def check_i18n(chrome):
             with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=SITE)) as httpd:
                 port = httpd.server_address[1]
                 threading.Thread(target=httpd.serve_forever, daemon=True).start()
-                out = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--virtual-time-budget=60000", "--dump-dom",
-                                      f"http://127.0.0.1:{port}/_check_i18n.html"], capture_output=True, text=True, timeout=300).stdout
+                out = ""
+                # Chrome headless se bloque parfois : runner chargé, et surtout profil par défaut partagé avec le contrôle
+                # des flèches (qui tourne juste avant) et d'une langue à l'autre — un répertoire de profil DÉDIÉ par
+                # lancement évite le verrou, une relance couvre le reste, plutôt qu'un TimeoutExpired non rattrapé qui
+                # ferait tomber tout le pipeline. Le contrôle lui-même reste strict (une page non lue reste un ECHEC).
+                for attempt in (1, 2):
+                    prof = tempfile.mkdtemp(prefix=f"cri18n_{lang}_")
+                    try:
+                        out = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", f"--user-data-dir={prof}",
+                                              "--virtual-time-budget=60000", "--dump-dom",
+                                              f"http://127.0.0.1:{port}/_check_i18n.html"], capture_output=True, text=True, timeout=300).stdout
+                        break
+                    except subprocess.TimeoutExpired:
+                        print(f"check_arrows.py : I18N|{lang} : Chrome expiré (300 s), tentative {attempt}/2")
+                    finally:
+                        shutil.rmtree(prof, ignore_errors=True)
                 httpd.shutdown()
         finally:
             os.remove(path)
