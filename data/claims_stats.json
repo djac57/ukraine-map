@@ -1,30 +1,30 @@
 {
  "modru": {
-  "mentions": 8728,
-  "introuvable": 3771,
-  "hors oblast cité": 951,
-  "géocodé": 2512,
-  "ambigu": 1216,
-  "loin du front": 162,
+  "mentions": 8980,
+  "introuvable": 3835,
+  "hors oblast cité": 975,
+  "géocodé": 2625,
+  "ambigu": 1258,
+  "loin du front": 164,
   "hors Russie": 27,
-  "incohérent": 12,
-  "Russie : ambigu ou introuvable": 77,
+  "incohérent": 13,
+  "Russie : ambigu ou introuvable": 83,
   "géocodé (Russie)": 56,
-  "annonces": 1527,
-  "taux_rejet": 0.712,
-  "taux_rejet_localites": 0.482
+  "annonces": 1593,
+  "taux_rejet": 0.708,
+  "taux_rejet_localites": 0.479
  },
  "gsua": {
-  "mentions": 673,
-  "introuvable": 385,
+  "mentions": 688,
+  "introuvable": 398,
   "ambigu": 56,
   "loin du front": 60,
-  "géocodé": 83,
+  "géocodé": 85,
   "hors oblast cité": 84,
   "incohérent": 2,
   "hors Russie": 3,
-  "annonces": 82,
-  "taux_rejet": 0.877,
-  "taux_rejet_localites": 0.709
+  "annonces": 84,
+  "taux_rejet": 0.876,
+  "taux_rejet_localites": 0.704
  }
 }
