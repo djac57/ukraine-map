@@ -809,15 +809,16 @@ class WindowLayers:
 
     def get(self, date, strict=False):
         """(combats, présence russe, présence ukrainienne) du pas, au format de load_layers.
-        strict (historique infra-mensuel, HIST) : feux de la fenêtre à l'échelle de load_layers (× 0,1, comme les mois ;
-        les pas récents gardent leur échelle d'origine) ; UCDP et pertes du DERNIER MOIS ÉCOULÉ (publiés au mois : le
-        mois en cours n'est pas connu à la date de la décade)."""
-        mi = self.months.index(date.strftime("%Y-%m"))
+        Feux de la fenêtre ramenés à l'échelle de load_layers (× 0,1, comme les mois ET comme le chemin HIST) : avant le
+        22/10/2026 ce × 0,1 manquait sur les pas récents (chemin non-strict), d'où une densité de combats ~10× trop forte
+        et une bande d'incertitude ~10× trop sensible aux feux sur ces pas (cause racine du contrôle des flèches désactivé).
+        strict (historique infra-mensuel, HIST) : UCDP et pertes du DERNIER MOIS ÉCOULÉ (publiés au mois : le mois en cours
+        n'est pas connu à la date de la décade) ; sinon : UCDP et pertes du mois de la date."""
+        mi = self.months.index(date.strftime("%Y-%m")) - (1 if strict else 0)
         _, pres, _, ucdp = self.layers
         pu = [(lon, lat, 3.0) for d, lon, lat in self.claims if date - dt.timedelta(days=75) < d <= date + dt.timedelta(days=45)]
-        if strict:
-            return [(x, y, w * 0.1) for x, y, w in self.fires(date)] + list(ucdp.get(mi - 1, [])), pres.get(mi - 1, []), pu
-        return self.fires(date) + list(ucdp.get(mi, [])), pres.get(mi, []), pu
+        fires = [(x, y, w * 0.1) for x, y, w in self.fires(date)]
+        return fires + list(ucdp.get(mi, [])), pres.get(mi, []), pu
 
     def indicators(self, date, strict=False):
         """Indicateurs bruts du nowcast pour le pas : feux (fenêtre), UCDP (mois), pertes (mois), sur la grille.
