@@ -688,8 +688,18 @@ function eventArrows(fi, cur){
       // en retard sur les cartes : un mois plus tôt, le champ plaçait déjà le barycentre du côté du camp qui annonce.
       // Ce n'est pas un mouvement nouveau (95 % des cas examinés : annonce postérieure aux cartes) : simple repère
       // « confirmé par annonce », sans direction.
+      // Exception (reflux de Koursk) : l'annonce recouvre un VRAI basculement de contrôle depuis le mois précédent —
+      // au moins une localité annoncée est passée du camp adverse (cartes seules il y a un mois, POLD) au camp qui
+      // annonce (contrôle courant, pc). La Russie reprend sa propre oblast : ces localités basculent UA→RU AU CONTACT
+      // de la ligne du jour (le garde-fou « au contact » ci-dessus l'a déjà vérifié) ; le barycentre peut être, en
+      // moyenne, déjà rouge sur les cartes (pvo > 0,5) sans que le mouvement soit pour autant « déjà cartographié ».
+      // Un vrai basculement de localité au contact n'est donc pas une confirmation creuse : on lui calcule un sens.
+      // Même seuil de bascule (0,5) que q.flipped plus bas et que les « localités basculées » du contrôle (check_arrows).
+      let flipN = 0;
+      if (pc && POLD) for (const q of c.items) { const k = Math.round(q.gy - 0.5) * GX + Math.round(q.gx - 0.5);
+        if (camp === 1 ? (POLD[k] < 0.5 && pc[k] > 0.5) : (POLD[k] > 0.5 && pc[k] < 0.5)) flipN++; }
       const pvo = POLD ? POLD[Math.round(cy - 0.5) * GX + Math.round(cx - 0.5)] : 0.5;
-      if (camp === 1 ? pvo > 0.5 : pvo < 0.5) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, items: c.items}); continue; }
+      if (flipN < 1 && (camp === 1 ? pvo > 0.5 : pvo < 0.5)) { out.push({ax: cx, ay: cy, cx, cy, ru: camp === 1, n, w: sw, dkm: bd * km, late: true, items: c.items}); continue; }
       // sens : une avancée russe va vers le côté ukrainien (−∇p, p = contrôle russe partout, bande russe comprise),
       // une avancée ukrainienne vers le côté russe (+∇p) ; à défaut (cas résiduel), réorientation selon le gradient local
       // Direction, par ordre de priorité : 1) déplacement de la ligne 50 % autour de l'agrégat (ancienne ligne disparue →

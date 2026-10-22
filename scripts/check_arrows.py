@@ -142,6 +142,8 @@ const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowChec
   {const FM=w.FRONT.months, idx=k=>k.length===7?months.indexOf(k):FM.findIndex(m=>m&&m.date===k);
    for(const [name,ks,box,ru] of EVENT_CASES){let hit=null,n=0; for(const k of ks){const i=idx(k); if(i<0) continue; for(const a of w.__uafEvents(i)){ if(!inb(a,box)) continue; n++; if(a.ru===ru&&!a.late&&!hit) hit=k+' '+a.n+' localité(s), poids '+a.w;}}
      o.textContent+='CAS|'+name+'|'+(hit?'OK':'ECHEC')+'|'+(hit||'aucune flèche d’annonces du bon camp')+'|'+n+'\\n';}
+   {const kb=[34.80,35.80,51.00,51.60], dd=[]; for(const k of ['2025-01','2025-02','2025-03']){const i=idx(k); if(i<0) continue; for(const a of w.__uafEvents(i)){ if(!inb(a,kb)) continue; const lc=a.locs||[]; dd.push(k+' ru='+a.ru+' late='+a.late+' undir='+a.undirected+' mode='+(a.mode||'-')+' flip='+lc.filter(q=>q[4]).length+'/'+lc.length+' dkm='+a.dkm);}}
+     o.textContent+='DIAG|Koursk reflux, flèches d’annonces dans la poche|'+(dd.join(' ; ')||'aucune')+'\\n';}
    {const [name,ks,box,lim]=EVENT_CALM; let n=0; for(const k of ks){const i=idx(k); if(i<0) continue; n+=w.__uafEvents(i).filter(a=>inb(a,box)).length;}
      o.textContent+='CALME|'+name+'|'+(n<=lim?'OK':'ALERTE')+'|'+n+' flèche(s) d’annonces sur 33 mois (tolérance '+lim+')\\n';}
    for(const [name,d0,d1,box,ru] of DAILY_CASES){let hit=null,n=0,steps=0; FM.forEach((m,i)=>{ if(!m||m.kind!=='d'||m.date<d0||m.date>d1) return; steps++; for(const L of [20,10,'overview']) for(const a of w.__uafArrows(i,L)){ if(!inb(a,box)) continue; n++; if(a.ru===ru&&!hit) hit=m.date+' L'+L+' '+a.v+' km/30 j';}});
