@@ -1,0 +1,612 @@
+geonameid,nom,lat,lon,date_premiere,date_derniere,p_ru_nous,statut,profondeur_km,reprise_ua_documentee,geocodage_suspect
+807507,Lobanivka,50.27036,37.4357,2026-10-04,2026-10-10,0.095,surrevendiquee_UA,12.0,False,False
+807514,Lukashove,50.32277,37.41509,2026-10-10,2026-10-10,0.095,surrevendiquee_UA,10.0,False,False
+705729,Kyianytsia,51.06806,34.91761,2026-10-09,2026-10-09,0.19,surrevendiquee_UA,8.0,False,False
+713358,Hannopillia,50.14306,37.18739,2026-10-08,2026-10-08,0.0,surrevendiquee_UA,16.0,False,False
+690444,Varvarivka,50.3768,37.3505,2026-10-04,2026-10-07,0.286,surrevendiquee_UA,6.0,False,False
+695610,Riznykove,50.31078,37.42076,2026-10-04,2026-10-07,0.063,surrevendiquee_UA,10.0,False,False
+694046,Holubkove,47.91667,36.01667,2026-10-06,2026-10-07,0.0,surrevendiquee_UA,20.0,False,False
+806894,Nefedivka,50.21882,37.38904,2026-10-07,2026-10-07,0.032,surrevendiquee_UA,14.0,False,False
+694841,Samiilivka,47.88571,36.01735,2026-10-05,2026-10-05,0.0,surrevendiquee_UA,16.0,False,False
+702171,Mala Rybytsia,50.958,35.22156,2026-10-02,2026-10-02,0.175,surrevendiquee_UA,6.0,False,False
+708214,Hrachivka,50.27552,37.4563,2026-10-02,2026-10-02,0.159,surrevendiquee_UA,10.0,False,False
+807505,Serdobyne,50.25752,37.39966,2026-10-02,2026-10-02,0.048,surrevendiquee_UA,14.0,False,False
+695270,Rublene,50.29099,37.57111,2026-10-01,2026-10-01,0.524,accord_RU,0.0,False,False
+700279,Nesterne,50.41857,37.38512,2026-10-01,2026-10-01,1.0,accord_RU,0.0,False,False
+807107,Vysoka Yaruha,50.27387,36.31865,2026-10-01,2026-10-01,0.651,accord_RU,0.0,False,False
+691447,Tovstodubove,51.8514,34.24509,2026-09-30,2026-09-30,0.0,surrevendiquee_UA,8.0,False,False
+807531,Shabelne,50.42512,37.31891,2026-09-30,2026-09-30,1.0,accord_RU,0.0,False,False
+699710,Novooleksandrivka,50.15958,37.24902,2026-09-21,2026-09-29,0.0,surrevendiquee_UA,16.0,False,False
+689720,Vesele Pole,48.53817,37.10037,2026-09-29,2026-09-29,0.032,surrevendiquee_UA,10.0,False,False
+807577,Kreidianka,50.31581,37.55393,2026-09-29,2026-09-29,0.46,surrevendiquee_UA,2.0,False,False
+690755,Ulanove,51.75543,34.30111,2026-09-28,2026-09-28,0.0,surrevendiquee_UA,8.0,False,False
+699038,Novovodyane,48.54434,37.14666,2026-09-28,2026-09-28,0.095,surrevendiquee_UA,8.0,False,False
+807529,Khrypuny,50.35452,37.3045,2026-09-27,2026-09-27,0.317,surrevendiquee_UA,4.0,False,False
+692139,Suvorove,48.38676,37.25933,2024-05-02,2026-09-25,0.984,accord_RU,0.0,False,False
+703517,Kutuzovka,48.49037,37.1866,2024-05-05,2026-09-25,0.444,surrevendiquee_UA,2.0,False,False
+709900,Dobropillia,48.46147,37.08524,2026-07-30,2026-09-25,0.27,surrevendiquee_UA,6.0,False,False
+693327,Svitla Dolyna,47.88333,35.98333,2026-09-24,2026-09-25,0.0,surrevendiquee_UA,18.0,False,False
+696680,Pilna,50.16213,36.98454,2026-09-21,2026-09-24,0.0,surrevendiquee_UA,12.0,False,False
+813028,Krasne,49.88286,37.20961,2024-03-26,2026-09-23,0.0,surrevendiquee_UA,32.0,False,True
+7891721,Potykhonove,50.29231,37.54426,2026-09-23,2026-09-23,0.46,surrevendiquee_UA,2.0,False,False
+698562,Vilkhuvatka,50.18613,37.51946,2026-09-15,2026-09-22,0.317,surrevendiquee_UA,4.0,False,False
+687405,Zelena Dibrova,47.84103,35.96017,2026-09-19,2026-09-21,0.0,surrevendiquee_UA,16.0,False,False
+692352,Studenok,49.08888,37.48999,2022-06-10,2026-09-19,0.0,surrevendiquee_UA,26.0,False,False
+711510,Boiove,47.16531,37.17017,2025-03-12,2026-09-19,1.0,accord_RU,0.0,False,False
+704083,Chervona Krynytsia,47.60398,35.88736,2026-09-01,2026-09-19,0.063,surrevendiquee_UA,6.0,False,False
+699695,Novoandriivka,47.54848,35.69894,2026-09-14,2026-09-19,0.603,accord_RU,0.0,False,False
+702817,Loshakove,50.32705,37.46648,2026-09-19,2026-09-19,0.19,surrevendiquee_UA,8.0,False,False
+710514,Oskil,49.1785,37.42598,2026-09-19,2026-09-19,0.0,surrevendiquee_UA,34.0,False,True
+807509,Komisarove,50.28775,37.50402,2026-09-19,2026-09-19,0.333,surrevendiquee_UA,6.0,False,False
+9112451,Hulive,48.37236,36.97071,2026-09-19,2026-09-19,0.127,surrevendiquee_UA,6.0,False,False
+686865,Zolotyy Kolodyaz’,48.53013,37.23558,2026-09-18,2026-09-18,0.524,accord_RU,0.0,False,False
+702146,Mala Vovcha,50.35855,37.26483,2026-09-17,2026-09-17,0.381,surrevendiquee_UA,2.0,False,False
+ru515573,Ol’govka,51.40028,35.01667,2026-09-17,2026-09-17,1.0,accord_RU,0.0,False,False
+697821,Zorivka,47.85,36.05,2026-09-11,2026-09-11,0.048,surrevendiquee_UA,10.0,False,False
+699558,Novohryshyne,48.4168,37.02648,2026-09-11,2026-09-11,0.27,surrevendiquee_UA,4.0,False,False
+687624,Zarubynka,50.16618,37.55286,2026-09-10,2026-09-10,0.333,surrevendiquee_UA,4.0,False,False
+807105,Hoptivka,50.2836,36.26798,2026-09-10,2026-09-10,0.175,surrevendiquee_UA,4.0,False,False
+698101,Ozerne,50.27215,37.56956,2026-09-09,2026-09-09,0.46,surrevendiquee_UA,2.0,False,False
+695275,Rubizhne,48.51125,37.19593,2024-12-05,2026-09-03,0.397,surrevendiquee_UA,2.0,False,False
+706587,Kozacha Lopan,50.33212,36.19823,2026-06-06,2026-09-03,0.206,surrevendiquee_UA,6.0,False,False
+712085,Blagodatnoye,50.22873,37.36791,2026-07-22,2026-09-03,0.032,surrevendiquee_UA,16.0,False,False
+709654,Dovzhanka,50.18505,37.45921,2026-09-03,2026-09-03,0.079,surrevendiquee_UA,12.0,False,False
+692016,Svyatogorsk,49.04101,37.57194,2022-06-06,2026-09-02,0.0,surrevendiquee_UA,20.0,False,False
+805746,Khrapivshchyna,51.07944,34.95278,2026-08-29,2026-08-29,0.27,surrevendiquee_UA,6.0,False,False
+9187128,Nizhenka,47.82805,35.98649,2026-08-26,2026-08-27,0.016,surrevendiquee_UA,12.0,False,False
+697166,Pysarivka,51.07399,34.79999,2026-08-26,2026-08-26,0.048,surrevendiquee_UA,10.0,False,False
+9112047,Matiasheve,48.40919,37.06338,2026-08-20,2026-08-20,0.571,accord_RU,0.0,False,False
+689311,Vodyanskoye,48.40961,37.10241,2026-08-19,2026-08-19,0.762,accord_RU,0.0,False,False
+698426,Orikhuvatka,48.80532,37.77276,2026-08-18,2026-08-18,0.397,surrevendiquee_UA,4.0,False,False
+693207,Novosoloshyne,47.749,35.92372,2026-08-17,2026-08-17,0.0,surrevendiquee_UA,14.0,False,False
+807104,Kudiivka,50.28913,36.2602,2026-08-16,2026-08-16,0.079,surrevendiquee_UA,6.0,False,False
+9113813,Pershomarivka,48.73401,37.70334,2026-08-16,2026-08-16,0.381,surrevendiquee_UA,4.0,False,False
+695049,Rybalske,47.88728,36.06758,2026-08-15,2026-08-15,0.016,surrevendiquee_UA,14.0,False,False
+712613,Bilytske,48.40642,37.18111,2026-07-23,2026-08-10,0.952,accord_RU,0.0,False,False
+9113810,Vasiutynske,48.71643,37.72211,2026-08-09,2026-08-09,0.429,surrevendiquee_UA,2.0,False,False
+806982,Anyskyne,50.2109,37.52079,2026-08-07,2026-08-07,0.27,surrevendiquee_UA,6.0,False,False
+695005,Ryzhivka,51.25268,34.24895,2026-08-05,2026-08-05,0.0,surrevendiquee_UA,6.0,False,False
+712942,Baksheivka,50.20389,37.2168,2026-08-04,2026-08-04,0.016,surrevendiquee_UA,10.0,False,False
+690598,Ustynivka,50.24872,37.52678,2022-06-24,2026-08-03,0.365,surrevendiquee_UA,4.0,False,False
+712474,Bilyi Kolodiaz,50.20412,37.11265,2026-08-03,2026-08-03,0.032,surrevendiquee_UA,6.0,False,False
+702443,Liubytske,47.76488,35.96621,2026-08-01,2026-08-01,0.016,surrevendiquee_UA,12.0,False,False
+806798,Virivka,50.19403,37.20321,2026-07-31,2026-07-31,0.0,surrevendiquee_UA,10.0,False,False
+9113825,Stynku,48.57889,37.73868,2026-07-31,2026-07-31,0.524,accord_RU,0.0,False,False
+693499,Mala Slobidka,51.82333,34.24389,2026-07-30,2026-07-30,0.0,surrevendiquee_UA,12.0,False,False
+700909,Mohrytsia,51.02912,35.11312,2026-07-30,2026-07-30,0.365,surrevendiquee_UA,4.0,False,False
+704294,Krasnoiarske,48.41959,37.11664,2026-07-30,2026-07-30,0.762,accord_RU,0.0,False,False
+806981,Artelne,50.24338,37.62202,2026-07-22,2026-07-29,0.635,accord_RU,0.0,False,False
+699795,Nova Sich,51.08685,34.91971,2026-07-29,2026-07-29,0.238,surrevendiquee_UA,6.0,False,False
+9113218,Krasnyi Kut,48.55697,37.40679,2026-07-28,2026-07-28,0.286,surrevendiquee_UA,4.0,False,False
+687862,Zakharivka,50.26377,37.23633,2026-07-24,2026-07-24,0.349,surrevendiquee_UA,4.0,False,False
+806980,Ivashkine,50.2379,37.52264,2026-07-24,2026-07-24,0.302,surrevendiquee_UA,6.0,False,False
+693905,Shtormove,49.10077,38.91345,2022-11-10,2026-07-23,1.0,accord_RU,0.0,False,False
+689190,Vilne,47.63788,34.81667,2026-07-19,2026-07-19,0.016,surrevendiquee_UA,16.0,False,False
+713002,Bachivsk,51.84485,34.27588,2026-07-11,2026-07-11,0.0,surrevendiquee_UA,8.0,False,False
+704138,Kreminna,49.0495,38.21893,2023-05-26,2026-07-07,1.0,accord_RU,0.0,False,False
+713122,Avdiyivka,48.13989,37.74255,2024-02-17,2026-07-07,1.0,accord_RU,0.0,True,False
+697442,Petro-Ivanivka,49.92949,37.69248,2026-07-07,2026-07-07,0.206,surrevendiquee_UA,4.0,False,False
+705115,Kostiantynivka,46.81778,35.42424,2026-07-07,2026-07-07,1.0,accord_RU,0.0,False,False
+11117827,Yuzhnoye,47.73788,34.42692,2024-11-20,2026-07-04,0.0,surrevendiquee_UA,26.0,False,False
+710750,Cherneshchyna,49.31408,37.84981,2026-05-16,2026-07-04,0.048,surrevendiquee_UA,8.0,False,False
+809860,Novyi Myr,49.21819,37.83009,2026-05-16,2026-07-04,0.079,surrevendiquee_UA,4.0,False,False
+706034,Novoselivka,47.80862,34.3723,2025-09-04,2026-07-03,0.0,surrevendiquee_UA,34.0,False,True
+9111982,Novyi Donbas,48.45036,37.1796,2026-06-16,2026-07-03,0.651,accord_RU,0.0,False,False
+693687,Novoskeliuvate,47.93883,36.19571,2026-06-27,2026-07-03,0.0,surrevendiquee_UA,14.0,False,False
+9187126,Kyivske,47.95769,35.99769,2026-07-03,2026-07-03,0.0,surrevendiquee_UA,26.0,False,False
+697144,Pyskunivka,48.88662,37.83509,2026-07-02,2026-07-02,0.429,surrevendiquee_UA,2.0,False,False
+689304,Vovchansk,50.29078,36.94108,2022-08-21,2026-07-01,0.778,accord_RU,0.0,False,False
+691639,Ternuvate,47.82995,36.12973,2025-11-22,2026-07-01,0.381,surrevendiquee_UA,2.0,False,False
+9114251,Pysantsi,47.95118,36.18341,2026-06-28,2026-06-28,0.0,surrevendiquee_UA,14.0,False,False
+805747,Ivolzhanske,51.07095,34.87387,2026-06-24,2026-06-24,0.111,surrevendiquee_UA,10.0,False,False
+693468,Sloviansk,48.84974,37.59739,2024-08-21,2026-06-19,0.016,surrevendiquee_UA,20.0,False,False
+688053,Yurkivka,48.77591,37.80074,2026-06-19,2026-06-19,0.54,accord_RU,0.0,False,False
+695774,Rai-Oleksandrivka,48.81041,37.8512,2022-06-24,2026-06-18,0.587,accord_RU,0.0,False,False
+688261,Okhrimivka,50.33489,37.21657,2026-06-11,2026-06-11,0.81,accord_RU,0.0,False,False
+6725648,Shevchenka,50.36373,36.21348,2026-06-06,2026-06-06,0.429,surrevendiquee_UA,2.0,False,False
+9532052,Huliaipilske,47.61088,36.0623,2026-06-04,2026-06-04,0.905,accord_RU,0.0,False,False
+699338,Novopidhorodne,48.2475,36.8997,2026-05-29,2026-06-03,0.222,surrevendiquee_UA,4.0,False,False
+9113814,Tykhonivka,48.71959,37.78312,2026-06-01,2026-06-01,0.667,accord_RU,0.0,False,False
+708867,Heorhiivka,46.63473,35.60559,2026-05-30,2026-05-30,1.0,accord_RU,0.0,False,False
+11057970,Lisne,47.99189,36.53587,2026-05-29,2026-05-29,0.0,surrevendiquee_UA,22.0,False,False
+807409,Karaichne,50.30454,37.12544,2026-05-29,2026-05-29,0.778,accord_RU,0.0,False,False
+807534,Budarky,50.39438,37.42229,2026-05-29,2026-05-29,0.381,surrevendiquee_UA,4.0,False,False
+688871,Vozdvyzhivka,47.7527,36.08024,2026-05-27,2026-05-28,0.492,surrevendiquee_UA,2.0,False,False
+813203,Novovasylivka,49.95806,37.6975,2026-05-28,2026-05-28,0.127,surrevendiquee_UA,4.0,False,False
+708915,Haichur,47.82472,36.12,2025-12-01,2026-05-27,0.381,surrevendiquee_UA,2.0,False,False
+6725647,Hraniv,50.36562,36.22613,2026-05-27,2026-05-27,0.429,surrevendiquee_UA,2.0,False,False
+704205,Dobropasove,47.96956,36.28638,2026-05-25,2026-05-26,0.0,surrevendiquee_UA,22.0,False,False
+695058,Riasne,50.69072,35.39582,2026-05-26,2026-05-26,0.508,accord_RU,0.0,False,False
+689829,Verkhnia Tersa,47.69624,36.08291,2026-05-22,2026-05-23,0.619,accord_RU,0.0,False,False
+10951315,Voloshkove,47.04404,35.66316,2025-09-02,2026-05-21,1.0,accord_RU,0.0,False,False
+689139,Volokhivka,50.30821,37.14216,2026-05-19,2026-05-19,0.746,accord_RU,0.0,False,False
+708060,Hryshyne,48.32805,37.08029,2025-12-07,2026-05-18,0.921,accord_RU,0.0,False,False
+811392,Krasnyi Lyman,48.72577,38.96886,2026-04-21,2026-05-16,1.0,accord_RU,0.0,False,False
+710925,Charivne,47.58003,36.03404,2026-05-15,2026-05-16,0.873,accord_RU,0.0,False,False
+703528,Kutkivka,49.87385,37.59396,2026-05-16,2026-05-16,0.143,surrevendiquee_UA,4.0,False,False
+711784,Velyka Shapkivka,49.77688,37.52151,2026-05-16,2026-05-16,0.063,surrevendiquee_UA,10.0,False,False
+807413,Chaikivka,50.32149,37.17157,2026-05-15,2026-05-15,0.714,accord_RU,0.0,False,False
+689198,Volnovakha,47.60103,37.49674,2022-04-08,2026-05-10,1.0,accord_RU,0.0,False,False
+701020,Myropillia,51.023,35.26233,2026-05-02,2026-05-08,0.349,surrevendiquee_UA,4.0,False,False
+704046,Kryva Luka,48.87382,37.90327,2026-05-08,2026-05-08,0.571,accord_RU,0.0,False,False
+699757,Novhorod,47.54284,36.91727,2022-07-15,2026-05-07,1.0,accord_RU,0.0,False,False
+809452,Kuban,49.6513,39.02931,2023-03-16,2026-05-06,1.0,accord_RU,0.0,False,False
+8638013,Martynivka,50.33754,35.93379,2026-05-06,2026-05-06,0.0,surrevendiquee_UA,14.0,False,False
+696756,Pokaliane,50.2983,37.0721,2026-05-01,2026-05-01,0.857,accord_RU,0.0,False,False
+704999,Korchakivka,51.09016,34.89042,2026-04-30,2026-04-30,0.19,surrevendiquee_UA,8.0,False,False
+11876375,Illinivka,48.49382,37.66321,2026-04-28,2026-04-29,0.762,accord_RU,0.0,False,False
+705104,Kostiantynivka,48.5277,37.7069,2024-08-19,2026-04-28,0.571,accord_RU,0.0,False,False
+687296,Zemlianky,50.39149,37.45428,2026-04-28,2026-04-28,0.27,surrevendiquee_UA,4.0,False,False
+687298,Zemlianky,48.1295,37.91331,2026-04-28,2026-04-28,1.0,accord_RU,0.0,False,False
+691823,Taratutyne,50.73043,35.37695,2026-04-27,2026-04-27,0.397,surrevendiquee_UA,2.0,False,False
+711980,Bochkove,50.32293,37.13818,2026-04-25,2026-04-25,0.81,accord_RU,0.0,False,False
+697863,Pavlivka,48.05937,34.55322,2025-10-22,2026-04-21,0.0,surrevendiquee_UA,56.0,False,True
+689718,Veselianka,47.68318,35.36757,2026-03-03,2026-04-21,0.016,surrevendiquee_UA,14.0,False,False
+9113925,Boikove,47.836,36.07189,2026-04-01,2026-04-21,0.111,surrevendiquee_UA,8.0,False,False
+689302,Vovchanski Khutori,50.29889,37.03332,2026-04-15,2026-04-21,0.873,accord_RU,0.0,False,False
+8640801,Zybyne,50.31089,37.08127,2026-04-17,2026-04-21,0.857,accord_RU,0.0,False,False
+708064,Hryshyne,47.11335,35.83831,2026-04-21,2026-04-21,1.0,accord_RU,0.0,False,False
+807129,Veterynarne,50.39282,36.19118,2026-04-21,2026-04-21,0.508,accord_RU,0.0,False,False
+689401,Volodymyrivka,47.73057,37.39001,2025-08-22,2026-04-17,1.0,accord_RU,0.0,False,False
+698759,Ocheretyne,48.24518,37.61624,2024-05-05,2026-04-11,1.0,accord_RU,0.0,False,False
+713174,Bakhmut,48.59441,37.99983,2024-10-29,2026-04-11,0.968,accord_RU,0.0,False,False
+8422482,Myropilske,50.94167,35.31392,2026-04-10,2026-04-10,0.508,accord_RU,0.0,False,False
+806663,Verkhnia Pysarivka,50.18643,36.84536,2026-04-01,2026-04-01,0.127,surrevendiquee_UA,6.0,False,False
+805745,Mala Korchakivka,51.09556,34.87222,2026-03-31,2026-03-31,0.143,surrevendiquee_UA,8.0,False,False
+699392,Novoosynove,49.62059,37.70924,2026-03-30,2026-03-30,0.698,accord_RU,0.0,False,False
+694110,Sheviakivka,50.21636,37.59044,2026-03-26,2026-03-26,0.587,accord_RU,0.0,False,False
+12233349,Nikiforovka,48.69314,38.03484,2026-03-25,2026-03-25,0.921,accord_RU,0.0,False,False
+808724,Potapivka,51.82411,34.40823,2026-03-22,2026-03-23,0.222,surrevendiquee_UA,2.0,False,False
+713652,Oleksandrivka,47.92252,37.57095,2026-03-18,2026-03-18,1.0,accord_RU,0.0,False,False
+490588,Sopych,51.8503,34.36082,2026-03-17,2026-03-17,1.0,accord_RU,0.0,False,False
+9113798,Kalenyky,48.84487,37.9159,2026-03-17,2026-03-17,0.683,accord_RU,0.0,False,False
+808737,Chervona Zoria,51.76111,34.43139,2026-03-11,2026-03-11,1.0,accord_RU,0.0,False,False
+692015,Sosnove,49.07316,37.55255,2022-06-10,2026-03-06,0.0,surrevendiquee_UA,20.0,False,False
+688417,Yarova,49.06275,37.63131,2022-06-10,2026-03-05,0.016,surrevendiquee_UA,14.0,False,False
+8221234,Bobylivka,51.77749,34.4117,2026-03-03,2026-03-03,1.0,accord_RU,0.0,False,False
+689489,Vyshneve,48.15098,37.248,2024-05-11,2026-03-02,1.0,accord_RU,0.0,False,False
+699557,Novohrodivka,48.20135,37.33929,2024-09-08,2026-03-02,1.0,accord_RU,0.0,False,False
+710035,Myrnohrad,48.30523,37.26091,2024-11-10,2026-03-02,1.0,accord_RU,0.0,False,False
+9114075,Dachne,48.42645,37.8756,2025-02-14,2026-03-02,0.984,accord_RU,0.0,False,False
+9291482,Zakharchenko,47.97365,38.41449,2025-07-25,2026-03-02,1.0,accord_RU,0.0,False,False
+9116561,Vidrodzhennia,48.20448,38.51654,2025-11-03,2026-03-02,1.0,accord_RU,0.0,False,False
+692118,Svatove,49.40719,38.15362,2026-03-02,2026-03-02,1.0,accord_RU,0.0,False,False
+709614,Drobysheve,49.0416,37.72962,2026-03-02,2026-03-02,0.095,surrevendiquee_UA,8.0,False,False
+522527,Neskuchne,50.20745,36.57144,2026-02-28,2026-02-28,0.19,surrevendiquee_UA,6.0,False,False
+6724362,Hrafske,50.22154,36.8547,2026-02-25,2026-02-25,0.175,surrevendiquee_UA,4.0,False,False
+695331,Rizdvianka,47.79977,36.04605,2026-02-24,2026-02-24,0.095,surrevendiquee_UA,8.0,False,False
+704285,Ivanivs'ke,48.57218,37.91742,2025-03-01,2026-02-22,0.905,accord_RU,0.0,False,False
+706699,Karpivka,49.17605,37.72928,2026-02-21,2026-02-21,0.206,surrevendiquee_UA,12.0,False,False
+696278,Prymorske,47.6449,35.29074,2025-12-12,2026-02-20,0.095,surrevendiquee_UA,12.0,False,False
+687713,Zapasne,47.6483,35.53128,2026-02-15,2026-02-20,0.048,surrevendiquee_UA,10.0,False,False
+696729,Pokrovka,50.80187,35.38197,2026-02-16,2026-02-20,0.571,accord_RU,0.0,False,False
+699303,Novorosiyske,47.27564,33.09307,2025-04-14,2026-02-18,0.0,surrevendiquee_UA,60.0,False,True
+687700,Zaporizhzhya,47.85167,35.11714,2025-12-17,2026-02-17,0.0,surrevendiquee_UA,36.0,False,True
+698420,Orikhivka,48.29083,39.20306,2026-02-14,2026-02-14,1.0,accord_RU,0.0,False,False
+708709,Glushkovka,49.59014,37.7078,2025-01-22,2026-02-13,0.746,accord_RU,0.0,False,False
+710375,Chuhunivka,50.18244,37.60081,2026-02-07,2026-02-13,0.508,accord_RU,0.0,False,False
+687796,Zaliznychne,47.64855,36.16715,2026-02-10,2026-02-13,0.952,accord_RU,0.0,False,False
+696519,Popivka,50.4999,35.4514,2026-02-06,2026-02-07,0.0,surrevendiquee_UA,6.0,False,False
+692274,Sukhetske,48.37747,37.2221,2025-08-20,2026-02-06,0.984,accord_RU,0.0,True,False
+697387,Petrivka,46.8111,34.91113,2026-01-31,2026-02-06,1.0,accord_RU,0.0,False,False
+689957,Prydorozhnie,47.81117,36.10784,2026-02-02,2026-02-06,0.27,surrevendiquee_UA,4.0,False,False
+689964,Staroukrainka,47.66959,36.14603,2026-02-04,2026-02-06,0.841,accord_RU,0.0,False,False
+707898,Hulyaypole,47.66685,36.25576,2025-11-26,2026-02-04,0.984,accord_RU,0.0,False,False
+6724774,Zelene,50.22149,36.58562,2026-02-01,2026-02-02,0.381,surrevendiquee_UA,4.0,False,False
+692838,Starytsia,50.24047,36.79312,2024-05-18,2026-01-30,0.81,accord_RU,0.0,False,False
+699024,Novoiakovlivka,47.62545,35.51158,2026-01-27,2026-01-30,0.111,surrevendiquee_UA,8.0,False,False
+703652,Kupiansk-Vuzlovyi,49.67061,37.64319,2026-01-27,2026-01-30,0.317,surrevendiquee_UA,4.0,False,False
+11011798,Richne,47.67406,35.31986,2026-01-30,2026-01-30,0.032,surrevendiquee_UA,14.0,False,False
+9113997,Berestok,48.47515,37.69262,2026-01-30,2026-01-30,0.857,accord_RU,0.0,False,False
+696296,Pryluky,47.75347,36.18015,2026-01-17,2026-01-23,0.81,accord_RU,0.0,False,False
+687851,Zakitne,48.89702,37.9652,2026-01-16,2026-01-18,0.81,accord_RU,0.0,False,False
+806999,Dvorichanske,50.02473,37.76855,2025-11-17,2026-01-17,0.651,accord_RU,0.0,False,False
+538992,Kurakhivka,48.03069,37.37281,2024-11-02,2026-01-16,1.0,accord_RU,0.0,False,False
+696869,Podoly,49.69129,37.67771,2025-03-13,2026-01-16,0.444,surrevendiquee_UA,2.0,False,False
+703610,Kurylivka,49.66058,37.70787,2025-12-11,2026-01-16,0.683,accord_RU,0.0,False,False
+699339,Novoplatonivka,49.4315,37.64513,2025-12-16,2026-01-16,0.302,surrevendiquee_UA,4.0,False,False
+711866,Boguslavka,49.47392,37.68368,2025-12-30,2026-01-16,0.571,accord_RU,0.0,False,False
+710051,Dibrova,49.18757,37.32535,2026-01-02,2026-01-16,0.0,surrevendiquee_UA,42.0,False,True
+699652,Novoboikivske,47.63162,35.47616,2026-01-12,2026-01-16,0.095,surrevendiquee_UA,8.0,False,False
+705666,Klyshchiivka,48.53001,37.96052,2023-01-20,2026-01-10,0.968,accord_RU,0.0,True,False
+700147,Bratske,47.9,36.16667,2025-12-24,2026-01-09,0.048,surrevendiquee_UA,8.0,False,False
+711693,Bondarne,48.74377,37.93082,2026-01-03,2026-01-09,0.778,accord_RU,0.0,False,False
+807550,Hrabovske,50.69837,35.45435,2026-01-05,2026-01-09,0.873,accord_RU,0.0,False,False
+7021696,Klyny,46.4066,33.05054,2026-01-07,2026-01-07,1.0,accord_RU,0.0,False,False
+704290,Krasne,46.13153,32.7715,2026-01-07,2026-01-07,1.0,accord_RU,0.0,False,False
+695581,Rodynske,48.35199,37.20602,2025-12-28,2026-01-05,1.0,accord_RU,0.0,False,False
+692248,Stepnohirsk,47.59015,35.36399,2025-08-30,2026-01-02,0.349,surrevendiquee_UA,4.0,False,False
+809828,Nove,49.16516,37.83688,2024-07-05,2025-12-31,0.111,surrevendiquee_UA,4.0,False,False
+9112127,Kotlyne,48.25348,37.04913,2025-10-16,2025-12-31,0.968,accord_RU,0.0,False,False
+11011794,Zarichne,47.6894,35.58021,2025-12-24,2025-12-30,0.016,surrevendiquee_UA,10.0,False,False
+705819,Sviato-Pokrovske,48.83173,38.05252,2025-12-25,2025-12-27,0.857,accord_RU,0.0,False,False
+9113926,Kosivtseve,47.80998,36.13939,2025-12-26,2025-12-27,0.54,accord_RU,0.0,False,False
+807539,Vysoke,50.74448,35.46514,2025-12-20,2025-12-26,0.873,accord_RU,0.0,False,False
+687319,Andriivka,47.88333,36.18333,2025-12-23,2025-12-26,0.048,surrevendiquee_UA,8.0,False,False
+806682,Prylipka,50.25339,36.84813,2025-12-23,2025-12-26,0.714,accord_RU,0.0,False,False
+704393,Krasnohorivka,48.00603,37.50968,2024-02-22,2025-12-24,1.0,accord_RU,0.0,False,False
+713421,Andriivka,49.94256,37.51089,2025-12-23,2025-12-23,0.016,surrevendiquee_UA,18.0,False,False
+694403,Siversk,48.86588,38.09779,2025-01-22,2025-12-19,0.921,accord_RU,0.0,False,False
+690465,Varvarivka,47.74063,36.19156,2025-12-14,2025-12-19,0.841,accord_RU,0.0,False,False
+698428,Orikhiv,47.57613,35.78333,2024-02-23,2025-12-18,0.444,surrevendiquee_UA,2.0,False,False
+703656,Kupiansk,49.71003,37.61581,2023-02-10,2025-12-17,0.381,surrevendiquee_UA,4.0,True,False
+ru486816,Sudzha,51.191,35.271,2025-12-13,2025-12-13,1.0,accord_RU,0.0,False,False
+699641,Novodanylivka,46.64567,35.02493,2025-12-08,2025-12-12,1.0,accord_RU,0.0,False,False
+687068,Lyman,50.24593,36.8942,2025-12-11,2025-12-12,0.381,surrevendiquee_UA,2.0,False,False
+9113820,Chervone,48.5572,37.78363,2025-12-12,2025-12-12,0.698,accord_RU,0.0,False,False
+9291468,Lysychanske,47.92974,37.94901,2024-05-02,2025-12-11,1.0,accord_RU,0.0,False,False
+7048364,Chervone,46.51504,35.01368,2025-12-08,2025-12-08,1.0,accord_RU,0.0,False,False
+712181,Bezimenne,47.10724,37.93966,2022-05-01,2025-12-05,,hors_grille,,False,False
+689300,Vovchanske,46.57567,35.10278,2025-12-05,2025-12-05,1.0,accord_RU,0.0,False,False
+686868,Zolote,48.69516,38.51512,2022-06-24,2025-11-30,1.0,accord_RU,0.0,False,False
+706757,Soledar,48.69075,38.07432,2023-01-13,2025-11-30,0.937,accord_RU,0.0,False,False
+699677,Novoaidar,48.96391,39.00583,2025-11-30,2025-11-30,1.0,accord_RU,0.0,False,False
+708395,Hirnyk,48.0557,37.37309,2024-10-29,2025-11-28,1.0,accord_RU,0.0,False,False
+694382,Shakhtarsk,48.05657,38.43826,2024-11-01,2025-11-28,1.0,accord_RU,0.0,False,False
+686808,Zvanivka,48.8128,38.07827,2025-11-22,2025-11-28,0.889,accord_RU,0.0,False,False
+706263,Nove Zaporizhzhia,47.8292,34.93296,2025-11-22,2025-11-28,0.0,surrevendiquee_UA,38.0,False,True
+11124123,Tykhe,47.98113,34.46623,2025-11-28,2025-11-28,0.0,surrevendiquee_UA,54.0,False,True
+697274,Pazeno,48.76618,37.97382,2025-11-28,2025-11-28,0.81,accord_RU,0.0,False,False
+706610,Kavkaz,47.28818,33.07126,2023-10-08,2025-11-26,0.0,surrevendiquee_UA,62.0,False,True
+702153,Mala Tokmachka,47.53559,35.90223,2024-02-23,2025-11-21,0.175,surrevendiquee_UA,2.0,False,False
+688505,Yampil’,48.93555,37.95634,2025-01-22,2025-11-21,0.857,accord_RU,0.0,False,False
+688641,Yablukove,47.72854,36.32577,2025-11-15,2025-11-21,0.825,accord_RU,0.0,False,False
+687337,Hai,47.91869,36.28806,2025-11-17,2025-11-21,0.0,surrevendiquee_UA,16.0,False,False
+696029,Nechaivka,47.85,36.2,2025-11-18,2025-11-21,0.254,surrevendiquee_UA,4.0,False,False
+8641288,Tsehelne,50.25389,36.91361,2025-11-18,2025-11-21,0.54,accord_RU,0.0,False,False
+809786,Stavky,49.0475,37.8318,2025-11-21,2025-11-21,0.714,accord_RU,0.0,False,False
+689983,Vyshneve,47.87855,36.32069,2025-10-29,2025-11-20,0.0,surrevendiquee_UA,14.0,False,False
+704204,Lyman,48.98616,37.80307,2025-11-18,2025-11-18,0.302,surrevendiquee_UA,6.0,False,False
+694677,Selydove,48.14708,37.30032,2024-10-29,2025-11-17,1.0,accord_RU,0.0,False,False
+698402,Orestopil,47.95663,36.46471,2025-11-14,2025-11-17,0.0,surrevendiquee_UA,22.0,False,False
+699064,Novouspenivske,47.73878,36.39146,2025-11-11,2025-11-16,0.635,accord_RU,0.0,False,False
+9532698,Nove,47.75237,36.39353,2025-11-14,2025-11-16,0.46,surrevendiquee_UA,2.0,False,False
+806684,Synelnykove,50.2581,36.89882,2025-11-13,2025-11-14,0.556,accord_RU,0.0,False,False
+9114254,Rybne,47.81499,36.34237,2025-11-14,2025-11-14,0.175,surrevendiquee_UA,6.0,True,False
+11111439,Oleksiivka,47.59128,34.23694,2025-10-15,2025-11-08,0.0,surrevendiquee_UA,14.0,False,False
+687721,Zapadne,49.8225,37.61278,2022-04-11,2025-11-07,0.365,surrevendiquee_UA,4.0,False,False
+700713,Moskovka,49.72944,37.56389,2025-06-20,2025-11-07,0.19,surrevendiquee_UA,6.0,False,False
+697341,Petrivka,50.11224,36.52316,2025-10-31,2025-11-07,0.0,surrevendiquee_UA,12.0,False,False
+700383,Nechvolodivka,49.70498,37.50375,2025-10-31,2025-11-07,0.111,surrevendiquee_UA,14.0,False,False
+700813,Monachynivka,49.81944,37.52556,2025-11-07,2025-11-07,0.048,surrevendiquee_UA,10.0,False,False
+9642873,Prymis'ke,47.12024,37.45144,2025-11-04,2025-11-04,1.0,accord_RU,0.0,False,False
+688941,Voskresenka,47.95461,36.64403,2025-07-15,2025-11-03,0.063,surrevendiquee_UA,12.0,True,False
+694169,Pryvilne,47.8066,34.55846,2025-10-27,2025-10-31,0.0,surrevendiquee_UA,26.0,False,False
+699417,Novomykolaivka,47.77002,34.88257,2025-10-27,2025-10-31,0.0,surrevendiquee_UA,32.0,False,True
+8661813,Sadove,49.6702,37.59347,2025-10-30,2025-10-31,0.238,surrevendiquee_UA,8.0,False,False
+9112310,Troianda,48.26363,37.15905,2025-10-29,2025-10-29,1.0,accord_RU,0.0,False,False
+8640802,Tykhe,50.30618,37.02083,2025-10-17,2025-10-27,0.841,accord_RU,0.0,False,False
+9112134,Promin,48.26866,37.31742,2025-10-24,2025-10-27,1.0,accord_RU,0.0,False,False
+9114055,Pleshchiivka,48.45374,37.78159,2025-10-18,2025-10-24,0.937,accord_RU,0.0,False,False
+696638,Poltavka,47.71709,36.48913,2025-10-19,2025-10-24,0.841,accord_RU,0.0,False,False
+9112188,Chunyshyne,48.23788,37.20607,2025-10-19,2025-10-24,1.0,accord_RU,0.0,False,False
+697553,Pershotravneve,47.82949,36.32498,2025-10-24,2025-10-24,0.111,surrevendiquee_UA,8.0,False,False
+697611,Pershotravneve,49.38212,37.85364,2025-10-24,2025-10-24,0.794,accord_RU,0.0,False,False
+707416,Ivanivka,48.09969,36.63486,2025-10-24,2025-10-24,0.0,surrevendiquee_UA,22.0,False,False
+709604,Dronivka,48.91978,38.04175,2025-10-24,2025-10-24,0.952,accord_RU,0.0,False,False
+711840,Bolohivka,50.05491,37.80512,2025-10-24,2025-10-24,0.73,accord_RU,0.0,False,False
+704422,Pokrovsk,48.28198,37.17585,2025-02-25,2025-10-23,1.0,accord_RU,0.0,True,False
+713430,Borivska Andriivka,49.41132,37.73005,2025-10-13,2025-10-17,0.635,accord_RU,0.0,False,False
+9112132,Balahan,48.2916,37.29725,2025-10-14,2025-10-17,1.0,accord_RU,0.0,False,False
+9112133,Moskovske,48.28152,37.30438,2025-10-16,2025-10-17,1.0,accord_RU,0.0,False,False
+697524,Pishchane,49.56723,37.8322,2025-10-17,2025-10-17,0.984,accord_RU,0.0,False,False
+713562,Oleksiivka,48.01843,36.94679,2025-06-12,2025-10-15,0.937,accord_RU,0.0,False,False
+699373,Novopavlivka,48.13723,36.78848,2025-10-15,2025-10-15,0.063,surrevendiquee_UA,8.0,False,False
+811523,Kuzmynivka,48.79563,38.06909,2025-10-05,2025-10-10,0.889,accord_RU,0.0,False,False
+698153,Odradne,50.06272,37.72563,2025-10-06,2025-10-10,0.444,surrevendiquee_UA,2.0,False,False
+9114269,Novovasylivske,47.77811,36.43501,2025-10-07,2025-10-10,0.413,surrevendiquee_UA,2.0,False,False
+688460,Yanvarske,47.94568,36.5876,2025-08-05,2025-10-07,0.063,surrevendiquee_UA,14.0,False,False
+699850,Novoheorhiivka,47.86899,36.56994,2025-08-20,2025-10-07,0.095,surrevendiquee_UA,8.0,True,False
+689982,Verbove,47.87719,36.38388,2025-10-01,2025-10-06,0.016,surrevendiquee_UA,14.0,False,False
+809764,Derylove,49.06688,37.72878,2025-09-27,2025-10-03,0.095,surrevendiquee_UA,8.0,False,False
+694363,Shandryholove,49.09083,37.72106,2025-09-29,2025-10-03,0.111,surrevendiquee_UA,8.0,False,False
+705808,Zarichne,49.0234,37.93161,2025-09-29,2025-10-03,0.841,accord_RU,0.0,False,False
+700611,Muravka,48.176,36.90108,2025-09-19,2025-10-01,0.508,accord_RU,0.0,False,False
+712272,Berezove,47.87462,36.4956,2025-09-20,2025-09-26,0.063,surrevendiquee_UA,12.0,True,False
+697633,Pereizne,48.78195,38.07554,2025-09-23,2025-09-26,0.889,accord_RU,0.0,False,False
+688077,Yunakivka,51.12215,35.04061,2025-09-26,2025-09-26,0.603,accord_RU,0.0,False,False
+713696,Oleksandro-Kalynove,48.42253,37.6681,2024-07-31,2025-09-24,0.968,accord_RU,0.0,False,False
+11011094,Mali Shcherbaky,47.54787,35.54919,2025-03-25,2025-09-24,0.778,accord_RU,0.0,False,False
+705687,Kleban-Byk,48.42608,37.76521,2025-08-23,2025-09-23,0.952,accord_RU,0.0,False,False
+11057612,Myronove,48.4681,36.75124,2025-09-12,2025-09-16,0.0,surrevendiquee_UA,28.0,False,False
+9114087,Khoroshe,47.9345,36.52247,2025-09-07,2025-09-12,0.016,surrevendiquee_UA,18.0,False,False
+706613,Katyshevakha,48.63333,37.45,2024-05-02,2025-09-05,0.048,surrevendiquee_UA,12.0,False,False
+694290,Shcherbynivka,48.39489,37.79102,2024-11-10,2025-08-30,0.984,accord_RU,0.0,False,False
+702103,Malynivka,47.67802,36.4788,2025-07-14,2025-08-30,0.937,accord_RU,0.0,False,False
+691735,Temyrivka,47.82354,36.57215,2025-07-29,2025-08-30,0.365,surrevendiquee_UA,4.0,False,False
+9112904,Filiia,48.08528,36.75102,2025-08-24,2025-08-30,0.095,surrevendiquee_UA,12.0,False,False
+11011077,Plavni,47.55945,35.33122,2025-08-30,2025-08-30,0.508,accord_RU,0.0,False,False
+9112867,Dachne,48.04469,36.82614,2025-08-30,2025-08-30,0.381,surrevendiquee_UA,4.0,False,False
+696813,Pody,46.46667,32.82103,2025-08-22,2025-08-24,1.0,accord_RU,0.0,False,False
+468196,Katerynivka,47.69011,38.75174,2024-06-30,2025-08-22,1.0,accord_RU,0.0,False,False
+689002,Vorone,47.92827,36.54524,2025-08-16,2025-08-22,0.032,surrevendiquee_UA,16.0,False,False
+707536,Iskra,48.04707,36.59059,2025-08-14,2025-08-18,0.0,surrevendiquee_UA,20.0,False,False
+9112086,Fedorivka,48.38,37.28529,2025-08-11,2025-08-15,1.0,accord_RU,0.0,False,False
+700208,Nykanorivka,48.41979,37.25972,2025-08-13,2025-08-15,0.968,accord_RU,0.0,False,False
+705020,Koptieve,48.38121,37.36502,2025-06-13,2025-08-07,1.0,accord_RU,0.0,False,False
+690237,Velyka Novosilka,47.84531,36.83534,2025-01-26,2025-08-01,0.984,accord_RU,0.0,False,False
+687336,Maliivka,47.92318,36.62579,2025-07-26,2025-08-01,0.111,surrevendiquee_UA,10.0,True,False
+699610,Novoekonomicheskoye,48.3,37.25,2025-07-24,2025-07-28,1.0,accord_RU,0.0,False,False
+9112863,Zelenyi Hai,48.07387,36.65003,2025-07-28,2025-07-28,0.016,surrevendiquee_UA,16.0,False,False
+712663,Bila Hora,48.48219,37.87946,2025-07-20,2025-07-25,0.937,accord_RU,0.0,False,False
+690482,Varachyne,51.14154,34.92599,2025-07-23,2025-07-25,0.571,accord_RU,0.0,False,False
+686799,Zvirove,48.25,37.13105,2025-07-24,2025-07-25,1.0,accord_RU,0.0,False,False
+707651,Myrne,47.9885,36.70739,2025-07-13,2025-07-18,0.063,surrevendiquee_UA,10.0,False,False
+699519,Novokhatske,48.06341,36.68728,2025-07-16,2025-07-18,0.032,surrevendiquee_UA,14.0,True,False
+710213,Dehtiarne,50.44303,37.45484,2025-07-17,2025-07-18,1.0,accord_RU,0.0,False,False
+691445,Tolstoi,48.03835,36.6838,2025-07-09,2025-07-11,0.032,surrevendiquee_UA,12.0,True,False
+687406,Zelena Dolyna,49.13028,37.80665,2025-07-11,2025-07-11,0.349,surrevendiquee_UA,2.0,False,False
+9113785,Sobolivka,48.89241,37.5917,2025-07-11,2025-07-11,0.0,surrevendiquee_UA,22.0,False,False
+812645,Sobolivka,49.70528,37.56223,2025-07-06,2025-07-06,0.222,surrevendiquee_UA,10.0,False,False
+701103,Milove,50.15917,37.65806,2025-03-13,2025-07-04,1.0,accord_RU,0.0,False,False
+9112087,Razine,48.36649,37.31311,2025-07-03,2025-07-04,1.0,accord_RU,0.0,False,False
+696357,Predtechyne,48.52069,37.80952,2025-07-04,2025-07-04,0.841,accord_RU,0.0,False,False
+705271,Komar,47.97743,36.74785,2025-06-06,2025-06-28,0.175,surrevendiquee_UA,6.0,False,False
+11057976,Perebudova,47.99125,36.74087,2025-06-22,2025-06-27,0.095,surrevendiquee_UA,8.0,False,False
+9114054,Dyliivka,48.46021,37.88442,2025-06-24,2025-06-27,0.968,accord_RU,0.0,False,False
+688531,Yalta,48.04502,36.74986,2025-06-25,2025-06-27,0.111,surrevendiquee_UA,10.0,True,False
+699828,Nova Kruhliakivka,49.47413,37.72341,2025-06-27,2025-06-27,0.619,accord_RU,0.0,False,False
+692812,Staromaiorske,47.75166,36.79373,2024-06-10,2025-06-20,1.0,accord_RU,0.0,False,False
+687326,Zelenyi Kut,48.02206,36.89555,2025-06-14,2025-06-20,0.81,accord_RU,0.0,False,False
+690712,Malynivka,48.33615,37.42909,2025-06-15,2025-06-20,1.0,accord_RU,0.0,False,False
+699409,Novonikolayevka,48.56298,37.37154,2025-06-20,2025-06-20,0.365,surrevendiquee_UA,2.0,False,False
+699405,Novomykolaivka,49.75129,37.34581,2025-06-18,2025-06-18,0.0,surrevendiquee_UA,22.0,False,False
+707638,Horihove,48.0995,36.91667,2025-06-13,2025-06-13,0.476,surrevendiquee_UA,2.0,False,False
+712519,Bilovody,51.17566,34.97652,2025-05-26,2025-06-09,0.794,accord_RU,0.0,False,False
+689345,Vodolahy,51.17865,34.92058,2025-05-31,2025-06-06,0.825,accord_RU,0.0,False,False
+713416,Andriivka,51.12637,34.82522,2025-06-03,2025-06-06,0.222,surrevendiquee_UA,4.0,True,False
+705166,Kindrativka,51.14326,34.77343,2025-06-04,2025-06-06,0.302,surrevendiquee_UA,2.0,True,False
+696366,Stara Mykolayivka,48.32804,37.68157,2024-01-20,2025-05-30,1.0,accord_RU,0.0,False,False
+702868,Loknia,51.14827,35.05803,2025-05-24,2025-05-30,0.778,accord_RU,0.0,False,False
+9113948,Stupochky,48.53058,37.82239,2025-05-24,2025-05-30,0.825,accord_RU,0.0,False,False
+692393,Stroivka,50.04276,37.87777,2025-05-29,2025-05-30,0.937,accord_RU,0.0,False,False
+9113210,Shevchenko Pershe,48.37091,37.40178,2025-05-29,2025-05-30,1.0,accord_RU,0.0,False,False
+9116319,Viktoriia,48.06682,38.47457,2025-05-30,2025-05-30,1.0,accord_RU,0.0,False,False
+711956,Bahatyr,47.99549,36.93977,2025-05-18,2025-05-23,0.952,accord_RU,0.0,False,False
+9113217,Nova Poltavka,48.3649,37.48919,2025-05-22,2025-05-23,1.0,accord_RU,0.0,False,False
+9112583,Kotliarivka,48.1414,36.93355,2024-05-07,2025-05-20,0.635,accord_RU,0.0,False,False
+694494,Serebrianka,48.91963,38.13543,2024-08-29,2025-05-15,1.0,accord_RU,0.0,False,False
+9872848,Inzhenerne,46.705,32.68944,2025-04-28,2025-04-28,0.063,surrevendiquee_UA,8.0,False,False
+ru559800,Gornal’,51.05583,35.21306,2025-04-26,2025-04-26,1.0,accord_RU,0.0,False,False
+699458,Novomykhailivka,47.85381,37.48414,2024-02-22,2025-04-25,1.0,accord_RU,0.0,False,False
+9113138,Sukha Balka,48.31868,37.75941,2025-04-22,2025-04-25,1.0,accord_RU,0.0,False,False
+696341,Preobrazhenka,48.11604,36.97814,2025-04-17,2025-04-22,0.921,accord_RU,0.0,False,False
+710915,Chasiv Yar,48.59348,37.85724,2025-04-21,2025-04-21,0.81,accord_RU,0.0,False,False
+ru515639,Oleshnya,51.15,35.15222,2025-04-19,2025-04-19,1.0,accord_RU,0.0,False,False
+9113139,Valentynivka,48.30925,37.76402,2025-04-18,2025-04-18,1.0,accord_RU,0.0,False,False
+690823,Vuhledar,47.78031,37.25064,2022-04-07,2025-04-14,1.0,accord_RU,0.0,True,False
+11179616,Piatykhatky,47.18855,33.49173,2025-04-14,2025-04-14,0.0,surrevendiquee_UA,32.0,False,True
+810703,Iziumske,49.2695,37.8102,2025-04-11,2025-04-11,0.048,surrevendiquee_UA,10.0,False,False
+9114395,Dniproenerhiia,47.92105,36.79926,2025-03-12,2025-04-08,0.603,accord_RU,0.0,False,False
+ru557731,Guyevo,51.0918,35.2688,2025-04-08,2025-04-08,1.0,accord_RU,0.0,False,False
+690618,Uspenivka,47.91801,37.22885,2024-09-20,2025-04-07,1.0,accord_RU,0.0,False,False
+702891,Lobkove,47.52568,35.43912,2023-01-20,2025-04-04,0.794,accord_RU,0.0,False,False
+694302,Shcherbaky,47.55139,35.58159,2024-02-23,2025-04-04,0.937,accord_RU,0.0,False,False
+698006,Panteleimonivka,48.20181,37.97428,2025-03-29,2025-04-04,1.0,accord_RU,0.0,False,False
+693624,Skudne,47.90998,36.79889,2025-03-01,2025-04-01,0.603,accord_RU,0.0,False,False
+702285,Maksymilianivka,47.97511,37.38805,2024-10-17,2025-03-31,1.0,accord_RU,0.0,False,False
+692984,Sribne,48.10552,37.01418,2025-03-23,2025-03-28,0.968,accord_RU,0.0,False,False
+704275,Krasne Pershe,49.94577,37.75502,2025-03-28,2025-03-28,0.397,surrevendiquee_UA,2.0,False,False
+ru560839,Gogolevka,51.182,35.1814,2025-03-28,2025-03-28,1.0,accord_RU,0.0,False,False
+ru551546,Kazach’ya Loknya,51.2348,35.2568,2025-03-26,2025-03-26,1.0,accord_RU,0.0,False,False
+705122,Kostiantynopil,47.99934,37.03817,2025-03-09,2025-03-21,1.0,accord_RU,0.0,False,False
+ru465048,Zamost’ye,51.1828,35.3016,2025-03-21,2025-03-21,1.0,accord_RU,0.0,False,False
+691999,Sievierodonetsk,48.94628,38.48624,2022-04-06,2025-03-19,1.0,accord_RU,0.0,True,False
+697995,Paraskoviivka,47.86863,37.44512,2023-02-20,2025-03-19,1.0,accord_RU,0.0,False,False
+705106,Kostiantynivka,47.86651,37.40701,2024-06-26,2025-03-19,1.0,accord_RU,0.0,False,False
+688183,Yelyzavetivka,46.70401,34.92861,2025-03-19,2025-03-19,1.0,accord_RU,0.0,False,False
+ru806342,Novaya Sorochina,51.3596,35.2274,2025-02-28,2025-03-16,1.0,accord_RU,0.0,False,False
+ru490561,Staraya Sorochina,51.3406,35.2204,2025-03-08,2025-03-16,1.0,accord_RU,0.0,False,False
+ru531535,Malaya Loknya,51.33361,35.22583,2025-03-09,2025-03-16,1.0,accord_RU,0.0,False,False
+ru805810,Agronom,51.1948,35.3617,2025-03-11,2025-03-15,1.0,accord_RU,0.0,False,False
+ru805813,Russkaya-Konopel’ka,51.1839,35.4064,2025-03-15,2025-03-15,1.0,accord_RU,0.0,False,False
+699396,Novoocheretuvate,47.90023,36.81148,2025-02-21,2025-03-14,0.714,accord_RU,0.0,False,False
+ru569166,Cherkasskoye-Porechnoye,51.29639,35.32972,2025-03-09,2025-03-14,1.0,accord_RU,0.0,False,False
+701159,Mykhailivka,51.14535,33.89482,2025-03-11,2025-03-14,0.0,surrevendiquee_UA,42.0,False,True
+9113817,Novomarkove,48.67286,37.82691,2025-03-12,2025-03-14,0.73,accord_RU,0.0,False,False
+ru560414,Goncharovka,51.191,35.2524,2025-03-14,2025-03-14,1.0,accord_RU,0.0,False,False
+687743,Zamostia,48.57194,39.06361,2025-03-12,2025-03-12,1.0,accord_RU,0.0,False,False
+ru528974,Martynovka,51.24139,35.36472,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru536574,Lebedevka,51.2586,35.1806,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru575710,Bogdanovka,51.2436,35.2545,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru7687416,Zazulevka,51.2579,35.2687,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru805809,Bondarevka,51.19278,35.34306,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru805814,Kolmakov,51.17556,35.34389,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru805818,Mikhaylovka,51.2236,35.3643,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru806184,Ivashkovskiy,51.2696,35.2989,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru806188,Yuzhnyy,51.2731,35.2676,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru806189,Kubatkin,51.2519,35.2725,2025-03-11,2025-03-11,1.0,accord_RU,0.0,False,False
+ru806190,Kositsa,51.3082,35.3177,2025-03-09,2025-03-09,1.0,accord_RU,0.0,False,False
+ru473690,Viktorovka,51.3241,35.2171,2025-03-08,2025-03-08,1.0,accord_RU,0.0,False,False
+ru7687199,Nikolayevka,51.332,35.2158,2025-03-08,2025-03-08,1.0,accord_RU,0.0,False,False
+711142,Burlatske,47.89048,36.7462,2025-03-01,2025-03-07,0.667,accord_RU,0.0,False,False
+701845,Mar'yinka,47.94527,37.50544,2022-08-23,2025-02-28,1.0,accord_RU,0.0,False,False
+708534,Novoliubivka,49.15581,37.94938,2025-02-22,2025-02-28,0.968,accord_RU,0.0,False,False
+ru507666,Pogrebki,51.3813,35.229,2025-02-26,2025-02-28,1.0,accord_RU,0.0,False,False
+698376,Orlivka,46.70993,36.03503,2025-02-26,2025-02-26,1.0,accord_RU,0.0,False,False
+9112322,Nadezhdynka,48.13991,37.00579,2025-02-21,2025-02-25,0.968,accord_RU,0.0,False,False
+691393,Topoli,50.01554,37.91431,2025-02-24,2025-02-24,0.968,accord_RU,0.0,False,False
+710580,Fyholivka,49.89863,37.70146,2025-02-17,2025-02-21,0.571,accord_RU,0.0,False,False
+688500,Yampolivka,49.06993,37.95459,2025-02-18,2025-02-21,0.921,accord_RU,0.0,False,False
+699263,Novosilka,47.83836,36.68642,2025-02-21,2025-02-21,0.778,accord_RU,0.0,False,False
+ru485778,Sverdlikovo,51.2454,35.1203,2025-02-19,2025-02-19,1.0,accord_RU,0.0,False,False
+9112386,Yasenove,48.10558,37.0666,2025-02-11,2025-02-18,1.0,accord_RU,0.0,False,False
+708047,Hrodivka,48.26177,37.38212,2024-08-15,2025-02-17,1.0,accord_RU,0.0,False,False
+698413,Orikhovo-Vasylivka,48.6801,37.8802,2025-02-09,2025-02-14,0.778,accord_RU,0.0,False,False
+ru521878,Nikolayevo-Dar’ino,51.2477,35.0165,2025-01-27,2025-02-12,1.0,accord_RU,0.0,False,False
+9114074,Druzhba,48.40924,37.90874,2024-09-09,2025-02-11,1.0,accord_RU,0.0,False,False
+707753,Horlivka,48.33576,38.05325,2022-04-01,2025-02-07,1.0,accord_RU,0.0,False,False
+709354,Toretsk,48.39869,37.84787,2024-11-10,2025-02-07,0.984,accord_RU,0.0,False,False
+9114079,Krymske,48.40988,37.85609,2025-02-01,2025-02-07,0.984,accord_RU,0.0,False,False
+813227,Novomlynsk,49.87909,37.73207,2025-02-05,2025-02-07,0.889,accord_RU,0.0,False,False
+699055,Novovasylivka,48.20497,37.04212,2025-01-31,2025-02-02,0.984,accord_RU,0.0,False,False
+699002,Novoielyzavetivka,46.8064,34.01588,2025-02-02,2025-02-02,1.0,accord_RU,0.0,False,False
+709399,Dvorichna,49.85019,37.68262,2023-02-10,2025-01-31,0.857,accord_RU,0.0,False,False
+688845,Vremivka,47.83557,36.81671,2024-08-16,2025-01-31,1.0,accord_RU,0.0,False,False
+9112914,Tymofiivka,48.28231,37.48957,2024-08-06,2025-01-28,1.0,accord_RU,0.0,False,False
+699751,Novgorodskoye,48.3269,37.84683,2024-02-28,2025-01-27,1.0,accord_RU,0.0,False,False
+ru491572,Snagost,51.31529,34.89449,2025-01-27,2025-01-27,1.0,accord_RU,0.0,False,False
+ru540708,Kruglen’koye,51.338,35.1742,2025-01-26,2025-01-26,1.0,accord_RU,0.0,False,False
+688876,Vozdvyzhenka,48.30365,37.51503,2024-05-02,2025-01-24,1.0,accord_RU,0.0,False,False
+ru500329,Russkoye-Porechnoye,51.32139,35.33667,2025-01-23,2025-01-23,1.0,accord_RU,0.0,False,False
+707051,Kamianka,49.12387,37.29499,2022-04-11,2025-01-22,0.0,surrevendiquee_UA,40.0,False,True
+9644165,Yantarne,47.94049,37.16222,2025-01-12,2025-01-17,1.0,accord_RU,0.0,False,False
+700285,Neskuchne,47.81823,36.80947,2025-01-14,2025-01-17,1.0,accord_RU,0.0,False,False
+ru583371,Aleksandriya,51.313,35.1511,2025-01-17,2025-01-17,1.0,accord_RU,0.0,False,False
+ru7687198,Leonidovo,51.3176,35.1509,2025-01-17,2025-01-17,1.0,accord_RU,0.0,False,False
+691608,Terny,49.09226,37.96081,2025-01-14,2025-01-14,0.937,accord_RU,0.0,False,False
+710336,Dachenske,48.2128,37.22048,2025-01-06,2025-01-13,1.0,accord_RU,0.0,False,False
+706448,Kherson,46.63695,32.61458,2025-01-09,2025-01-09,0.175,surrevendiquee_UA,4.0,True,False
+810714,Nadiia,49.37221,37.92772,2025-01-04,2025-01-04,0.968,accord_RU,0.0,False,False
+7647240,Popasnoe,48.5951,37.70201,2024-10-17,2024-12-29,0.397,surrevendiquee_UA,4.0,False,False
+704288,Soncivka,48.05024,37.18748,2024-02-23,2024-12-27,1.0,accord_RU,0.0,False,False
+702071,Kostyantynopol's'ke,47.9234,37.18429,2024-10-11,2024-12-27,1.0,accord_RU,0.0,False,False
+9797145,Storozheve,47.80011,36.79797,2024-12-23,2024-12-27,1.0,accord_RU,0.0,False,False
+9112192,Novyi Trud,48.21248,37.17296,2024-12-25,2024-12-27,1.0,accord_RU,0.0,False,False
+705120,Hihant,47.92771,37.15675,2024-12-26,2024-12-27,1.0,accord_RU,0.0,False,False
+687877,Zahryzove,49.50461,37.71215,2024-12-27,2024-12-27,0.667,accord_RU,0.0,False,False
+9112195,Novopustynka,48.19292,37.10284,2024-12-20,2024-12-24,1.0,accord_RU,0.0,False,False
+689695,Veselyi Hai,47.89907,37.26092,2024-12-15,2024-12-20,1.0,accord_RU,0.0,False,False
+9112479,Pushkine,48.13506,37.14102,2024-12-15,2024-12-20,1.0,accord_RU,0.0,False,False
+9112489,Stari Terny,48.01714,37.2113,2024-12-18,2024-12-20,1.0,accord_RU,0.0,False,False
+698907,Novyi Komar,47.88252,36.83894,2024-12-19,2024-12-20,0.921,accord_RU,0.0,False,False
+9112491,Berestky,48.01246,37.25907,2024-12-07,2024-12-13,1.0,accord_RU,0.0,False,False
+ru567074,Dar’ino,51.2599,35.0304,2024-12-11,2024-12-12,1.0,accord_RU,0.0,False,False
+ru509038,Plekhovo,51.10306,35.3275,2024-12-11,2024-12-11,1.0,accord_RU,0.0,False,False
+699637,Novodarivka,47.78241,36.6328,2024-12-03,2024-12-06,0.81,accord_RU,0.0,False,False
+692268,Sukhi Yaly,47.94495,37.12224,2024-12-06,2024-12-06,1.0,accord_RU,0.0,False,False
+696021,Pustynka,48.16227,37.17893,2024-12-06,2024-12-06,1.0,accord_RU,0.0,False,False
+9111612,Petrivka,48.56639,37.19667,2024-12-06,2024-12-06,0.302,surrevendiquee_UA,4.0,False,False
+699703,Novooleksiivka,47.38314,37.58484,2024-11-18,2024-12-04,1.0,accord_RU,0.0,False,False
+705465,Bolharka,46.90595,36.32638,2024-12-03,2024-12-03,1.0,accord_RU,0.0,False,False
+699290,Novoselydivka,48.05745,37.29288,2024-11-10,2024-11-22,1.0,accord_RU,0.0,False,False
+695780,Rivnopil,47.55597,37.23384,2024-11-13,2024-11-15,1.0,accord_RU,0.0,False,False
+9112508,Kreminna Balka,48.07006,37.28636,2024-11-07,2024-11-08,1.0,accord_RU,0.0,False,False
+9112509,Izmailivka,48.05463,37.34124,2024-10-27,2024-11-01,1.0,accord_RU,0.0,False,False
+691077,Tsukuryne,48.08508,37.31033,2024-10-28,2024-11-01,1.0,accord_RU,0.0,False,False
+709872,Bohoiavlenka,47.858,37.21381,2024-10-29,2024-11-01,1.0,accord_RU,0.0,False,False
+812661,Kruhliakivka,49.5294,37.71496,2024-10-30,2024-11-01,0.857,accord_RU,0.0,False,False
+9114073,Leonidivka,48.36783,37.798,2024-11-01,2024-11-01,1.0,accord_RU,0.0,False,False
+703633,Kurdiumivka,48.46988,37.95732,2022-12-01,2024-10-29,0.984,accord_RU,0.0,False,False
+687223,Zhelanne,48.20849,37.43519,2024-08-21,2024-10-29,1.0,accord_RU,0.0,False,False
+809820,Novosadove,49.12688,37.97031,2024-05-10,2024-10-25,0.968,accord_RU,0.0,False,False
+9112519,Zoriane,48.04066,37.41404,2024-10-19,2024-10-25,1.0,accord_RU,0.0,False,False
+686881,Zolota Nyva,47.79425,36.99047,2024-10-08,2024-10-11,1.0,accord_RU,0.0,False,False
+ru7687413,Pokrovskiy,51.2848,35.0117,2024-10-09,2024-10-09,1.0,accord_RU,0.0,False,False
+702318,Makiivka,49.21967,37.98112,2024-09-29,2024-10-04,1.0,accord_RU,0.0,False,False
+688963,Verkhokam'yanka,47.59389,38.17144,2024-10-02,2024-10-04,1.0,accord_RU,0.0,False,False
+9114545,Vyshneve,49.40646,37.85873,2024-10-04,2024-10-04,0.952,accord_RU,0.0,False,False
+687225,Zhelanne Pershe,48.07317,37.42363,2024-09-14,2024-09-20,1.0,accord_RU,0.0,False,False
+708865,Heorhiivka,47.9648,37.43602,2024-09-20,2024-09-20,1.0,accord_RU,0.0,False,False
+9112808,Memryk,48.12273,37.39818,2024-09-09,2024-09-13,1.0,accord_RU,0.0,False,False
+689620,Viktorivka,46.42028,34.75983,2024-09-13,2024-09-13,1.0,accord_RU,0.0,False,False
+698778,Obukhivka,50.04465,37.63621,2024-09-13,2024-09-13,0.19,surrevendiquee_UA,8.0,False,False
+9644176,Dolynivka,48.0971,37.41285,2024-09-13,2024-09-13,1.0,accord_RU,0.0,False,False
+696362,Prechystivka,47.78172,37.07086,2024-09-04,2024-09-12,1.0,accord_RU,0.0,False,False
+9112817,Zavitne,48.1858,37.44164,2024-04-29,2024-09-06,1.0,accord_RU,0.0,False,False
+9112811,Ptyche,48.16718,37.45493,2024-09-01,2024-09-06,1.0,accord_RU,0.0,False,False
+9112869,Skuchne,48.16499,37.49228,2024-09-02,2024-09-06,1.0,accord_RU,0.0,False,False
+687012,Zhuravka,48.22527,37.36917,2024-09-06,2024-09-06,1.0,accord_RU,0.0,False,False
+9112918,Netailove,48.10701,37.54795,2024-05-10,2024-09-05,1.0,accord_RU,0.0,False,False
+690685,Umanske,48.15432,37.56924,2024-05-06,2024-09-04,1.0,accord_RU,0.0,False,False
+9115248,Vyimka,48.80522,38.14652,2024-08-19,2024-09-01,0.968,accord_RU,0.0,False,False
+692624,Stelmakhivka,49.47345,37.90167,2024-05-10,2024-08-30,1.0,accord_RU,0.0,False,False
+691358,Torske,49.01725,37.96133,2024-08-29,2024-08-29,0.889,accord_RU,0.0,False,False
+697421,Petropavlivka,49.7203,37.70544,2024-08-29,2024-08-29,0.651,accord_RU,0.0,False,False
+700131,Nykolaivka,48.5745,37.80372,2024-08-29,2024-08-29,0.683,accord_RU,0.0,False,False
+9113133,Berdychi,48.1936,37.64045,2024-05-02,2024-08-27,1.0,accord_RU,0.0,False,False
+688111,Evhenivka,47.67018,37.08529,2024-05-17,2024-08-27,1.0,accord_RU,0.0,False,False
+713176,Zalizne,48.37083,37.8855,2024-08-19,2024-08-23,1.0,accord_RU,0.0,False,False
+701304,Mezhove,47.96631,38.06954,2024-08-22,2024-08-23,1.0,accord_RU,0.0,False,False
+9114393,Urozhaine,47.74894,36.81865,2024-07-15,2024-08-16,1.0,accord_RU,0.0,False,False
+9112896,Lysychne,48.27498,37.46003,2024-08-12,2024-08-16,1.0,accord_RU,0.0,False,False
+699180,Novoselivka Persha,48.19606,37.52963,2024-06-29,2024-08-09,1.0,accord_RU,0.0,False,False
+9112493,Hryhorivka,48.16356,37.2323,2024-08-02,2024-08-02,1.0,accord_RU,0.0,False,False
+703224,Pivdenne,48.35645,37.92643,2024-07-31,2024-08-01,1.0,accord_RU,0.0,False,False
+707473,Ivano-Darivka,48.81384,38.19479,2024-07-23,2024-07-26,0.984,accord_RU,0.0,False,False
+9112919,Yasnobrodivka,48.13683,37.5392,2024-07-09,2024-07-12,1.0,accord_RU,0.0,False,False
+9112923,Voskhod,48.22602,37.52918,2024-07-11,2024-07-12,1.0,accord_RU,0.0,False,False
+9112921,Novopokrovske,48.20433,37.56856,2024-05-02,2024-07-05,1.0,accord_RU,0.0,False,False
+9114121,Shumy,48.37942,37.93391,2024-06-29,2024-07-05,1.0,accord_RU,0.0,False,False
+813317,Stepova Novoselivka,49.66101,37.85898,2024-07-01,2024-07-05,0.968,accord_RU,0.0,False,False
+697310,Zahirne,47.56529,36.17356,2024-06-16,2024-06-21,1.0,accord_RU,0.0,False,False
+713177,Artemivka,49.92997,37.08167,2024-06-11,2024-06-14,0.0,surrevendiquee_UA,38.0,False,True
+813291,Berestove,49.85778,37.94472,2024-05-26,2024-05-31,1.0,accord_RU,0.0,False,False
+713207,Arkhanhelske,48.26726,37.64291,2024-04-29,2024-05-28,1.0,accord_RU,0.0,False,False
+692451,Strilecha,50.30106,36.39886,2024-05-11,2024-05-28,0.952,accord_RU,0.0,False,False
+6724777,Pletenivka,50.33339,36.92848,2024-05-11,2024-05-21,0.937,accord_RU,0.0,False,False
+712588,Bilohorivka,48.92585,38.24674,2022-07-03,2024-05-20,1.0,accord_RU,0.0,False,False
+704228,Krasne,50.28508,36.45585,2023-08-22,2024-05-17,0.952,accord_RU,0.0,False,False
+686883,Zolota Balka,47.37839,33.96474,2024-02-23,2024-05-17,0.016,surrevendiquee_UA,4.0,False,False
+706526,Keramik,48.25303,37.68157,2024-04-28,2024-05-17,1.0,accord_RU,0.0,False,False
+6724779,Oliinykove,50.26689,36.48294,2024-05-12,2024-05-17,0.984,accord_RU,0.0,False,False
+700774,Morokhovets,50.27268,36.46987,2024-05-12,2024-05-17,0.984,accord_RU,0.0,False,False
+708949,Hatyshche,50.29903,36.86717,2024-05-12,2024-05-17,0.873,accord_RU,0.0,False,False
+806670,Buhruvatka,50.24803,36.81685,2024-05-14,2024-05-17,0.81,accord_RU,0.0,False,False
+6724780,Hlyboke,50.25661,36.42519,2024-05-15,2024-05-17,0.825,accord_RU,0.0,False,False
+700051,Nikopol,47.56826,34.39126,2024-05-15,2024-05-17,0.016,surrevendiquee_UA,8.0,False,False
+806581,Lukiantsi,50.24665,36.50668,2024-05-15,2024-05-17,0.857,accord_RU,0.0,False,False
+689965,Verbove,47.42651,35.99285,2024-05-17,2024-05-17,1.0,accord_RU,0.0,False,False
+700280,Nesterianka,47.49577,35.68505,2024-05-17,2024-05-17,0.984,accord_RU,0.0,False,False
+706869,Kapulivka,47.54889,34.22758,2024-05-17,2024-05-17,0.016,surrevendiquee_UA,8.0,False,False
+813320,Krokhmalne,49.57447,37.91537,2024-01-21,2024-05-10,1.0,accord_RU,0.0,False,False
+704691,Kotlyarovka,49.6312,37.90625,2024-05-06,2024-05-10,1.0,accord_RU,0.0,False,False
+9113136,Novokalynove,48.24135,37.68585,2024-05-08,2024-05-10,1.0,accord_RU,0.0,False,False
+703484,Kuzemivka,49.52055,37.98224,2024-05-10,2024-05-10,1.0,accord_RU,0.0,False,False
+9185236,Kharkove,47.33801,35.81889,2024-05-09,2024-05-09,1.0,accord_RU,0.0,False,False
+9112922,Novobakhmutivka,48.2273,37.62023,2024-02-28,2024-05-04,1.0,accord_RU,0.0,False,False
+9113130,Lastochkyne,48.14824,37.68145,2024-02-26,2024-05-02,1.0,accord_RU,0.0,False,False
+705783,Kyselivka,46.75571,32.40898,2022-05-01,2024-04-23,0.0,surrevendiquee_UA,28.0,False,False
+9869389,Blahodatne,46.78951,32.34168,2024-04-23,2024-04-23,0.0,surrevendiquee_UA,34.0,False,True
+707679,Ilovays’k,47.92498,38.20235,2024-04-07,2024-04-08,1.0,accord_RU,0.0,False,False
+9112915,Nevelske,48.05956,37.57542,2024-02-23,2024-04-02,1.0,accord_RU,0.0,False,False
+691412,Tonenke,48.13864,37.64312,2024-02-28,2024-04-02,1.0,accord_RU,0.0,False,False
+710671,Chorne,50.22167,37.43921,2024-03-26,2024-03-26,0.095,surrevendiquee_UA,10.0,True,False
+9113129,Sieverne,48.12772,37.66377,2024-03-01,2024-03-01,1.0,accord_RU,0.0,False,False
+686926,Zmiivka,46.86322,33.5799,2024-02-23,2024-02-23,0.063,surrevendiquee_UA,4.0,False,False
+690903,Tiahynka,46.78118,33.05749,2024-02-23,2024-02-23,0.032,surrevendiquee_UA,6.0,False,False
+703861,Krynky,46.73306,33.0807,2024-02-23,2024-02-23,0.857,accord_RU,0.0,False,False
+691967,Tabaivka,49.60167,37.8766,2024-01-29,2024-02-03,0.984,accord_RU,0.0,False,False
+709717,Donetsk,48.023,37.80224,2022-07-21,2023-09-07,1.0,accord_RU,0.0,True,False
+706483,Kharkiv,49.98081,36.25272,2022-08-03,2023-08-22,0.0,surrevendiquee_UA,38.0,False,True
+699618,Novodonetske,47.75457,36.95997,2023-08-19,2023-08-19,1.0,accord_RU,0.0,False,False
+701404,Melitopol,46.84735,35.38196,2022-04-01,2023-05-13,1.0,accord_RU,0.0,True,False
+8661590,Hrianykivka,49.83827,37.70925,2023-02-18,2023-02-18,0.937,accord_RU,0.0,False,False
+704463,Krasna Hora,48.66282,38.02217,2023-02-13,2023-02-13,0.937,accord_RU,0.0,False,False
+693243,Sil,48.71778,38.03427,2023-01-18,2023-01-18,0.873,accord_RU,0.0,False,False
+812971,Stepanky,49.97166,36.50876,2023-01-06,2023-01-06,0.0,surrevendiquee_UA,28.0,False,False
+709671,Dorozhnianka,47.58861,36.26109,2022-12-31,2022-12-31,1.0,accord_RU,0.0,False,False
+9113205,Kashtanove,48.12143,37.82845,2022-12-03,2022-12-03,1.0,accord_RU,0.0,False,False
+9114125,Ozarianivka,48.45213,37.9524,2022-11-30,2022-12-01,0.984,accord_RU,0.0,False,False
+693435,Smyrnove,47.21246,36.54819,2022-11-25,2022-11-25,1.0,accord_RU,0.0,False,False
+688804,Viacheslavka,46.86438,36.28012,2022-11-22,2022-11-22,1.0,accord_RU,0.0,False,False
+697839,Pavlivka,49.60978,38.70107,2022-11-10,2022-11-10,1.0,accord_RU,0.0,False,False
+707292,Izium,49.20697,37.27679,2022-03-24,2022-09-10,0.0,surrevendiquee_UA,46.0,True,True
+712926,Balakliia,49.45595,36.84433,2022-09-10,2022-09-10,0.0,surrevendiquee_UA,64.0,True,True
+705497,Kodema,48.47295,38.08571,2022-09-07,2022-09-07,1.0,accord_RU,0.0,False,False
+810280,Tsentralnyi,48.35056,38.57278,2022-08-10,2022-08-29,1.0,accord_RU,0.0,False,False
+690829,Udy,50.39082,36.05548,2022-08-14,2022-08-14,0.016,surrevendiquee_UA,10.0,False,False
+9113066,Pisky,48.06693,37.66642,2022-08-13,2022-08-13,1.0,accord_RU,0.0,False,False
+708273,Hirske,48.74981,38.49518,2022-06-24,2022-07-04,1.0,accord_RU,0.0,False,False
+689296,Volcheyarovka Nomer Vtoroy,48.83333,38.36667,2022-07-04,2022-07-04,1.0,accord_RU,0.0,False,False
+699615,Novodruzhesk,48.96351,38.35201,2022-07-03,2022-07-03,1.0,accord_RU,0.0,False,False
+702059,Maloriazantseve,48.88499,38.38194,2022-07-03,2022-07-03,1.0,accord_RU,0.0,False,False
+712662,Bila Hora,48.85032,38.51157,2022-07-03,2022-07-03,1.0,accord_RU,0.0,False,False
+699839,Nova Kakhovka,46.75966,33.35591,2022-06-27,2022-06-27,0.365,surrevendiquee_UA,2.0,True,False
+689006,Voronove,48.89908,38.57343,2022-06-25,2022-06-25,1.0,accord_RU,0.0,False,False
+693755,Syrotyne,48.9162,38.51457,2022-06-25,2022-06-25,1.0,accord_RU,0.0,False,False
+711597,Borivske,48.86863,38.567,2022-06-25,2022-06-25,1.0,accord_RU,0.0,False,False
+700119,Mykolaivka,48.85461,37.7728,2022-06-24,2022-06-24,0.254,surrevendiquee_UA,8.0,False,False
+701068,Myrna Dolyna,48.80977,38.47942,2022-06-24,2022-06-24,1.0,accord_RU,0.0,False,False
+702807,Loskutivka,48.80475,38.41456,2022-06-24,2022-06-24,1.0,accord_RU,0.0,False,False
+810479,Myrna Dolyna,49.32346,37.02896,2022-06-24,2022-06-24,0.0,surrevendiquee_UA,60.0,False,True
+701320,Metolkine,48.92977,38.55581,2022-06-19,2022-06-19,1.0,accord_RU,0.0,False,False
+10356967,Novopetrovka,47.80638,33.26075,2022-06-02,2022-06-02,0.0,surrevendiquee_UA,94.0,False,True
+687392,Zelenodolsk,47.55353,33.65648,2022-06-02,2022-06-02,0.0,surrevendiquee_UA,36.0,False,True
+688689,Vysokopillya,47.4893,33.53056,2022-06-02,2022-06-02,0.0,surrevendiquee_UA,36.0,False,True
+9873202,Korabeliv,46.61493,32.59019,2022-05-31,2022-05-31,0.063,surrevendiquee_UA,4.0,False,False
+687502,Koloniia,47.13701,37.59973,2022-05-09,2022-05-09,1.0,accord_RU,0.0,False,False
+694061,Shyroka Balka,46.58812,32.19519,2022-05-01,2022-05-01,0.0,surrevendiquee_UA,20.0,False,False
+696677,Polohy,47.47865,36.25463,2022-04-19,2022-04-19,1.0,accord_RU,0.0,False,False
+691411,Topolske,49.13008,37.23362,2022-04-11,2022-04-11,0.0,surrevendiquee_UA,44.0,False,True
+712794,Barvinkove,48.90595,37.02278,2022-04-08,2022-04-08,0.0,surrevendiquee_UA,56.0,True,True
