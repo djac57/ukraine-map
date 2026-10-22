@@ -976,6 +976,30 @@ def load_official_claims(pid_index):
     return out
 
 
+# ---------- parallélisation des vues dans un instantané (docs/ETAT.md § 8, lot « vues ») ----------
+# Les quatre vues (equilibre, ua, ru, tiers) d'un même instantané sont INDÉPENDANTES : chacune ne lit que inp (partagé,
+# en lecture seule) et son propre prev[name] (figé à l'entrée de l'instantané). On les calcule donc dans des processus
+# forkés (inp et prev HÉRITÉS par copie sur écriture : rien à sérialiser à l'aller ; seuls obs et L reviennent). Le
+# résultat est RECOMBINÉ dans l'ordre de `fields` (identique au passage séquentiel) : Monte Carlo et on_month reçoivent
+# exactement les mêmes objets, d'où une sortie OCTET POUR OCTET identique. month_inputs (partagé) et le Monte Carlo
+# (numpy, état latent apparié) restent séquentiels.
+_VW = None   # (model, inp, prev, P, v_km, ndays) posé par le parent avant le fork, lu par les workers via l'héritage
+
+
+def _view_task(spec):
+    import array
+    model, inp, prev, P, v_km, ndays = _VW
+    name, camps, drop, ch = spec
+    Pf, use = P, inp
+    if ch:   # variantes « sans présence / sans indices » : σ recalculé (hors lot « vues »)
+        Pf = dict(P)
+        Pf.update(ch)
+        use = model.rewiden(inp, Pf)
+    obs = model.pool(use, camps, Pf, drop=drop)
+    L = model.filter(obs, prev[name], Pf, v_km, ndays)
+    return name, array.array("d", obs), array.array("d", L)
+
+
 # ---------- modèle ----------
 class Model:
     def __init__(self, months, snap, status, claims, official, cell, places):
@@ -1364,13 +1388,21 @@ class Model:
             out[u] = (1 - P["beta"]) * obs[u] + P["beta"] * pr
         return out
 
-    def run(self, P, sigma0, v_km, layers, kstrength, month_list, fields, on_month=None, mc=False, side=None):
+    def run(self, P, sigma0, v_km, layers, kstrength, month_list, fields, on_month=None, mc=False, side=None, parallel=False):
         """fields : {nom: (camps, drop, changements de P)}. on_month(m, inp, {nom: p sur U}, mc).
         side (HIST) : objet HistSide ; après l'instantané m, les jours side.after[m] sont calculés EN BRANCHE
-        (copie de l'état, filtre depuis prev du mois m) : rien de ce qui suit dans la chaîne n'en dépend."""
+        (copie de l'état, filtre depuis prev du mois m) : rien de ce qui suit dans la chaîne n'en dépend.
+        parallel : calcule les vues de chaque instantané dans des processus forkés (voir _view_task) ; la sortie reste
+        OCTET POUR OCTET celle du passage séquentiel (FRONT_MP=0 force le séquentiel ; repli séquentiel si fork échoue)."""
         state = {"age": {}, "key": {}, "official": {}}
         prev = {f: None for f in fields}
         base_inp = None
+        ctx, nproc, specs = None, 0, [(name, camps, drop, ch) for name, (camps, drop, ch) in fields.items()]
+        if parallel and len(fields) > 1 and os.environ.get("FRONT_MP", "1") != "0":
+            import multiprocessing
+            nproc = min(len(fields), os.cpu_count() or 1)
+            if nproc > 1:
+                ctx = multiprocessing.get_context("fork")
         if mc:
             import numpy as np
             pers = getattr(self, "mc_persist", None) or {"w": 0.0, "phi": 0.0}
@@ -1382,15 +1414,31 @@ class Model:
             ps = {}
             mcres = None
             views_mc = {}
-            for name, (camps, drop, ch) in fields.items():
-                Pf = P
-                use = inp
-                if ch:  # variantes sans présence / sans indices : σ recalculé sans l'élargissement correspondant
-                    Pf = dict(P)
-                    Pf.update(ch)
-                    use = self.rewiden(inp, Pf)
-                obs = self.pool(use, camps, Pf, drop=drop)
-                L = self.filter(obs, prev[name], Pf, v_km, inp.get("ndays", 30))
+            obsL = {}   # {name: (obs, L)} calculé en parallèle (fork) ou en séquence
+            if ctx is not None:
+                global _VW
+                _VW = (self, inp, prev, P, v_km, inp.get("ndays", 30))
+                try:
+                    with ctx.Pool(nproc) as _pool:
+                        for name, obs, L in _pool.map(_view_task, specs):
+                            obsL[name] = (obs, L)
+                except Exception as e:   # pas de fork fiable : repli séquentiel, sortie identique
+                    sys.stderr.write(f"build_front.py : vues en parallèle indisponibles ({e}), repli séquentiel\n")
+                    ctx, obsL = None, {}
+                finally:
+                    _VW = None
+            if not obsL:   # séquentiel (ctx None, ou repli)
+                for name, (camps, drop, ch) in fields.items():
+                    Pf = P
+                    use = inp
+                    if ch:  # variantes sans présence / sans indices : σ recalculé sans l'élargissement correspondant
+                        Pf = dict(P)
+                        Pf.update(ch)
+                        use = self.rewiden(inp, Pf)
+                    obs = self.pool(use, camps, Pf, drop=drop)
+                    obsL[name] = (obs, self.filter(obs, prev[name], Pf, v_km, inp.get("ndays", 30)))
+            for name in fields:   # recombinaison dans l'ordre de `fields` : identique au passage séquentiel
+                obs, L = obsL[name]
                 full = [0.0] * N
                 for u, k in enumerate(self.U):
                     full[k] = L[u]
@@ -3133,7 +3181,7 @@ def main():
               f"{_time.time() - t0h:.0f} s", flush=True)
     print("modèle principal et variantes…", flush=True)
     t_run = _time.time()
-    model.run(P, sig0, v_km, layers, kstrength, frames, fields, on_month=on_month, mc=True, side=side)
+    model.run(P, sig0, v_km, layers, kstrength, frames, fields, on_month=on_month, mc=True, side=side, parallel=True)
     if side is not None:
         print(f"historique : {side.n_new} calculés ({side.t_cmp:.0f} s), {side.n_cache} relus du cache brut, {len(pub_hist)} "
               f"repris des fichiers publiés, {side.n_redo} figés à recalculer (empreinte changée) dont {side.n_stale} gardés "
