@@ -142,7 +142,7 @@ function baseProject(){
 const monthCodes = []; { let codes = new Uint16Array(FR.nPlaces);
   for (const m of FR.months) { if (!m) { monthCodes.push(null); continue; } codes = codes.slice(); const d = m.d; for (let i = 0; i < d.length; i += 2) codes[d[i]] = d[i+1]; monthCodes.push(codes); } }
 // axe du curseur : mois (instantanés mensuels) jusqu'à la période récente, puis un pas tous les FR.stepDays jours,
-// le dernier à J-7. Chaque pas porte son mois (cur, pour les feux et les couches OSINT) et son instantané du front.
+// le dernier à J-1. Chaque pas porte son mois (cur, pour les feux et les couches OSINT) et son instantané du front.
 const NMF = FR.nMonths || FR.months.length, DAYS = FR.steps || [];
 const firstDay = DAYS.length ? FR.months[NMF].date : null;
 const AX = [];
@@ -155,10 +155,10 @@ DAYS.forEach((d, j) => { const m = D.months.indexOf(d.slice(0, 7)); if (m >= 0) 
 for (let i = (AX.length ? AX[AX.length - 1].m + 1 : 0); i < NM; i++) if (!firstDay || D.months[i] > DAYS[DAYS.length - 1].slice(0, 7)) AX.push({m: i, f: -1});
 let stepIdx = AX.length - 1;
 const lastFront = FR.months.reduce((a, m, i) => m ? i : a, -1);
-// après le dernier instantané (règle des 7 jours), on garde le dernier front connu plutôt qu'une carte vide
+// après le dernier instantané (règle J-1), on garde le dernier front connu plutôt qu'une carte vide
 const frontIdx = () => { const a = AX[stepIdx]; if (!a) return -1; if (a.f >= 0) return a.f;
   return stepIdx > AX.findIndex(x => x.f === lastFront) ? lastFront : -1; };
-// ouverture : le mois en cours (dernier pas) ; le front affiché y est le dernier instantané connu (règle des 7 jours)
+// ouverture : le mois en cours (dernier pas) ; le front affiché y est le dernier instantané connu (règle J-1)
 // instantané le plus récent daté au plus tard (date de fi) − jours (+ 3 jours de tolérance) : pour les vitesses
 const FDATE = FR.months.map(m => m ? Date.parse(m.date) : null);
 function frameAt(fi, days){
@@ -1668,7 +1668,7 @@ for (const f of G.regions) if (f.properties.id) regionCentroid[f.properties.id] 
 // occupés, de la mer Noire, de la mer d'Azov, de la Caspienne ou de Biélorussie (contrôlé par check_arrows.py).
 let arcFocus = null, arcCache = {m: -1};
 const regionPath = {}, regionFeat = {};
-// mois des missiles et frappes affiché : le mois courant s'il est publié (mois complet + 7 jours), sinon le dernier mois
+// mois des missiles et frappes affiché : le mois courant s'il est publié (mois complet + 1 jour), sinon le dernier mois
 // publié s'il précède directement (mois en cours) ; −1 sinon
 const arcM = () => cur <= cutIdx ? cur : cur - cutIdx <= 1 ? cutIdx : -1;
 function arcMonth(){
@@ -2480,13 +2480,13 @@ function layerNotes(){
     else if (D.series[cur][3] < 1) n.push(_t("feux : {p} % des jours observés", {p: Math.round(D.series[cur][3]*100)}));
   } else if (cur === 0) n.push(_t("à partir du 24 février"));
   if (showLoss && cur > cutIdx && arcM() >= 0) n.push(_t("pertes : ce mois n'est pas encore publié, dernier mois publié mis en avant ({m})", {m: monthLabel(arcM())}));
-  else if (showLoss && cur > cutIdx) n.push(_t("pertes : pas encore publiées (mois complet + 7 jours)"));
+  else if (showLoss && cur > cutIdx) n.push(_t("pertes : pas encore publiées (mois complet + 1 jour)"));
   else if (showLoss && !O.ws.perMonth[cur].some(Boolean)) n.push(_t("pertes : aucune ce mois-ci"));
   if (showUcdp) { let any = false; for (let j = 0; j < NU; j++) if (UC[j*5+2] === cur) { any = true; break; }
     if (!any && ucdpMonth() !== cur) n.push(_t("combats UCDP : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(ucdpMonth())}));
     else if (!any) n.push(_t(cur > cutIdx || D.months[cur] > (O.ucdp.last || "") ? "combats UCDP : pas encore publiés pour ce mois" : "combats UCDP : aucun événement localisé")); }
   if (showArcs && arcM() >= 0 && arcM() !== cur) n.push(_t("missiles : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(arcM())}));
-  else if (showArcs && !O.launch.arcs.some(a => a[0] === cur)) n.push(_t(cur > cutIdx ? "missiles : pas encore publiés (mois complet + 7 jours)" : D.months[cur] < "2022-10" ? "missiles : série à partir d'octobre 2022" : "missiles : aucune cible précisée ce mois-ci"));
+  else if (showArcs && !O.launch.arcs.some(a => a[0] === cur)) n.push(_t(cur > cutIdx ? "missiles : pas encore publiés (mois complet + 1 jour)" : D.months[cur] < "2022-10" ? "missiles : série à partir d'octobre 2022" : "missiles : aucune cible précisée ce mois-ci"));
   return n;
 }
 const SECT = {"Kharkiv":"Kharkiv", "Luhans'k":"Louhansk", "Donets'k":"Donetsk", "Zaporizhzhya":"Zaporijjia", "Kherson":"Kherson", "Dnipropetrovs'k":"Dnipropetrovsk", "Sumy":"Soumy", "Mykolayiv":"Mykolaïv", "Chernihiv":"Tchernihiv", "Kiev":"Kyiv (oblast)"};
@@ -2581,7 +2581,7 @@ function lineChart(el, rows, opt){
   svg.append("g").selectAll("rect").data(d3.range(NM)).join("rect").attr("x", i => x(i) - x.step()*x.paddingInner()/2).attr("width", x.step())
     .attr("y", m.t).attr("height", h-m.b-m.t).attr("fill","transparent").style("cursor","pointer")
     .on("click", (e,i) => { stop(); setMonth(i); }).append("title").text(i => opt.title(i));
-  // mois affiché sans donnée encore (règle des 7 jours) : mention dans la boîte
+  // mois affiché sans donnée encore (règle J-1) : mention dans la boîte
   const lastRow = rows.length ? rows[rows.length - 1][0] : -1, lastM = lastRow >= NMF ? D.months.indexOf(FR.months[lastRow].date.slice(0, 7)) : lastRow;
   // mois sans donnée encore : boîte légèrement teintée, « en cours » écrit à la verticale dans la boîte
   const nd = svg.append("text").attr("class", "tick").attr("text-anchor", "middle");
@@ -2806,7 +2806,7 @@ function methodTables(){
 }
 function updateOsint(){
   updateArea();
-  const after = cur > cutIdx, wait = `<span class="na">pas encore publié (mois complet + 7 jours)</span>`;
+  const after = cur > cutIdx, wait = `<span class="na">pas encore publié (mois complet + 1 jour)</span>`;
   // WarSpotting : cumul depuis le 24 février 2022 en grand, mois et cumul par catégorie, Oryx en regard
   const lastWs = Math.min(cur, cutIdx), mlab = MC[+D.months[cur].slice(5)-1] + " " + D.months[cur].slice(0,4);
   const cumG = O.groups.map(() => 0);
@@ -2818,7 +2818,7 @@ function updateOsint(){
     `<div class="tablewrap"><table class="oryx" style="margin-top:8px;font-size:12px"><tr><th>catégorie</th><th>ce mois-ci (${mlab})</th><th>cumul WarSpotting</th><th>cumul Oryx, Russie (arrêté au ${oryxDay})</th></tr>` +
     O.groups.map((g, i) => `<tr><td>${pictoSvg(i, C["loss-now"])} ${g}</td><td>${pmG ? fmt(pmG[i]) : "—"}</td><td>${fmt(cumG[i])}</td><td>${fmt(orx[i][0])}</td></tr>`).join("") +
     `</table></div><p style="margin:8px 0 0">WarSpotting et Oryx ne comptent que les pertes prouvées par photo ou vidéo : ce sont des minimums. Les derniers mois sont sous-estimés, car la documentation arrive avec retard.` +
-    (after ? ` Ce mois-ci : pas encore publié (mois complet + 7 jours).` : "") + ` La série Oryx n'est pas prolongée au-delà du ${oryxDay}.</p>`;
+    (after ? ` Ce mois-ci : pas encore publié (mois complet + 1 jour).` : "") + ` La série Oryx n'est pas prolongée au-delà du ${oryxDay}.</p>`;
   // Oryx : cumul des deux camps à la fin du mois affiché
   let b = `<h4>Pertes documentées des deux camps · Oryx · cumul</h4>`;
   const ox = O.oryx.total[cur];
