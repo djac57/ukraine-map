@@ -149,9 +149,20 @@ for n, d in frames:
         r_, u_ = us[ru[us]], us[~ru[us]]
         MON[(m, k)] = dict(pm=pm.get(k), y=float(ru[us].sum()) * 4.0 / (TILE * 2.0),
                            fa_ru=float(a1[r_].mean()) if len(r_) else 0.0, fa_ua=float(a1[u_].mean()) if len(u_) else 0.0,
-                           r_ru=int(((a1[r_] >= 0.4) & (a0[r_] >= 0.4)).sum()))
+                           r_ru=int(((a1[r_] >= 0.4) & (a0[r_] >= 0.4)).sum()),
+                           # tronçon « au contact » : la ligne 50 % des cartes traverse la tuile (elle contient les deux camps)
+                           edge=bool(len(r_) and len(u_)))
 MONTHS = sorted(set(MONTHS))
 LASTM = MONTHS[-1]
+# Zone de contact par mois : tuiles traversées par la ligne de contrôle, plus leurs voisines immédiates (une tuile ≈ un
+# tronçon). On y restreint la flèche BLEUE « poussée possible » (flag 2) : une reprise ukrainienne se joue à l'interface
+# des deux camps. Hors de cette bande (plein rouge russe ou plein arrière ukrainien), une « poussée UA » est un faux
+# positif — la précision walk-forward de ce drapeau est quasi nulle (0,01) et ces flèches flottaient loin du contact
+# (ex. : replay de l'automne 2022). Les flèches ROUGES et l'indice hors-cartes ne sont pas touchés.
+NEARLINE = {}
+for (m, k), r in MON.items():
+    if r.get("edge"):
+        NEARLINE.setdefault(m, set()).update((k, k - 1, k + 1, k - 1000, k + 1000))
 limit = dt.date.fromisoformat(FR.get("limit") or frames[-1][1])
 
 # historique quotidien publié (option SENS_HIST=1, 20/10/2026 ; build_front.py HIST=jours) : profondeur russe du champ des
@@ -511,8 +522,11 @@ for key, x in F.items():
     if pu is not None and s in THR_RU and pm >= THR_RU[s] and (1 - pu) >= P_RU:
         f |= 1
     # les deux branches exigent P(UA | bouge) ≥ 0,3 : jamais de « poussée possible » là où le sens russe est probable
-    # (ni drapeau contradictoire avec la flèche russe, qui exige P(sens RU) ≥ 0,8)
-    if pu is not None and pu >= P_UA and (old or (s in THR_GATE and pm >= THR_GATE[s] and du >= D_UA)):
+    # (ni drapeau contradictoire avec la flèche russe, qui exige P(sens RU) ≥ 0,8). Garde-fou de contact : la flèche bleue
+    # n'est posée que sur un tronçon de la zone de contact (ligne de contrôle dans la tuile ou une tuile voisine) ; ailleurs
+    # il n'y a pas d'interface à reprendre, la flèche serait parasite (cohérence flèches bleues / zone de contact).
+    at_contact = k in NEARLINE.get(mfs[s], ())
+    if pu is not None and pu >= P_UA and at_contact and (old or (s in THR_GATE and pm >= THR_GATE[s] and du >= D_UA)):
         f |= 2
     if old:
         f |= 4
