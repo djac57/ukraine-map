@@ -47,3 +47,10 @@ VUE|2024-08|OK|11 flèche(s) affichée(s) pour ~223 km en mouvement (minimum 3),
 VUE|2024-11|OK|15 flèche(s) affichée(s) pour ~323 km en mouvement (minimum 4), 0 tronçon(s) sans flèche à moins de 50 km|[[37.02,48.18,"RU",9.59],[37.64,49.47,"RU",7.86],[36.77,47.92,"RU",5],[37.4,48.38,"RU",3.31],[35.27,51.13,"RU",3.26],[37.89,49.07,"RU",1.68],[36.38,50.26,"UA",1.58],[37.83,49.71,"RU",1.5],[37.8,48.38,"RU",1.43],[37.87,49.36,"RU",1],[37.85,48.57,"RU",1],[37.78,48.36,"RU",1],[37.08,48.21,"RU",1],[37.5,48.31,"RU",1],[36.96,48.13,"RU",1]]
 VUE|2025-03|OK|10 flèche(s) affichée(s) pour ~287 km en mouvement (minimum 3), 0 tronçon(s) sans flèche à moins de 50 km|[[36.94,50.16,"RU",6.58],[36.34,50.23,"RU",6.57],[36.68,47.99,"RU",3.76],[37.59,49.92,"RU",3.61],[37.6,48.33,"RU",2.48],[38.15,48.93,"UA",1.71],[37.06,48.27,"UA",1.35],[36.25,47.6,"RU",0.92],[37.76,50.01,"RU",2.38],[38.18,48.93,"UA",1]]
 VUE|2025-08|OK|16 flèche(s) affichée(s) pour ~297 km en mouvement (minimum 3), 0 tronçon(s) sans flèche à moins de 50 km|[[37.2,48.57,"RU",8.09],[36.58,48.14,"RU",7.97],[36.37,47.89,"RU",6.59],[37.8,49.06,"RU",2.24],[37.73,48.47,"RU",1.8],[36.22,47.6,"RU",1.57],[34.93,51.14,"RU",1.49],[35.28,47.6,"RU",1.4],[37.61,49.75,"RU",1.27],[37.83,48.56,"RU",1],[37.14,48.39,"RU",1],[37.59,48.49,"RU",1],[37.73,48.47,"RU",1],[37.06,48.3,"RU",1],[36.8,48.15,"RU",1],[36.34,47.76,"RU",1]]
+check_arrows.py : I18N|en : Chrome expiré (300 s), tentative 1/2
+check_arrows.py : I18N|en : Chrome expiré (300 s), tentative 2/2
+I18N|en|ECHEC|0 caractères lus ; mots français trouvés : page non lue
+I18N|uk|OK|10330 caractères lus ; mots français trouvés : [] ; étiquettes en écriture latine : 0 sur 202 []
+check_arrows.py : I18N|ru : Chrome expiré (300 s), tentative 1/2
+check_arrows.py : I18N|ru : Chrome expiré (300 s), tentative 2/2
+I18N|ru|ECHEC|0 caractères lus ; mots français trouvés : page non lue ; étiquettes en écriture latine : None sur None None
