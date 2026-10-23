@@ -1506,7 +1506,7 @@ function drawCraters(k){
       ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(x, y, 2.8 * s, 0, 7); ctx.fill();
       ctx.strokeStyle = ink; ctx.lineWidth = 1.1 * s; ctx.beginPath(); ctx.arc(x, y, 1.6 * s, 0, 7); ctx.stroke();
     }
-    impHits.push({x, y, pt: true, day: p[2], ru: p[3], lv, d0: w.d0});
+    impHits.push({x, y, pt: true, day: p[2], ru: p[3], lv, d0: w.d0, lon: p[0] / 1e4, lat: p[1] / 1e4});
   }
   ctx.restore(); ctx.globalAlpha = 1;
 }
@@ -2550,12 +2550,16 @@ function hover(e){
   if (showImp && impHits.length) {
     let best = null, bd = 40; for (const h of impHits) { const dd = Math.hypot(h.x - mx, h.y - my); if (dd < (h.pt ? Math.min(bd, 8) : bd)) { bd = dd; best = h; } }
     if (best && best.pt) {
-      const [y, m, d] = new Date(best.d0 + best.day * 864e5).toISOString().slice(0, 10).split("-");
+      const cd = new Date(best.d0 + best.day * 864e5), [y, m, d] = cd.toISOString().slice(0, 10).split("-");
+      // lien Copernicus Browser — vue APRÈS (Sentinel-2 L2A true color, fenêtre à partir de la date de détection, où le cratère est visible) ; cliquable une fois l'info-bulle épinglée (après un clic)
+      const t1 = cd.toISOString().slice(0, 10), t2 = new Date(cd.getTime() + 16 * 864e5).toISOString().slice(0, 10);
+      const cop = `https://dataspace.copernicus.eu/browser/?zoom=16&lat=${best.lat.toFixed(4)}&lng=${best.lon.toFixed(4)}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&layerId=1_TRUE_COLOR&fromTime=${t1}T00:00:00.000Z&toTime=${t2}T23:59:59.999Z`;
+      const copLink = `<div style="margin-top:4px"><a href="${cop}" target="_blank" rel="noopener noreferrer">${_t("voir sur Sentinel-2 ↗")}</a><span style="color:var(--faint)"> · ${_t("clic pour ouvrir")}</span></div>`;
       const n10 = cratN10(best.lv), sub = best.lv === 2 ? (n10 ? _t("cratère possible (détection élargie, ≈ {n} sur 10 sont de vrais cratères)", {n: n10}) : _t("cratère possible (détection élargie)"))
         : (n10 ? _t("détection automatique (Sentinel-2), ≈ {n} sur 10 sont de vrais cratères", {n: n10}) : _t("détection automatique (Sentinel-2)"));
       const side = _t(best.ru ? "côté russe de la ligne" : "côté ukrainien de la ligne");
-      tip.innerHTML = best.lv === 2 ? `<div>${sub}</div><div style="color:var(--faint)">${_t("observé le {d} ({s}), Sentinel-2", {d: dayName(y, m, d), s: side})}</div>`
-        : `<div>${_t("cratère possible, observé le {d} ({s})", {d: dayName(y, m, d), s: side})}</div><div style="color:var(--faint)">${sub}</div>`;
+      tip.innerHTML = (best.lv === 2 ? `<div>${sub}</div><div style="color:var(--faint)">${_t("observé le {d} ({s}), Sentinel-2", {d: dayName(y, m, d), s: side})}</div>`
+        : `<div>${_t("cratère possible, observé le {d} ({s})", {d: dayName(y, m, d), s: side})}</div><div style="color:var(--faint)">${sub}</div>`) + copLink;
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
     }

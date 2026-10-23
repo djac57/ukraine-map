@@ -68,6 +68,8 @@ const UI = {
 };
 // chaînes de app.js : clé = texte français ; [anglais, ukrainien, russe]
 const TX = {
+  "voir sur Sentinel-2 ↗": ["view on Sentinel-2 ↗", "дивитися на Sentinel-2 ↗", "смотреть на Sentinel-2 ↗"],
+  "clic pour ouvrir": ["click to open", "клікніть, щоб відкрити", "нажмите, чтобы открыть"],
   "russe": ["Russian", "російська", "российская"],
   "ukrainienne": ["Ukrainian", "українська", "украинская"],
   "contrôle russe": ["Russian control", "російський контроль", "российский контроль"],
