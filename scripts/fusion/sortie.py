@@ -182,9 +182,10 @@ def mc_interval(M, R, t, a, ndraw=200, block=None, seed=0):
     return out
 
 
-def write_front(path, Fu, months_meta, meta):
-    """`window.FRONT_FUSION = {...}` (méta, aires) PUIS `(window.FRONTP=window.FRONTP||{})["fusion"]=[...]` (en dernier :
-    les lecteurs de séquences coupent au premier « ]= »)."""
+def write_front(path, Fu, months_meta, meta, var="FRONT_FUSION", key="fusion"):
+    """`window.<var> = {...}` (méta, aires) PUIS `(window.FRONTP=window.FRONTP||{})["<key>"]=[...]` (en dernier :
+    les lecteurs de séquences coupent au premier « ]= »). var/key par défaut : la fusion v3 (`front_fusion.js`) ;
+    `FRONT_FUSION_ROBUSTE`/`fusion_robuste` pour le snapshot courant robuste (`front_fusion_robuste.js`)."""
     nO = S.nOrder
     arr, prev = [], None
     last = None
@@ -203,8 +204,8 @@ def write_front(path, Fu, months_meta, meta):
         prev = qq
     head = json.dumps(dict(meta, months=months_meta), ensure_ascii=False, separators=(",", ":"))
     with open(path, "w", encoding="utf-8") as f:
-        f.write("window.FRONT_FUSION=" + head + ";\n")
-        f.write('(window.FRONTP=window.FRONTP||{})["fusion"]=' + json.dumps(arr, separators=(",", ":")) + ";\n")
+        f.write(f"window.{var}=" + head + ";\n")
+        f.write(f'(window.FRONTP=window.FRONTP||{{}})["{key}"]=' + json.dumps(arr, separators=(",", ":")) + ";\n")
 
 
 def write_explain(path, ex, meta):

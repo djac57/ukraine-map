@@ -544,6 +544,26 @@ def melange_robuste(M, F, dF_dec, dF_frz, a=None, ss=None, wmin=None):
     return out
 
 
+def snapshot_mensuel(F, dF):
+    """Réduit le mélange robuste QUOTIDIEN `dF` ({indice jour: champ uint8 6 bits sur Z}) à un champ MENSUEL
+    {t: p sur Z ∈ [0,1]}, de même structure que la fusion v3 `F`, pour le SNAPSHOT COURANT (`front_fusion_robuste.js`,
+    même format que `front_fusion.js`). Pour chaque mois de référence t, on prend le DERNIER jour robuste disponible de ce
+    mois (champ robuste le plus récent). Mois sans jour robuste : champ v3 `F[t]` (robuste = v3 sans données quotidiennes).
+    Couvre exactement les mois de `F`."""
+    D = DEC.lire()
+    by_ref = {}
+    for j, e in enumerate(D):
+        if j not in dF:
+            continue
+        t = e["t"]
+        if t not in by_ref or e["date"] > D[by_ref[t]]["date"]:
+            by_ref[t] = j
+    out = {}
+    for t, pz in F.items():
+        out[t] = (dF[by_ref[t]].astype(np.float32) / 63.0) if t in by_ref else np.asarray(pz, np.float32)
+    return out
+
+
 def ecrire(dF, cadence, suffixe="refit", winvar="FRONT_FUSION_REFIT_HIST"):
     """Écrit la sortie PARALLÈLE dédiée `site/front_fusion_{suffixe}_hist_<année>.js` (même format que decades.ecrire)."""
     import json

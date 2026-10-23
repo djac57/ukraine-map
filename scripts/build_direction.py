@@ -67,6 +67,21 @@ P_UA, Q_GATE, D_UA = 0.3, 80, 1.5   # « poussée possible » améliorée
 # (2023+, ≥ 2 km), 0,731 → 0,706 (2025+) ; donc NON par défaut. S2 reste utilisé, quand il est disponible, dans l'indice
 # additif de la « poussée possible » (où il apporte : 6 → 9 départs ukrainiens précédés sur 75) et comme indice concordant.
 S2_IN_SENS = os.environ.get("SENS_S2_DANS_SENS", "0") == "1"
+# Flèche bleue « poussée possible » portée par les signaux HORS-CARTES (Vivaldi, 23/10/2026). Diagnostic : la branche
+# standard du flag 2 exige pm ≥ 80e centile (P(mouvement) PUBLIÉE, dérivée des cartes). Sur une contre-offensive naissante
+# que les cartes ne concèdent pas (Vivaldi nord de Lyman : pm ≈ 0,06-0,10, gate ≈ 0,15), ce gate est INOPÉRANT alors même
+# que S2 crie la reprise (asymétrie d'impacts côté russe z ≈ 4-9, D_UA ≈ 2-2,6). La flèche s'éteignait donc (août-octobre
+# 2026 : 0). On ajoute une branche étroite : sur une tuile CALME sur les cartes et à la zone de contact, un signal S2 de
+# pilonnage côté russe FORT (≥ S2_PUSH) et SOUTENU (≥ 0,5·S2_PUSH au pas précédent) avec D_UA ≥ seuil, sans sens russe,
+# pose la flèche bleue même quand pm est bas — c'est le but hors-cartes (RAPPORT détecteur de contre-offensives : faire
+# tirer la flèche là où SEULS les signaux physiques voient la reprise). Gardé étroit pour ne pas multiplier les fausses
+# alertes (validation interne poussee_possible ci-dessous). SENS_ARROW_S2=0 pour revenir à l'ancien comportement.
+ARROW_S2 = os.environ.get("SENS_ARROW_S2", "1") != "0"
+S2_PUSH = float(os.environ.get("SENS_S2_PUSH", "4.0"))   # z d'asymétrie S2 (RU pilonné) requis, DEUX pas de suite, pour une
+#                                                          poussée UA hors-cartes (4,0 choisi : précision pp quasi inchangée
+#                                                          0,112 vs 0,116, +24 flèches = les détections hors-cartes ; Vivaldi
+#                                                          tire en septembre ; 2,0/3,0 trop larges, cf. sweep du rapport)
+P_UA_S2 = float(os.environ.get("SENS_P_UA_S2", "0.10"))  # P(UA|bouge) minimal pour la branche S2 (S2 porte l'évidence)
 
 
 def say(*a):
@@ -526,8 +541,14 @@ for key, x in F.items():
     # n'est posée que sur un tronçon de la zone de contact (ligne de contrôle dans la tuile ou une tuile voisine) ; ailleurs
     # il n'y a pas d'interface à reprendre, la flèche serait parasite (cohérence flèches bleues / zone de contact).
     at_contact = k in NEARLINE.get(mfs[s], ())
+    y2 = MON.get((month_add(mfs[s], -2), k), r)["y"]
+    calm = sp.calm_on_maps(r["y"], y2)               # |ΔY 60 j| < 1 km : les cartes ne bougent pas (gate pm inopérant)
     if pu is not None and pu >= P_UA and at_contact and (old or (s in THR_GATE and pm >= THR_GATE[s] and du >= D_UA)):
         f |= 2
+    elif (ARROW_S2 and at_contact and calm and not (f & 1) and du >= D_UA
+          and s2 is not None and s2 >= S2_PUSH and S2V.get((s - 1, k), -9.0) >= S2_PUSH
+          and (pu is None or pu >= P_UA_S2)):
+        f |= 2                                       # branche HORS-CARTES S2 : reprise UA vue par S2 sur tuile calme
     if old:
         f |= 4
     FLAG[key] = f
@@ -544,9 +565,7 @@ for key, x in F.items():
     c |= 512 if tg_ok(steps[s]) else 0                # Telegram disponible
     # Indice HORS-CARTES : tuile CALME sur les cartes (|ΔY 60 j| < 1 km) où le bloc physique (asym publiée + S2 +
     # Telegram, aucune carte) signale une bascule que le momentum ne voit pas venir (RAPPORT reco 1-2, sert le KPI
-    # hors-cartes). Indice seulement : n'entre PAS dans P(mouvement), P(sens), ni dans une flèche.
-    y2 = MON.get((month_add(mfs[s], -2), k), r)["y"]
-    calm = sp.calm_on_maps(r["y"], y2)
+    # hors-cartes). Indice seulement ; la flèche S2 hors-cartes (branche étroite ci-dessus) est traitée au niveau du flag.
     hc, nhc = sp.hors_cartes_score(asym_z=5.0 * x[0], s2_asym=s2, tg_z=(x[6] if tg_ok(steps[s]) else None))
     HC[key] = (hc, calm)
     if HORS_CARTES:

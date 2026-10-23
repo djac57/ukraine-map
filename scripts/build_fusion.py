@@ -345,6 +345,37 @@ def main():
             idx = MJ.ecrire(dF, 0, suffixe="robuste", winvar="FRONT_FUSION_ROBUSTE_HIST")
             log(f"fusion robuste : {len(dF)} jours, a={MJ.ROB_A} ss={MJ.ROB_SS} wmin={MJ.ROB_WMIN}, signaux {mjf.signaux} ; "
                 f"écrit site/front_fusion_robuste_hist_<année>.js : {idx}")
+            # ---------- snapshot COURANT robuste (23/10/2026) : même format/indices que front_fusion.js ----------
+            # La carte principale lit window.FRONT_FUSION (snapshot courant). Pour qu'elle puisse afficher la robuste, on
+            # écrit AUSSI un snapshot courant robuste `site/front_fusion_robuste.js` (window.FRONT_FUSION_ROBUSTE +
+            # FRONTP["fusion_robuste"]), = le mélange robuste QUOTIDIEN réduit au MOIS (dernier jour robuste de chaque mois
+            # de référence ; v3 là où aucune donnée quotidienne). Bande russe : nowcast publié (domaine validé). Aires et
+            # intervalle MC calculés comme front_fusion.js. NE BASCULE PAS le défaut (app.js câblé séparément).
+            Rz = MJ.snapshot_mensuel(F, dF)
+            Fur = SO.full_fields(Rz)
+            nbr = 0
+            for t, p in Fur.items():
+                if t < len(NOW) and NOW[t] is not None:
+                    p[band] = NOW[t][band].astype(np.float32) / 63.0; nbr += 1
+            months_meta_r = []
+            for i in range(S.nOrder):
+                if i < S.NM and i in Fur:
+                    ar = SO.areas(Fur[i])
+                    months_meta_r.append({"date": S.mdate[i], "a": ar, "mc": SO.mc_interval(M, R, i, ar)})
+                else:
+                    months_meta_r.append(None)
+            meta_r = {"generated": gen,
+                      "version": "fusion robuste — snapshot courant (mélange v3⊕dec⊕frz pondéré par la vitesse locale)",
+                      "method": "snapshot COURANT de la fusion robuste (commit 18f64cc), mêmes format et indices que "
+                                "front_fusion.js (window.FRONT_FUSION_ROBUSTE + FRONTP['fusion_robuste']) ; le mélange "
+                                "QUOTIDIEN (front_fusion_robuste_hist_*.js) est réduit au mois (dernier jour robuste par "
+                                "mois de référence, v3 sans données quotidiennes) ; bande russe = nowcast publié",
+                      "base": {"a": "surfaces du champ robuste, même format que front_fusion.js months[].a"}}
+            SO.write_front(os.path.join(SITE, "front_fusion_robuste.js"), Fur, months_meta_r, meta_r,
+                           var="FRONT_FUSION_ROBUSTE", key="fusion_robuste")
+            szr = os.path.getsize(os.path.join(SITE, "front_fusion_robuste.js")) // 1024
+            log(f"snapshot courant robuste : écrit site/front_fusion_robuste.js ({szr} Ko, {len(Fur)} mois, "
+                f"bande russe {nbr} champs)")
 
 
 if __name__ == "__main__":
