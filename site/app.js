@@ -117,7 +117,16 @@ let nowcastOn = true, showCombat = false;   // signaux de combat toujours pris e
 let showContact = !!(document.getElementById("lyrContact") && document.getElementById("lyrContact").checked), showUnc = !!(document.getElementById("lyrUnc") && document.getElementById("lyrUnc").checked);
 // vue « moteur de fusion (test) » (front_fusion.js, scripts/build_fusion.py) : prioritaire sur le nowcast quand elle est cochée
 let fusionOn = !!(document.getElementById("lyrFusion") && document.getElementById("lyrFusion").checked), FUSX = null;   // modèle unique : fusion par défaut (20/10/2026)
-const amode = () => fmode === "equilibre" && !fvar && fusionOn && window.FRONT_FUSION ? "fusion" : fmode === "equilibre" && !fvar && nowcastOn && FR.nowcast ? "nowcast" : fmode;
+// SOURCE de la fusion sur la carte principale : "fusion_robuste" (DÉFAUT, robuste aux fronts rapides, front_fusion_robuste.js
+// → window.FRONT_FUSION_ROBUSTE + FRONTP["fusion_robuste"]) ou "fusion" (standard, front_fusion.js). MÊME format, mêmes
+// indices FR.months, mêmes months[].a/.mc. La VUE reste toujours « fusion » (amode renvoie "fusion") ; seule la DONNÉE
+// derrière change : applyFusionSrc lie le champ décodé de la source à fieldCache["fusion"] (viewFields teste fieldCache en
+// premier, sans toucher FRONTP["fusion"] du standard) et refond a.fusion/mcFus — donc stats, flèches, légende, hover,
+// courbes marchent à l'identique quelle que soit la source. Toggle visible #fusMainSrc (panneau calques).
+let fusionSrc = "fusion_robuste";
+const fusMonthsOf = src => (src === "fusion_robuste" ? window.FRONT_FUSION_ROBUSTE : window.FRONT_FUSION) || null;
+const fusMonths = () => fusMonthsOf(fusionSrc);
+const amode = () => fmode === "equilibre" && !fvar && fusionOn && fusMonths() ? "fusion" : fmode === "equilibre" && !fvar && nowcastOn && FR.nowcast ? "nowcast" : fmode;
 // ---------- replay quotidien (vue dédiée, données front_fusion_hist_<année>.js chargées à la demande) ----------
 // état isolé ; quand REPLAY.on, le champ affiché est REPLAY.field (sur UCELLS), à l'indice fixe REPLAY.fi
 const REPLAY = {on: false, fi: 0, field: null, fieldArr: [null], years: Object.create(null), yearsBySrc: Object.create(null),
@@ -2492,11 +2501,46 @@ $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
 $("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); };
+// charge le fichier d'une source de fusion (front_fusion.js / front_fusion_robuste.js) ; onerror → repli gracieux (fail)
+function loadFusion(src, ok, fail){
+  if (window.FRONTP && window.FRONTP[src] && fusMonthsOf(src)) return ok();
+  const sc = document.createElement("script");
+  sc.src = "front_" + src + ".js?v=" + (FRONT_V[src] || FRONT_V.fusion || "");
+  sc.onload = () => (window.FRONTP && window.FRONTP[src] && fusMonthsOf(src)) ? ok() : (fail && fail());
+  sc.onerror = () => fail && fail();
+  document.head.appendChild(sc);
+}
+// active une source pour la VUE « fusion » : lie le champ décodé de la source à fieldCache["fusion"] (sans toucher
+// FRONTP["fusion"] du standard), refond a.fusion/mcFus depuis ses mois, vide les caches de flèches et force le redessin.
+function applyFusionSrc(src, then){
+  loadFusion(src, () => {
+    fusionSrc = src;
+    const MON = fusMonthsOf(src);
+    delete fieldCache["fusion"];
+    if (src !== "fusion") fieldCache["fusion"] = viewFields(src);   // robuste : FRONTP["fusion_robuste"] décodé DEVIENT la vue fusion
+    MON.months.forEach((m, i) => { if (m && FR.months[i]) { FR.months[i].a.fusion = m.a; FR.months[i].mcFus = m.mc; } });
+    arrowCache = {}; for (const k in evCache) delete evCache[k]; frontFor = -2;
+    then && then();
+  }, () => {   // fichier de la source absent : repli gracieux sur le standard
+    if (src !== "fusion") { const s = document.getElementById("fusMainSrc"); if (s) s.value = "fusion"; applyFusionSrc("fusion", then); }
+    else then && then();
+  });
+}
 if ($("lyrFusion")) $("lyrFusion").onchange = e => { fusionOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key];
-  const done = () => { const FF = window.FRONT_FUSION; if (FF && !FF._merged) { FF._merged = true; FF.months.forEach((m, i) => { if (m && FR.months[i]) { FR.months[i].a.fusion = m.a; FR.months[i].mcFus = m.mc; } }); }
-    frontFor = -2; legend(); draw(); updateReadout(); drawChart && drawChart(); };
+  const done = () => { frontFor = -2; legend(); draw(); updateReadout(); drawChart && drawChart(); };
   if (!fusionOn) return done();
-  ensureView("fusion", () => { if (!window.FUSION_EXPLAIN) { const sc = document.createElement("script"); sc.src = "fusion_explain.js?v=" + (FRONT_V.fusion || ""); sc.onload = () => { FUSX = window.FUSION_EXPLAIN; arrowCache = {}; draw(); }; document.head.appendChild(sc); } done(); }); };
+  applyFusionSrc(fusionSrc, () => {
+    // explication (hover) seulement pour la fusion STANDARD : fusion_explain.js ne décrit que le mélange standard
+    if (fusionSrc === "fusion" && !window.FUSION_EXPLAIN) { const sc = document.createElement("script"); sc.src = "fusion_explain.js?v=" + (FRONT_V.fusion || ""); sc.onload = () => { FUSX = window.FUSION_EXPLAIN; arrowCache = {}; draw(); }; document.head.appendChild(sc); }
+    done();
+  });
+};
+// toggle VISIBLE de la source sur la carte principale (#fusMainSrc, panneau calques) : bascule standard ↔ robuste d'un clic
+if ($("fusMainSrc")) $("fusMainSrc").onchange = e => {
+  if (!fusionOn && $("lyrFusion")) { $("lyrFusion").checked = true; fusionOn = true; }   // choisir une source allume la fusion
+  applyFusionSrc(e.target.value, () => { legend(); draw(); updateReadout(); updateArea(); drawChart && drawChart(); });
+};
+if ($("fusMainSrc")) $("fusMainSrc").value = fusionSrc;   // refléter le défaut (robuste)
 if (fusionOn && $("lyrFusion")) setTimeout(() => $("lyrFusion").onchange({target: $("lyrFusion")}), 0);   // fusion par défaut : chargement au démarrage
 if ($("lyrNowcast")) $("lyrNowcast").onchange = e => { nowcastOn = e.target.checked; arrowCache = {}; for (const key in evCache) delete evCache[key]; ensureView(fieldName(), () => { frontFor = -2; draw(); updateReadout(); drawChart && drawChart(); }); };
 if ($("lyrAsym")) $("lyrAsym").onchange = e => { showAsym = e.target.checked; ensureView("asym", () => { asymFor = -2; legend(); draw(); }); legend(); draw(); };
@@ -2717,7 +2761,7 @@ function hover(e){
   }
   // pas de ligne « sens probable » dans l'info-bulle (décision du 20/10/2026) : le sens n'est porté que par les flèches,
   // son explication (modèle de sens, sens de la fusion) est sur la page méthode
-  if (amode() === "fusion" && FUSX && FUSX.months[fi]) {
+  if (amode() === "fusion" && fusionSrc === "fusion" && FUSX && FUSX.months[fi]) {   // explication du mélange : fusion STANDARD seule
     const T = FUSX.tileCells || 12, row = FUSX.months[fi].find(r => i >= r[0] && i < r[0] + T && j >= r[1] && j < r[1] + T);
     if (row) { const km = v => dec(Math.round(Math.abs(v)) / 10), dir = v => v > 0 ? _t("vers le côté ukrainien") : v < 0 ? _t("vers le côté russe") : "";
       ctxt += `<div class="r"><span>${_t("moteur de fusion : ligne probable par rapport aux cartes")}</span><b>${row[2] ? km(row[2]) + " km " + dir(row[2]) : _t("identique")}</b></div>` +
@@ -2879,7 +2923,7 @@ function updateArea(){
       // estimateur débruité (scripts/build_kmchange.py, data/kmchange_eval.json) : variation de la surface où p ≥ 0,5
       // (tout[1]) plutôt que de l'espérance Σp (tout[0]), qui « avance » dans les secteurs immobiles par diffusion de la zone grise
       // fusion : variation lue sur akm (champ sans extrapolation de vitesse, surface p ≥ 0,5) : biais 12 mois corrigé (build_fusion v3)
-      const FFm = j => window.FRONT_FUSION && window.FRONT_FUSION.months[j];
+      const FFm = j => fusMonths() && fusMonths().months[j];   // mois de la source de fusion ACTIVE (standard ou robuste)
       const kmAt = j => { const m = j >= 0 ? FR.months[j] : null; if (!m) return null; const aa = m.a[amode()] || m.a[fmode] || m.a.equilibre;
         if (fvar && m.v && m.v[fvar]) return m.v[fvar].tout[0];
         if (amode() === "fusion" && FFm(j) && FFm(j).akm) return FFm(j).akm.tout[1];
@@ -2967,7 +3011,7 @@ function drawDeltaChart(cm){
   const el = document.getElementById("dChart"); if (!el) return;
   const F = FR.months, rows = [];
   for (let i = 0; i < NMF; i++) { const a = F[i], j = i > 0 ? frameAt(i, 30) : -1, b = j >= 0 ? F[j] : null;
-    const fz = k => cm === "fusion" && window.FRONT_FUSION && window.FRONT_FUSION.months[k] && window.FRONT_FUSION.months[k].akm ? window.FRONT_FUSION.months[k].akm.tout[1] : null;
+    const fz = k => cm === "fusion" && fusMonths() && fusMonths().months[k] && fusMonths().months[k].akm ? fusMonths().months[k].akm.tout[1] : null;
     if (a && b && a.a[cm] && b.a[cm]) rows.push([i, fz(i) != null && fz(j) != null ? fz(i) - fz(j) : a.a[cm].tout[0] - b.a[cm].tout[0]]); }
   // premier mois : saut de l'invasion depuis le niveau d'avant-guerre (barre tronquée, valeur écrite)
   { const a0 = F[0] && F[0].a[cm]; if (a0 && a0[THEATRE.preKey]) rows.unshift([0, a0[THEATRE.preKey][0]]); }

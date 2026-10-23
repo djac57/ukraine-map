@@ -98,6 +98,7 @@
   </fieldset>
   <fieldset><legend data-t="gSrc">Sources du calcul</legend>
     <label class="chk"><input type="checkbox" id="lyrFusion" checked autocomplete="off"> <span data-t="cbFusion">moteur de fusion (notre estimation)</span></label>
+    <select id="fusMainSrc" class="mini" aria-label="source de fusion" style="margin:2px 0 4px 22px"><option value="fusion_robuste" data-t="rpSrcRob">fusion robuste</option><option value="fusion" data-t="rpSrcStd">fusion standard</option></select>
     <select id="varSel" hidden>
       <option value="" data-t="vFull">complet</option>
       <option value="sans_dsm" data-t="vDsm">sans DeepStateMap</option>
@@ -189,6 +190,6 @@
 </script>
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
-<script src="app.js?v=9e72a6d1aa"></script>
+<script src="app.js?v=0e2a827374"></script>
 </body>
 </html>
