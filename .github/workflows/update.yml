@@ -230,7 +230,7 @@ jobs:
   deploy:
     needs: assemble
     if: always()
-    runs-on: [self-hosted, m5]   # Mac self-hosted (venv 3.12 via .path) : Chrome i18n fiable ; cloud i18n cassé (page non lue en/ru). Ubuntu en secours : remettre ubuntu-latest + setup-python
+    runs-on: ubuntu-latest   # deploy Pages sur GitHub cloud : les actions Pages (upload-pages-artifact/deploy-pages) échouent sur runner self-hosted macOS. Le BUILD reste sur le Mac (i18n fiable)
     timeout-minutes: 15
     environment: { name: github-pages, url: "${{ steps.pages.outputs.page_url }}" }
     steps:
