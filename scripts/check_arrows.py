@@ -96,10 +96,16 @@ HARNESS = """<!doctype html><html><head><meta charset="utf-8"></head><body><pre 
 const okDir=(a,dir)=>{if(!dir) return true; if(Array.isArray(dir)) return a.dir[0]*dir[0]+a.dir[1]*dir[1]>0;
  const c=dir.vers||dir.depuis, tx=(c[0]-a.lon)*Math.cos(a.lat*Math.PI/180), ty=-(c[1]-a.lat), d=a.dir[0]*tx+a.dir[1]*ty; return dir.vers? d>0 : d<0;};
 f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l+'\\n';
-const fusOk=()=>{const cb=w.document.getElementById('lyrFusion'); return !(cb&&cb.checked)||(w.FRONT_FUSION&&w.FRONTP.fusion&&w.FUSION_EXPLAIN&&w.__uafView&&w.__uafView()==='fusion'&&(!w.__uafArrowsReady||w.__uafArrowsReady()));};
+// la carte publiée a pour DÉFAUT la fusion ROBUSTE (front_fusion_robuste.js → FRONT_FUSION_ROBUSTE + FRONTP.fusion_robuste),
+// dont le champ décodé DEVIENT la vue mesurée "fusion" (fieldCache["fusion"]) ; elle NE charge PAS front_fusion.js ni
+// fusion_explain.js. On valide la source RÉELLEMENT active (robuste par défaut, ou standard), pour un contrôle représentatif.
+const fusOk=()=>{const cb=w.document.getElementById('lyrFusion'); if(!(cb&&cb.checked)) return true;
+ const src=w.__uafFusionSrc?w.__uafFusionSrc():'fusion';
+ const loaded=src==='fusion_robuste'?(w.FRONT_FUSION_ROBUSTE&&w.FRONTP&&w.FRONTP.fusion_robuste):(w.FRONT_FUSION&&w.FRONTP&&w.FRONTP.fusion&&w.FUSION_EXPLAIN);
+ return !!(loaded&&w.__uafView&&w.__uafView()==='fusion'&&(!w.__uafArrowsReady||w.__uafArrowsReady()));};
 const go=(n)=>{ if((!w.FRONTP||!w.FRONTP.mcsd||!w.FRONTP.asym||!w.__uafArrowCheck||!w.__uafArrows||!fusOk())&&n<120){return setTimeout(()=>go(n+1),500);}
- if(!fusOk()){o.textContent+='ERREUR vue fusion (front_fusion.js, fusion_explain.js) non chargée : contrôles non représentatifs de la carte publiée\\n'; return;}
- try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='VUE MESUREE|'+r.view+'\\n'; o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces : '+(r.evN||0)+' ; sans sens établi (repère creux) '+(r.reoriented||0)+' ; confirmations (en retard sur les cartes, sans direction) '+(r.late||0)+' ; sens vérifié contre le territoire basculé : '+(r.flipChecked||0)+'\\n';
+ if(!fusOk()){const src=w.__uafFusionSrc?w.__uafFusionSrc():'(inconnue)'; o.textContent+='ERREUR vue fusion ('+src+') non chargée (robuste : front_fusion_robuste.js/FRONT_FUSION_ROBUSTE ; standard : front_fusion.js/fusion_explain.js) : contrôles non représentatifs de la carte publiée\\n'; return;}
+ try{if(PARAMS) w.__uafSetArrowParams(PARAMS);const r=w.__uafArrowCheck(); o.textContent+='VUE MESUREE|'+r.view+' ; source fusion : '+(w.__uafFusionSrc?w.__uafFusionSrc():'?')+'\\n'; o.textContent+='RESULTAT total='+r.total+' echecs='+r.fails.length+' '+JSON.stringify(r.fails.slice(0,20))+'\\n'; o.textContent+='SENS|flèches d’annonces : '+(r.evN||0)+' ; sans sens établi (repère creux) '+(r.reoriented||0)+' ; confirmations (en retard sur les cartes, sans direction) '+(r.late||0)+' ; sens vérifié contre le territoire basculé : '+(r.flipChecked||0)+'\\n';
   {const i=w.DATA.months.indexOf('2026-09'); if(i>=0){const A=w.__uafDirBox(i,[36.3,37.8,50.0,50.8]); const bad=A.filter(a=>a.viol); o.textContent+='CAS|Vovtchansk et Belgorod (septembre 2026) : aucune flèche vers la Russie ni vers une zone déjà tenue|'+(bad.length?'ECHEC':'OK')+'|'+JSON.stringify(A)+'|'+A.length+'\\n';}}
   o.textContent+='INCERTAINES|par mois [vue d’ensemble, zoom 20+10 km, annonces] : '+JSON.stringify(r.unc||{})+'\\n';
   o.textContent+='MISSILES|lieux de lancement sur le territoire ukrainien vérifiés (tenus par la Russie au mois du lancement) : '+(r.launches||0)+'\\n';

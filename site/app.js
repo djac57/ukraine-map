@@ -799,6 +799,9 @@ function lineShift(oldRuns, newRuns, pc, pold, cx, cy, camp){
 const CKV = () => fieldName();
 const PREVOF = (fi, v) => { const f = frameAt(fi, 30); return f >= 0 ? fullField(v, f) : null; };
 window.__uafView = () => CKV();
+// source de la fusion réellement affichée sur la carte publiée : "fusion_robuste" (défaut) ou "fusion" (standard).
+// Le harnais vérifie que la bonne source est chargée (la vue mesurée "fusion" porte le champ de cette source).
+window.__uafFusionSrc = () => (fusionOn ? fusionSrc : null);
 window.__uafDirBox = (fi, b) => { const out = [], p0 = POLDOF(fi), pv = PREVOF(fi, CKV()), km = FR.grid.size / 1000, ll = (u, v) => proj.invert([gAff[0] + u * gAff[2], gAff[1] + v * gAff[2]]).map(v => +v.toFixed(3));
   const inb = q => q[0] >= b[0] && q[0] <= b[1] && q[1] >= b[2] && q[1] <= b[3];
   for (const L of ["overview", 20, 10]) for (const a of (L === "overview" ? overviewArrows(fi, CKV()) : computeArrows(fi, L, CKV()))) {
@@ -1097,7 +1100,7 @@ window.__uafArrowCheck = function(){
       }
       // flèches d'annonces : sens jugé sur le champ des cartes (elles comparent les annonces aux cartes, pas au modèle)
       const [gx, gy] = gradAt(fullField(evView(), fi) || ge, a.ax, a.ay);
-      if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru});
+      if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru, base: ll(a.ax, a.ay), pointe: ll(a.cx, a.cy), mode: a.mode, n: a.n, dbg: a.dbg || null, gradEvView: [+gx.toFixed(3), +gy.toFixed(3)]});
     }
   }
   // têtes (bloquant) : aucune flèche dessinée, de quelque type que ce soit, dont la hampe ou la tête entre en Russie
