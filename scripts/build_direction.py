@@ -76,12 +76,33 @@ S2_IN_SENS = os.environ.get("SENS_S2_DANS_SENS", "0") == "1"
 # pose la flèche bleue même quand pm est bas — c'est le but hors-cartes (RAPPORT détecteur de contre-offensives : faire
 # tirer la flèche là où SEULS les signaux physiques voient la reprise). Gardé étroit pour ne pas multiplier les fausses
 # alertes (validation interne poussee_possible ci-dessous). SENS_ARROW_S2=0 pour revenir à l'ancien comportement.
+# Cette pose reste INTERMITTENTE (le z d'asymétrie S2 fluctue d'une décade à l'autre, ex. Vivaldi juillet creux entre juin
+# et août) ; au report MENSUEL (app.js prend la dernière décade ≤ la date du mois) un mois à décade de fin creuse n'affiche
+# alors RIEN. La VISIBILITÉ SOUTENUE est assurée par le MAINTIEN (ARROW_HOLD, plus bas) qui prolonge toute pose ≈ 1 mois.
 ARROW_S2 = os.environ.get("SENS_ARROW_S2", "1") != "0"
 S2_PUSH = float(os.environ.get("SENS_S2_PUSH", "4.0"))   # z d'asymétrie S2 (RU pilonné) requis, DEUX pas de suite, pour une
-#                                                          poussée UA hors-cartes (4,0 choisi : précision pp quasi inchangée
-#                                                          0,112 vs 0,116, +24 flèches = les détections hors-cartes ; Vivaldi
-#                                                          tire en septembre ; 2,0/3,0 trop larges, cf. sweep du rapport)
+#                                                          poussée UA hors-cartes (4,0 : précision pp quasi inchangée ; la
+#                                                          continuité des décades creuses est gérée par ARROW_HOLD, pas en
+#                                                          baissant ce seuil — un seuil plus bas élargissait les faux positifs)
 P_UA_S2 = float(os.environ.get("SENS_P_UA_S2", "0.10"))  # P(UA|bouge) minimal pour la branche S2 (S2 porte l'évidence)
+# Persistance SOUTENUE de la flèche bleue (Vivaldi, 23/10/2026). La pose au pas isolé la rendait CLIGNOTANTE : au report
+# MENSUEL (app.js prend la DERNIÈRE décade ≤ la date du mois), un mois dont la décade de fin est creuse n'affichait AUCUNE
+# flèche, même en pleine reprise soutenue (Vivaldi : juin, août, septembre allumés mais MAI/JUILLET/OCTOBRE éteints).
+# Levier RETENU, hors-cartes (la flèche vit dans front_sens.js, zéro impact champ/Brier/couverture) :
+#  ARROW_HOLD : hystérésis CAUSALE — une flèche « poussée possible » posée reste allumée jusqu'à ARROW_HOLD pas plus tard
+#  (≈ 1 mois) tant qu'on est au contact, sans sens russe, pu compatible, et que l'asymétrie S2 n'a pas BASCULÉ côté
+#  ukrainien (s2 ≥ S2_DEAD). Un seul report mensuel creux n'éteint plus une reprise soutenue (Vivaldi : juillet était
+#  éteint entre juin et août ; désormais juin→septembre continu). Causale (n'utilise que des pas passés) et MESURÉE :
+#  sur le banc interne (vérité = champ des cartes), le maintien FAIT MONTER la précision poussée-possible 1 km de 0,112 à
+#  0,123 (il prolonge les vraies flèches sur la partie soutenue des reprises) et double le rappel (0,039 → 0,078).
+# Deux leviers supplémentaires TESTÉS et NON retenus (ils baissaient la précision sans aider Vivaldi, dont les pas creux
+# sont déjà couverts par le maintien) : S2_ENTER1 (pose dès UN pas S2 fort ; prec → 0,110) et ARROW_OLD (ancienne règle
+# d'asymétrie en pose hors-cartes ; prec → 0,104, et bloquée à Vivaldi par pu ≈ 0,02). Gardés OFF par défaut, réglables.
+S2_ENTER1 = os.environ.get("SENS_S2_ENTER1", "0") != "0"
+ARROW_OLD = os.environ.get("SENS_ARROW_OLD", "0") != "0"
+ARROW_HOLD = int(os.environ.get("SENS_ARROW_HOLD", "3"))   # pas de maintien (décades) après une pose ; 3 ≈ 30-40 j
+S2_DEAD = float(os.environ.get("SENS_S2_DEAD", "0.0"))     # sous ce z d'asymétrie S2, les impacts sont plus denses côté UA
+#                                                            (reprise finie/inversée) : on coupe le maintien (ex. Vivaldi oct.)
 
 
 def say(*a):
@@ -524,6 +545,7 @@ def clipz(v):
 # CALMES sur les cartes : indice concordant, JAMAIS une flèche autonome (85-92 % de fausses alertes seul, RAPPORT § 3).
 HORS_CARTES = os.environ.get("SENS_HORS_CARTES", "1") != "0"
 FLAG, CUE, DUA, HC = {}, {}, {}, {}
+RAW2, ING = {}, {}                                   # pose brute de la flèche bleue (bit 2) et ingrédients du maintien
 for key, x in F.items():
     s, k = key
     r = ROWS[key]
@@ -536,19 +558,23 @@ for key, x in F.items():
     f = 0
     if pu is not None and s in THR_RU and pm >= THR_RU[s] and (1 - pu) >= P_RU:
         f |= 1
-    # les deux branches exigent P(UA | bouge) ≥ 0,3 : jamais de « poussée possible » là où le sens russe est probable
-    # (ni drapeau contradictoire avec la flèche russe, qui exige P(sens RU) ≥ 0,8). Garde-fou de contact : la flèche bleue
-    # n'est posée que sur un tronçon de la zone de contact (ligne de contrôle dans la tuile ou une tuile voisine) ; ailleurs
-    # il n'y a pas d'interface à reprendre, la flèche serait parasite (cohérence flèches bleues / zone de contact).
+    # Garde-fou de contact : la flèche bleue n'est posée que sur un tronçon de la zone de contact (ligne de contrôle dans
+    # la tuile ou une voisine) ; ailleurs il n'y a pas d'interface à reprendre, la flèche serait parasite.
     at_contact = k in NEARLINE.get(mfs[s], ())
     y2 = MON.get((month_add(mfs[s], -2), k), r)["y"]
     calm = sp.calm_on_maps(r["y"], y2)               # |ΔY 60 j| < 1 km : les cartes ne bougent pas (gate pm inopérant)
-    if pu is not None and pu >= P_UA and at_contact and (old or (s in THR_GATE and pm >= THR_GATE[s] and du >= D_UA)):
-        f |= 2
-    elif (ARROW_S2 and at_contact and calm and not (f & 1) and du >= D_UA
-          and s2 is not None and s2 >= S2_PUSH and S2V.get((s - 1, k), -9.0) >= S2_PUSH
-          and (pu is None or pu >= P_UA_S2)):
-        f |= 2                                       # branche HORS-CARTES S2 : reprise UA vue par S2 sur tuile calme
+    noru = not (f & 1)                               # jamais de « poussée possible » là où la flèche russe est probable
+    pu_ok = pu is None or pu >= P_UA_S2              # le modèle ne doit pas crier « poussée russe » (sinon flèche contradictoire)
+    # (a) branche SUR CARTES : P(UA|bouge) ≥ 0,3 et (ancienne règle OU gate pm) — « poussée possible » confirmée par les cartes
+    cards2 = pu is not None and pu >= P_UA and at_contact and (old or (s in THR_GATE and pm >= THR_GATE[s] and du >= D_UA))
+    # (b) branche HORS-CARTES S2 : pilonnage côté russe FORT (≥ S2_PUSH) sur tuile CALME au contact, sans sens russe, avec
+    #     D_UA suffisant ; S2_ENTER1 pose dès un pas (sinon deux consécutifs). Reprise UA vue par S2 seule, pm inopérant.
+    s2_strong = s2 is not None and s2 >= S2_PUSH and (S2_ENTER1 or S2V.get((s - 1, k), -9.0) >= S2_PUSH)
+    s2_enter = ARROW_S2 and at_contact and calm and noru and du >= D_UA and s2_strong and pu_ok
+    # (c) branche HORS-CARTES ASYMÉTRIE : ancienne règle soutenue (≥ 6 mailles côté russe, 2 mois) sur tuile calme au contact
+    old_enter = ARROW_OLD and at_contact and calm and noru and old and pu_ok
+    RAW2[key] = cards2 or s2_enter or old_enter
+    ING[key] = (at_contact, noru, pu_ok, s2)
     if old:
         f |= 4
     FLAG[key] = f
@@ -571,6 +597,27 @@ for key, x in F.items():
     if HORS_CARTES:
         c |= sp.hors_cartes_cue(calm, hc, nhc, s2 is not None)
     CUE[key] = c
+
+# Maintien (hystérésis CAUSALE) de la flèche bleue : par tuile, on parcourt les pas dans l'ordre ; une pose brute (RAW2)
+# allume la flèche et arme un compteur ARROW_HOLD ; tant qu'il reste du maintien, on garde la flèche sur une tuile au
+# contact, sans sens russe, pu compatible, et dont l'asymétrie S2 n'a pas basculé côté ukrainien (s2 ≥ S2_DEAD). Ainsi une
+# reprise soutenue (Vivaldi juin→septembre) ne clignote plus au report mensuel. N'utilise que des pas PASSÉS (causal).
+bystep_k = defaultdict(list)
+for (s_, k_) in F:
+    bystep_k[k_].append(s_)
+for k_, ss_ in bystep_k.items():
+    hold = 0
+    for s_ in sorted(ss_):
+        key = (s_, k_)
+        at_contact, noru, pu_ok, s2 = ING[key]
+        if RAW2[key]:
+            FLAG[key] |= 2
+            hold = ARROW_HOLD
+        elif (hold > 0 and at_contact and noru and pu_ok and (s2 is None or s2 >= S2_DEAD)):
+            FLAG[key] |= 2
+            hold -= 1
+        else:
+            hold = 0
 
 
 # ---------------------------------------------------------------- validation interne (vérité : champ des cartes)
