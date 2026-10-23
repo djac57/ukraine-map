@@ -130,7 +130,7 @@ const amode = () => fmode === "equilibre" && !fvar && fusionOn && fusMonths() ? 
 // ---------- replay quotidien (vue dédiée, données front_fusion_hist_<année>.js chargées à la demande) ----------
 // état isolé ; quand REPLAY.on, le champ affiché est REPLAY.field (sur UCELLS), à l'indice fixe REPLAY.fi
 const REPLAY = {on: false, fi: 0, field: null, fieldArr: [null], years: Object.create(null), yearsBySrc: Object.create(null),
-  src: "fusion", gran: "m", raw: false, idx: 0, monthAxis: null, dayAxis: null, saved: null, timer: null, bar: null, btn: null};
+  src: "fusion", gran: "m", raw: false, idx: 0, monthAxis: null, dayAxis: null, saved: null, timer: null, bar: null, btn: null, sensArrows: null};
 // source de données du replay : "fusion" (standard, front_fusion_hist_<y>.js) ou "fusion_robuste" (robuste aux fronts
 // rapides, front_fusion_robuste_hist_<y>.js, produite par build_fusion.py). Un cache d'années PAR source (yearsBySrc) ;
 // REPLAY.years pointe toujours vers le cache de la source courante (échangé dans replaySetSrc).
@@ -1018,6 +1018,7 @@ window.__uafReplayEvents = () => { const R = REPLAY.evArrows; if (!R) return nul
   return {fi: R.fi, snap: FR.months[R.fi] && FR.months[R.fi].date, n: R.arrows.length,
     arrows: R.arrows.map(a => ({base: ll(a.ax, a.ay), head: ll(a.cx, a.cy), ru: a.ru, late: !!a.late, uncertain: !!a.uncertain, undirected: !!a.undirected, n: a.n, dkm: +a.dkm.toFixed(1)}))}; };
 // diagnostic (headless) : passe le replay au pas jour et affiche une date « YYYY-MM-DD » (chargement de l'année asynchrone)
+window.__uafReplaySens = () => (REPLAY.sensArrows ? REPLAY.sensArrows.length : 0);
 window.__uafReplayGoto = day => { if (!REPLAY.on || REPLAY.gran !== "d") setGranMode("d");
   const ax = replayAxis(); let k = ax.indexOf(day); if (k < 0) k = ax.findIndex(x => x >= day); if (k < 0) k = ax.length - 1; replayShow(k); return {idx: k, day: ax[k], year: ax[k].slice(0, 4), state: (REPLAY.years[ax[k].slice(0, 4)] || {}).state}; };
 // diagnostic (headless) : état des flèches dessinées (couche mouvements) et du replay
@@ -2018,6 +2019,7 @@ function draw(){
   if (showAdv) drawAdv(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
   if (showArrows) { drawArrows(k); drawEventArrows(k); }
   if (REPLAY.on && REPLAY.gran === "d" && REPLAY.evArrows) drawReplayEventArrows(k);
+  if (REPLAY.on && REPLAY.gran === "d" && REPLAY.sensArrows) drawReplaySensArrows(k);
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
 
   // villes : en coordonnées écran, seuil selon le zoom
@@ -2300,6 +2302,34 @@ function replayEventArrows(upper){
   const pc = replayFullField(REPLAY.field), lines = linesOfField(pc);
   return {fi, arrows: eventArrows(fi, {pc, lines})};
 }
+// flèches « poussée possible » (modèle de sens front_sens) rejouées AU JOUR : en replay-jour, frontIdx() < 0 donc drawArrows
+// court-circuite et la couche de prévision disparaît ; on la reconstruit ici, indexée par DATE (décade causale : dernière
+// ≤ jour affiché) et ancrée sur la ligne du champ replay courant — mêmes règles de drapeaux et de sens que sensArrows.
+function replaySensArrows(upper){
+  if (!REPLAY.field) return null;
+  if (!window.FRONT_SENS) { loadSens(() => { if (REPLAY.on) replayPaint(); }); return null; }
+  SENS = window.FRONT_SENS;
+  let kd = -1; for (let n = 0; n < SENS.steps.length; n++) { if (SENS.steps[n] <= upper) kd = n; else break; }
+  if (kd < 0) return null;
+  const rows = SENS.rows[kd]; if (!rows || !rows.length) return null;
+  const V = SENS.validationBuild || {}, ok = q => q && q.base > 0 && q.precision >= 2 * q.base;
+  const uaBit = ok(V.poussee_possible_1km) ? 2 : (ok(V.ancienne_regle_1km) ? 4 : 0), ruOk = ok(V.fleche_ru_2km);
+  const pc = replayFullField(REPLAY.field), runs = linesOfField(pc), km = FR.grid.size / 1000, out = [];
+  for (const r of rows) {
+    const fl = r[4], isRu = ruOk && (fl & 1), isUa = !isRu && uaBit && (fl & uaBit);
+    if (!isRu && !isUa) continue;
+    const cx = r[0], cy = r[1];
+    let bx = null, by = null, bd = 1e9;
+    for (const run of runs) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; bx = x; by = y; } }
+    if (bx === null || bd * km > 25 || bd <= 1e-6) continue;
+    let dx = (cx - bx) / bd, dy = (cy - by) / bd;
+    // sens : vers le terrain adverse du camp qui pousse (côté russe pour une poussée UA, et inversement)
+    const c = Math.floor(cy) * GX + Math.floor(cx), cRu = pc[c] > 0.5, ru = !!isRu;
+    if (ru === cRu) { dx = -dx; dy = -dy; }
+    out.push({ax: bx, ay: by, dx, dy, ru});
+  }
+  return out.length ? out : null;
+}
 // rendu des flèches d'événements du replay (base → tête déjà gardée par eventArrows ; pas de re-garde de tête)
 function drawReplayEventArrows(k){
   const R = REPLAY.evArrows; if (!R || !R.arrows.length) return;
@@ -2324,6 +2354,25 @@ function drawReplayEventArrows(k){
   }
   ctx.globalAlpha = 1;
 }
+// rendu des flèches « poussée possible » rejouées au jour : bleu pointillé à tête creuse (poussée UA possible), rouge à
+// tête creuse (poussée RU probable) — même style que les flèches de prévision de drawArrows sur la carte principale
+function drawReplaySensArrows(k){
+  const A = REPLAY.sensArrows; if (!A || !A.length) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const a of A) {
+    const sx = (gAff[0] + a.ax * gAff[2]) * k + tr.x, sy = (gAff[1] + a.ay * gAff[2]) * k + tr.y;
+    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
+    const P0 = arrowPx(1, k, !a.ru), len = P0.len, hs = Math.min(P0.hs, len * 0.28), w = P0.w;
+    const dx = a.dx, dy = a.dy, ex = sx + dx * len, ey = sy + dy * len, hx = -dy, hy = dx, col = a.ru ? C.front : C.uactl;
+    const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
+    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = 0.95;
+    ctx.lineWidth = Math.max(2.4, w * 1.2);
+    if (!a.ru) { ctx.setLineDash([4, 3]); ctx.lineCap = "butt"; }
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs * 1.6, ey - dy * hs * 1.6); ctx.stroke();
+    ctx.setLineDash([]); ctx.lineCap = "round"; ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
 function replayPaint(){
   const i = REPLAY.idx, e = replayAxis()[i], upper = replayUpper(i), y = upper.slice(0, 4), st = REPLAY.years[y];
   const label = e.length === 7 ? monthName(e.slice(0, 4), e.slice(5, 7)) : (([Y, M, Dd]) => dayName(Y, M, Dd))(e.split("-"));
@@ -2332,6 +2381,7 @@ function replayPaint(){
   const j = replaySnap(st, upper);
   REPLAY.field = replayFieldAt(st, j); REPLAY.fieldArr[0] = REPLAY.field;
   REPLAY.evArrows = replayEventArrows(upper);                       // flèches datées « changements de camp » au jour affiché
+  REPLAY.sensArrows = replaySensArrows(upper);                      // flèches « poussée possible » (prévision) de la décade causale
   frontFor = -2;                                                    // forcer la reconstruction du champ (indice fixe)
   draw();
   const a = st.surf[j] && st.surf[j].a, occ = a && a.tout ? Math.round(a.tout[0] / 100) * 100 : null;
@@ -2399,7 +2449,7 @@ function replayToggle(on){
     replayShow(0);                                                   // départ en mars 2022 : la guerre se rejoue en avançant
   } else {
     replayStop();
-    REPLAY.evArrows = null; REPLAY.gran = "m";                       // cohérence : on repasse au pas mois
+    REPLAY.evArrows = null; REPLAY.sensArrows = null; REPLAY.gran = "m"; // cohérence : on repasse au pas mois
     const s = REPLAY.saved || {};
     showContact = s.showContact; showUnc = s.showUnc; showAsym = s.showAsym; showDestr = s.showDestr; showCombat = s.showCombat;
     showArrows = s.showArrows; showTg = s.showTg; showFire = s.showFire; showLoss = s.showLoss; showUcdp = s.showUcdp;
