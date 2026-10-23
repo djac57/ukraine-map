@@ -2362,14 +2362,18 @@ function drawReplaySensArrows(k){
   for (const a of A) {
     const sx = (gAff[0] + a.ax * gAff[2]) * k + tr.x, sy = (gAff[1] + a.ay * gAff[2]) * k + tr.y;
     if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
-    const P0 = arrowPx(1, k, !a.ru), len = P0.len, hs = Math.min(P0.hs, len * 0.28), w = P0.w;
-    const dx = a.dx, dy = a.dy, ex = sx + dx * len, ey = sy + dy * len, hx = -dy, hy = dx, col = a.ru ? C.front : C.uactl;
+    const ua = !a.ru;   // poussée UA possible = le signal NOTABLE (détection « on pousse là ») : rendu plus marqué + repère
+    const P0 = arrowPx(ua ? 1.6 : 1, k, ua), len = P0.len, hs = Math.min(P0.hs, len * 0.28), w = P0.w;
+    const dx = a.dx, dy = a.dy, ex = sx + dx * len, ey = sy + dy * len, hx = -dy, hy = dx, col = ua ? C.uactl : C.front;
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
-    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = 0.95;
-    ctx.lineWidth = Math.max(2.4, w * 1.2);
-    if (!a.ru) { ctx.setLineDash([4, 3]); ctx.lineCap = "butt"; }
+    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = ua ? 1 : 0.95;
+    ctx.lineWidth = Math.max(ua ? 3 : 2.4, w * (ua ? 1.5 : 1.2));
+    if (ua) { ctx.setLineDash([5, 3]); ctx.lineCap = "butt"; }
     ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs * 1.6, ey - dy * hs * 1.6); ctx.stroke();
     ctx.setLineDash([]); ctx.lineCap = "round"; ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke();
+    // repère de base des poussées UA détectées : anneau bleu, lisible même en vue d'ensemble (où la flèche seule se perd)
+    if (ua) { const rb = k < 1.6 ? 3.5 : 5; ctx.lineWidth = 2; ctx.strokeStyle = col; ctx.fillStyle = C.bg;
+      ctx.beginPath(); ctx.arc(sx, sy, rb, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
   }
   ctx.globalAlpha = 1;
 }
