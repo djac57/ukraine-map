@@ -105,14 +105,22 @@ def main():
     from fusion import champ as CHM, mesures as ME, sortie as SO
     log(f"socle : {S.NM} mois ({S.months[0]} → {S.months[-1]}), {len(S.built)} construits, zone {S.nZ} mailles, "
         f"{S.nT} tuiles ({time.time() - T0:.0f} s)")
-    M = Moteur(set(POS_PROD) | set(DYN_PROD))
+    # FUSION_CRAT (option PARALLÈLE, 23/10/2026, défaut OFF) : ajoute les cratères Sentinel-2 v2 « tout le front » comme
+    # PRESSION PAR CÔTÉ (`obs.dynamique._crat`, densités RU/UA par 100 km²) au modèle d'observation dynamique. Mesuré
+    # (ukraine-recherche/analyses/fusion_quotidienne_RAPPORT.md § « hors-cartes ») : monte la part HORS-CARTES issue des
+    # signaux PHYSIQUES de 2,0 % → 3,0 % (2025-26) / 5,2 % → 5,4 % (2023-24) ET améliore le Brier des mailles qui changent
+    # (bascules : 0,3221 → 0,3173 ; 0,3660 → 0,3639), au prix d'un Brier ≤ 30 km à peine dégradé (+0,0003 / +0,0002) et
+    # d'une couverture médiane −0,7 pt. Sous la règle stricte « ne rien dégrader » il reste donc PARALLÈLE (non basculé) ;
+    # c'est le meilleur levier mesuré pour renforcer l'apport des signaux physiques (S2 d'abord) dans la fusion.
+    dyn_prod = DYN_PROD + (["crat"] if os.environ.get("FUSION_CRAT") else [])
+    M = Moteur(set(POS_PROD) | set(dyn_prod))
     fgd = M.figes(**FIGES_DELTA) if FIGES_DELTA else None
     rkw = {}
     if REGIME:
         from fusion import obs as OBS
         rkw = dict(regime=OBS.Regime(mode=REGIME["mode"], O0=REGIME["O0"]).prepare(M.C),
                    regime_cartes=tuple(REGIME.get("cartes", ())), regime_poids=bool(REGIME.get("poids")))
-    R = M.run(POS_PROD, DYN_PROD, figes=fgd, **rkw)
+    R = M.run(POS_PROD, dyn_prod, figes=fgd, **rkw)
     log(f"moteur : loi a posteriori de δ, {len(M.C.months)} mois ({time.time() - T0:.0f} s)")
     pk = M.poids_figes(**POIDS_FIGES) if POIDS_FIGES else None
     CH = CHM.Champ(M, R, figes=pk)

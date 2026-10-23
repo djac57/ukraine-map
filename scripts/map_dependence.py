@@ -26,7 +26,9 @@ def load_meta(site):
 
 
 def load_seq(site, view):
-    s = open(os.path.join(site, f"front_{view}.js"), encoding="utf-8").read()
+    # vue publiée en séquence : front_<view>.js (equilibre, nowcast) ; "fusion" = FRONTP["fusion"] de front_fusion.js
+    fn = "front_fusion.js" if view == "fusion" else f"front_{view}.js"
+    s = open(os.path.join(site, fn), encoding="utf-8").read()
     return json.loads(s[s.index("]=") + 2:].rstrip().rstrip(";"))
 
 
@@ -52,7 +54,9 @@ def decode_seq(enc, n):
     return out
 
 
-def measures(site=os.path.join(ROOT, "site"), last=12):
+def measures(site=os.path.join(ROOT, "site"), last=12, final="nowcast"):
+    """final : vue PUBLIÉE dont on mesure l'écart aux cartes (défaut "nowcast", la ligne par défaut ; "fusion" = la vue
+    de fusion v3 mensuelle, candidate au défaut — bien plus hors-cartes, voir fusion_quotidienne_RAPPORT.md)."""
     FR = load_meta(site)
     nx, ny, km = FR["grid"]["nx"], FR["grid"]["ny"], FR["grid"]["size"] / 1000
     place = np.zeros(nx * ny, np.int32)
@@ -64,7 +68,7 @@ def measures(site=os.path.join(ROOT, "site"), last=12):
     U = np.flatnonzero(place != -1)
     ua = place[U] >= 0
     E = decode_seq(load_seq(site, "equilibre"), len(U))
-    N = decode_seq(load_seq(site, "nowcast"), len(U))
+    N = decode_seq(load_seq(site, final), len(U))
     frames = [k for k, m in enumerate(FR["months"]) if m and len(m.get("date", "")) >= 7 and E[k] is not None and N[k] is not None]
     sel = frames[-last:]
 
@@ -107,7 +111,28 @@ def summary(rows):
             "c_ligne_km": round(float(np.nanmean(A[:, 2])), 3), "dernier": {"date": rows[-1][0], "a": round(rows[-1][1], 4), "b": round(rows[-1][2], 4), "c_km": round(rows[-1][3], 3)}}
 
 
+def summary_regime(rows, lo, hi):
+    sub = [r for r in rows if lo <= r[0][:7] <= hi]
+    if not sub:
+        return None
+    A = np.array([r[1:] for r in sub])
+    return {"n": len(sub), "a_hors_cartes": round(float(A[:, 0].mean()), 4), "b_etat_change": round(float(A[:, 1].mean()), 4),
+            "c_ligne_km": round(float(np.nanmean(A[:, 2])), 3)}
+
+
 if __name__ == "__main__":
-    site = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "site")
-    r = measures(site)
-    print("KPI principal, information hors cartes (a, à faire monter ; interne) : " + json.dumps(summary(r), ensure_ascii=False))
+    # usage : map_dependence.py [dossier_site] [--field nowcast|fusion]   (défaut : site/, nowcast = ligne par défaut)
+    field = "nowcast"
+    argv = sys.argv[1:]
+    if "--field" in argv:
+        i = argv.index("--field")
+        field = argv[i + 1]
+        argv = argv[:i] + argv[i + 2:]
+    site = argv[0] if argv else os.path.join(ROOT, "site")
+    r = measures(site, final=field, last=200 if field == "fusion" else 12)
+    out = summary(r)
+    out["vue"] = field
+    out["par_regime"] = {k: summary_regime(r, lo, hi) for k, (lo, hi) in
+                         {"2023-24": ("2023-01", "2024-12"), "2025-26": ("2025-01", "2099-12")}.items()}
+    print(f"KPI principal, information hors cartes (a, à faire monter ; vue={field} ; interne) : "
+          + json.dumps(out, ensure_ascii=False))
