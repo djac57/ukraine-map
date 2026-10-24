@@ -130,11 +130,12 @@ const amode = () => fmode === "equilibre" && !fvar && fusionOn && fusMonths() ? 
 // ---------- replay quotidien (vue dédiée, données front_fusion_hist_<année>.js chargées à la demande) ----------
 // état isolé ; quand REPLAY.on, le champ affiché est REPLAY.field (sur UCELLS), à l'indice fixe REPLAY.fi
 const REPLAY = {on: false, fi: 0, field: null, fieldArr: [null], years: Object.create(null), yearsBySrc: Object.create(null),
-  src: "fusion", gran: "m", raw: false, idx: 0, monthAxis: null, dayAxis: null, saved: null, timer: null, bar: null, btn: null, sensArrows: null};
-// source de données du replay : "fusion" (standard, front_fusion_hist_<y>.js) ou "fusion_robuste" (robuste aux fronts
-// rapides, front_fusion_robuste_hist_<y>.js, produite par build_fusion.py). Un cache d'années PAR source (yearsBySrc) ;
-// REPLAY.years pointe toujours vers le cache de la source courante (échangé dans replaySetSrc).
-REPLAY.yearsBySrc.fusion = REPLAY.years;
+  src: "fusion_robuste", gran: "m", raw: false, idx: 0, monthAxis: null, dayAxis: null, saved: null, timer: null, bar: null, btn: null, sensArrows: null};
+// source de données du replay : robuste par défaut (front_fusion_robuste_hist_<y>.js, produite par build_fusion.py), avec
+// repli PAR ANNÉE vers le standard (front_fusion_hist_<y>.js) là où le robuste n'existe pas (< 2025 : HIST_FROM=2025-01),
+// voir replayEnsureYear. Plus de toggle visible (robuste seule). Un cache d'années PAR source (yearsBySrc) ; REPLAY.years
+// pointe toujours vers le cache de la source courante.
+REPLAY.yearsBySrc.fusion_robuste = REPLAY.years;
 const fieldName = () => REPLAY.on ? "__replay" : (fvar || amode());
 const mcOf = mo => amode() === "fusion" && mo.mcFus ? mo.mcFus : amode() === "nowcast" && mo.mcNow ? mo.mcNow : mo.mc;
 const BASEMAP_V = "7934ff79a1";
@@ -2261,9 +2262,11 @@ function replayEnsureYear(y, cb){
   st.cbs.push(cb);
   if (st.state === 1) return;
   st.state = 1;
-  const src = REPLAY.src, winVar = src === "fusion_robuste" ? "FRONT_FUSION_ROBUSTE_HIST" : "FRONT_FUSION_HIST";
+  let src = REPLAY.src;
+  if (src === "fusion_robuste" && !FRONT_V["fusion_robuste_hist_" + y]) src = "fusion";   // repli : pas de robuste avant 2025
+  const winVar = src === "fusion_robuste" ? "FRONT_FUSION_ROBUSTE_HIST" : "FRONT_FUSION_HIST";
   const sc = document.createElement("script");
-  sc.src = "front_" + src + "_hist_" + y + ".js?v=" + (FRONT_V.fusion || "");
+  sc.src = "front_" + src + "_hist_" + y + ".js?v=" + (FRONT_V[src + "_hist_" + y] || FRONT_V.fusion || "");
   sc.onerror = () => { st.state = 3; replayReboundAxis(); st.cbs.splice(0).forEach(f => f && f(st)); };
   sc.onload = () => {
     const H = window[winVar] && window[winVar][y], enc = window.FRONTH && window.FRONTH[y + "/" + src];

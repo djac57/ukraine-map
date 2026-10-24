@@ -73,7 +73,6 @@
   <select id="gran" class="mini" aria-label="pas"><option value="m" data-t="grMois">Mois</option><option value="d" data-t="grJour">Jour</option></select>
   <select id="speed" class="mini" aria-label="vitesse"><option value="0.5">×0,5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option></select>
   <label class="chk" id="rawWrap" hidden style="margin:0 0 0 2px;display:none"><input type="checkbox" id="replayRaw" autocomplete="off"> <span data-t="rpRaw" data-tt="rpRawTip" title="">brut</span></label>
-  <select id="rpSrc" class="mini" hidden style="display:none" aria-label="fusion"><option value="fusion" data-t="rpSrcStd">fusion standard</option><option value="fusion_robuste" data-t="rpSrcRob">fusion robuste</option></select>
 </div>
 
 <details class="panel layers" id="panel">
@@ -98,7 +97,6 @@
   </fieldset>
   <fieldset><legend data-t="gSrc">Sources du calcul</legend>
     <label class="chk"><input type="checkbox" id="lyrFusion" checked autocomplete="off"> <span data-t="cbFusion">moteur de fusion (notre estimation)</span></label>
-    <select id="fusMainSrc" class="mini" aria-label="source de fusion" style="margin:2px 0 4px 22px"><option value="fusion_robuste" data-t="rpSrcRob">fusion robuste</option><option value="fusion" data-t="rpSrcStd">fusion standard</option></select>
     <select id="varSel" hidden>
       <option value="" data-t="vFull">complet</option>
       <option value="sans_dsm" data-t="vDsm">sans DeepStateMap</option>
@@ -190,6 +188,6 @@
 </script>
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
-<script src="app.js?v=54ecef9e30"></script>
+<script src="app.js?v=b1e20876bd"></script>
 </body>
 </html>
