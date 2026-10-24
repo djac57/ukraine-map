@@ -62,14 +62,14 @@ honnête et des flèches « qui pousse où », sans jamais suivre d'unités.
 | `sectors.py` | Secteurs : z-scores, P(contact), asymétrie « combats derrière la ligne », radar, faits officiels. |
 | `nowcast.py` | Nowcast (les combats déplacent p), calibré en walk-forward. |
 | `conformal.py` | Bande d'incertitude locale (intervalles conformes par secteur). |
-| `build_advance.py` | Ampleur de l'avancée à t+1 / t+2 par tronçon de 24 km (deux étages + conformal par tronçon × classe de risque), validation walk-forward et drapeaux `show` intégrés → `site/front_advance.js` (non branché en CI ni sur la carte, § 8 point 2 quater). |
+| `build_advance.py` | Ampleur de l'avancée à t+1 / t+2 par tronçon de 24 km (deux étages + conformal par tronçon × classe de risque), validation walk-forward et drapeaux `show` intégrés → `site/front_advance.js`. **Branché en CI** (job assemble, update.yml). Fourchette affichée au **survol** de P(mouvement) (`advText`) ; la couche carte `drawAdv` reste dormante (case `lyrAdv` non ajoutée, carte volontairement simple). Depuis le 24/10 : intègre les **assauts de l'état-major UA** (CRPS t+2 0,221→0,215). |
 | `check_arrows.py` | Tous les contrôles (bloquants et diagnostics), voir §5. |
 | `stamp.py` | Empreintes anti-cache des scripts dans les pages. |
 | `envkeys.py` | Lecture des secrets depuis l'environnement, jamais écrits ni affichés (le nom évite la règle `*secret*` du .gitignore). |
 | `build_toponyms.py` | `site/toponyms.js` (toponymes EN/UK/RU, GeoNames) à partir de `ukraine-recherche/i18n/places_i18n.json` ; à relancer seulement si le fond de carte change. |
 | `guard.py` | Garde-fous des fichiers d'entrée. |
 | `kpi_avance.py` | KPI interne « avance sur les cartes » (§ 4) : lancé en local, lit `site/front_*.js` et VIINA, écrit dans `ukraine-recherche/analyses/kpi_avance/`. `KPI_CHAMP=fusion` évalue `front_fusion.js` à la place du nowcast ; `KPI_CAD=mois` pour un passage rapide (≈ 9 min). |
-| `build_fusion.py`, `fusion/` | Moteur de fusion (19/10/2026), vue PARALLÈLE « fusion » : lancé APRÈS `build_front.py` et `build_direction.py`, lit seulement `site/` et `data/`, tout réappris en walk-forward à chaque build (≈ 2 min ; `--kpi` : + KPI empilé, ≈ 6 min). Écrit `site/front_fusion.js` (champ + aires ; v3 : `akm`, aires du champ sans extrapolation, pour les variations de km²) et `site/fusion_explain.js` (explication par tronçon). Pas encore en CI ni sur la carte (§ 8 point 0). |
+| `build_fusion.py`, `fusion/` | Moteur de fusion (19/10/2026), vue PARALLÈLE « fusion » : lancé APRÈS `build_front.py` et `build_direction.py`, lit seulement `site/` et `data/`, tout réappris en walk-forward à chaque build (≈ 2 min ; `--kpi` : + KPI empilé, ≈ 6 min). Écrit `site/front_fusion.js` (champ + aires ; v3 : `akm`, aires du champ sans extrapolation, pour les variations de km²), `site/fusion_explain.js` (explication par tronçon) et le snapshot **`site/front_fusion_robuste.js`** (mélange robuste). **Branché en CI** (job assemble) ; la **fusion ROBUSTE est la vue publiée par défaut** de la carte depuis le 23/10. Imprime le KPI hors-cartes de la vue publiée (robuste) à la fin du build. |
 
 ### Données versionnées (`data/`)
 
@@ -421,8 +421,10 @@ mailles ukrainiennes, moyenne des 12 derniers mois (et dernier mois).
 | lot P(mouvement) (18/10) | idem | 3,87 % | 3,64 % | 0,58 km | identique : la couche ne modifie pas le champ |
 | essai Telegram dans p (19/10, non retenu) | idem | 4,05 % | 3,66 % | 0,58 km | 3,08 % / 2,93 % / 0,40 km (précision dégradée : voir § 6) |
 | intégration du banc (19/10 : P(mouvement), P(contact) ; bande inchangée), build local avant → après | idem | 3,87 → 3,87 % | 3,64 → 3,64 % | 0,58 → 0,58 km | 2,89 % / 2,89 % / 0,40 km, identique : ces couches ne modifient pas le champ |
+| **vue RÉELLEMENT PUBLIÉE = fusion ROBUSTE (mesuré 24/10)** | 2025-26 (12 mois) | **16,4 %** | 14,4 % | 3,28 km | 16,3 % / 14,4 % / 3,18 km |
 
-Ce qui fera bouger ces chiffres : des signaux intégrés au champ final (nowcast), pas des couches d'information.
+Les lignes « nowcast » ci-dessus (~3-4 %) mesuraient un champ qui N'EST PAS la vue par défaut de la carte. La carte publie la **fusion robuste** depuis le 23/10 : mesurée le 24/10 (`map_dependence.py --field fusion_robuste`), elle est à **16,4 % hors cartes** (fusion standard 15,7 %, nowcast 2,7 %) ET plus précise que le nowcast (Brier ≤30 km 0,0301 vs 0,0327). **L'objectif « ≥10 % sans perdre en précision » (fixé le 18/10) est donc atteint.** `build_fusion.py` imprime désormais ce KPI sur la vue publiée à chaque build (en plus du nowcast imprimé par `build_front.py`).
+Ce qui fait bouger le KPI : des signaux intégrés au CHAMP (ce que fait la fusion), pas des couches d'information par-dessus (flèches, indices). L'activation des cratères S2 dans le champ (`FUSION_CRAT`) a été testée le 24/10 → **NO-GO** (dégrade la précision récente, gain hors-cartes inutile puisque déjà à 16,4 %).
 
 ## 5. Contrôles (`scripts/check_arrows.py`)
 
@@ -616,8 +618,8 @@ centres de Kharkiv, Zaporijjia, Soumy, Dnipro, Poltava (≤ 8 %) et sur le saill
   Telegram + S2 + P(mouvement)), pas à garder telle quelle ; (3) étude refaite au pas de 10 jours. **Fait le 19/10**
   (`ukraine-recherche/analyses/sens/RAPPORT.md`) :
   - vérité au pas de 10 jours (consensus des cartes à la décade), entrées = fichiers publiés du site + Telegram + S2 ;
-  - `scripts/build_direction.py` → `site/front_sens.js`, lancé en local ; **non branché** : pas d'étape de workflow,
-    affichage à intégrer par l'utilisateur (format et consignes dans le rapport et au § 8) ;
+  - `scripts/build_direction.py` → `site/front_sens.js` : **branché en CI** (job assemble, update.yml) ; la flèche
+    bleue S2 « poussée possible » soutenue (hystérésis causale) et l'indice hors-cartes sur tuiles calmes sont produits ;
   - P(sens UA | bouge) : logistique ridge réapprise à chaque décade sur les 12 derniers mois de tronçons qui ont bougé
     d'au moins 1 km (asymétrie publiée, mouvement récent signé, Telegram 30 et 10 jours). AUC du sens (vérité
     décadaire, 2023-03 → 2026-06) : 0,78 à ≥ 1 km et 0,85 à ≥ 2 km, contre 0,67 hier (mensuel) ;

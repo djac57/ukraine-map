@@ -3634,7 +3634,9 @@ def main():
     if not FRONT_LOTS:   # nécessite tous les champs (variantes comprises) ; sauté dans un lot parallèle
         try:
             import map_dependence
-            print("KPI principal, information hors cartes (a, à faire monter ; interne) : " + json.dumps(map_dependence.summary(map_dependence.measures(os.path.join(ROOT, "site"))), ensure_ascii=False))
+            # NB : mesure le champ NOWCAST (~2-3 %), qui n'est PAS la vue publiée par défaut de la carte. Le KPI de la vue
+            # réellement publiée (fusion ROBUSTE, ~16 %) est imprimé par build_fusion.py (le fichier robuste n'existe pas encore ici).
+            print("KPI information hors cartes (champ NOWCAST seul ; la vue publiée = robuste, voir build_fusion ; interne) : " + json.dumps(map_dependence.summary(map_dependence.measures(os.path.join(ROOT, "site"))), ensure_ascii=False))
         except Exception as e:  # noqa: BLE001 (diagnostic seulement, ne bloque pas le build)
             print(f"dépendance aux cartes : non calculée ({e})")
 

@@ -51,6 +51,7 @@ Sorties :
 """
 import argparse
 import datetime as dt
+import json
 import os
 import sys
 import time
@@ -376,6 +377,15 @@ def main():
             szr = os.path.getsize(os.path.join(SITE, "front_fusion_robuste.js")) // 1024
             log(f"snapshot courant robuste : écrit site/front_fusion_robuste.js ({szr} Ko, {len(Fur)} mois, "
                 f"bande russe {nbr} champs)")
+            # KPI « hors cartes » sur la vue RÉELLEMENT PUBLIÉE (fusion robuste), maintenant que le fichier existe.
+            # C'est le chiffre honnête de l'objectif « moins dépendant des cartes » (build_front imprime, lui, le nowcast,
+            # qui n'est pas la vue par défaut de la carte). map_dependence le mesure directement (même format de fichier).
+            try:
+                import map_dependence
+                md = map_dependence.summary(map_dependence.measures(SITE, final="fusion_robuste", last=12))
+                log("KPI principal, information hors cartes (vue PUBLIÉE = fusion robuste ; interne) : " + json.dumps(md, ensure_ascii=False))
+            except Exception as e:  # noqa: BLE001
+                log(f"KPI hors cartes robuste : non calculé ({e})")
 
 
 if __name__ == "__main__":
