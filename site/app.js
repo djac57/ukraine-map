@@ -1099,9 +1099,12 @@ window.__uafArrowCheck = function(){
           fails.push({mois: FR.months[fi].date, sens: "annonces contre les " + nm, ru: a.ru, base: ll(a.ax, a.ay), pointe: ll(a.cx, a.cy), ref: ll(...r), mode: a.mode});
         continue;
       }
-      // flèches d'annonces : sens jugé sur le champ des cartes (elles comparent les annonces aux cartes, pas au modèle)
+      // flèches d'annonces : sens jugé sur le champ des cartes (elles comparent les annonces aux cartes, pas au modèle).
+      // Garde-fou : on ne peut pas être « à rebours » d'un gradient trop PLAT (pas de direction définie : front ambigu sur
+      // les cartes). En deçà de GRAD_MIN (|∇| sur le champ 0-1 par maille), le sens n'est pas jugeable → on ne signale pas.
+      const GRAD_MIN = 0.08;
       const [gx, gy] = gradAt(fullField(evView(), fi) || ge, a.ax, a.ay);
-      if (s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru, base: ll(a.ax, a.ay), pointe: ll(a.cx, a.cy), mode: a.mode, n: a.n, dbg: a.dbg || null, gradEvView: [+gx.toFixed(3), +gy.toFixed(3)]});
+      if (Math.hypot(gx, gy) >= GRAD_MIN && s * (tx * gx + ty * gy) <= 0) fails.push({mois: FR.months[fi].date, sens: "annonces à rebours", ru: a.ru, base: ll(a.ax, a.ay), pointe: ll(a.cx, a.cy), mode: a.mode, n: a.n, dbg: a.dbg || null, gradEvView: [+gx.toFixed(3), +gy.toFixed(3)]});
     }
   }
   // têtes (bloquant) : aucune flèche dessinée, de quelque type que ce soit, dont la hampe ou la tête entre en Russie
