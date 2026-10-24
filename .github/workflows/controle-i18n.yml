@@ -1,0 +1,25 @@
+# Contrôle i18n (rendu des traductions EN/UK/RU en navigateur : aucun mot français ne doit fuir).
+# Sorti du pipeline de données quotidien (update.yml, UAF_SKIP_I18N) car il NE valide pas la donnée et fait planter
+# Chrome headless sur les runners Linux cloud (le rendu cyrillique sous --virtual-time-budget ne se termine jamais :
+# reproduit avec Chromium ET Google Chrome, --disable-dev-shm-usage et --disable-remote-fonts n'y changent rien).
+# Il tourne donc ici sur le Mac (seul endroit où le rendu i18n passe aujourd'hui), et SEULEMENT quand l'interface change.
+# La couverture statique des 4 langues (check_legend) reste, elle, dans le gate quotidien sur cloud.
+# TODO zéro-local : réécrire check_i18n avec Playwright (attentes explicites au lieu de --virtual-time-budget) pour le
+# faire tourner sur un runner cloud, et supprimer alors ce workflow.
+name: controle-i18n
+on:
+  push:
+    branches: [main]
+    paths: [site/i18n.js, site/index.html, site/methode.html, site/app.js]
+  workflow_dispatch: {}
+permissions: { contents: read }
+concurrency: { group: controle-i18n, cancel-in-progress: true }
+
+jobs:
+  i18n:
+    runs-on: [self-hosted, m5]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Contrôle des flèches + i18n (EN/UK/RU) sur le site publié"
+        run: python scripts/check_arrows.py

@@ -288,7 +288,7 @@ def check_i18n(chrome):
                 for attempt in (1, 2):
                     prof = tempfile.mkdtemp(prefix=f"cri18n_{lang}_")
                     try:
-                        out = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", f"--user-data-dir={prof}",
+                        out = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage", "--disable-remote-fonts", f"--user-data-dir={prof}",
                                               "--virtual-time-budget=60000", "--dump-dom",
                                               f"http://127.0.0.1:{port}/_check_i18n.html"], capture_output=True, text=True, timeout=300).stdout
                         break
@@ -381,7 +381,7 @@ def main():
         port = httpd.server_address[1]
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         try:
-            out = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--virtual-time-budget=180000",
+            out = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage", "--virtual-time-budget=180000",
                                   "--dump-dom", f"http://127.0.0.1:{port}/_check_arrows.html"],
                                  capture_output=True, text=True, timeout=600).stdout
         finally:
@@ -393,7 +393,12 @@ def main():
     r = re.search(r"RESULTAT total=(\d+) echecs=(\d+)", text)
     if not r or "ERREUR" in text or "|ECHEC|" in text:
         return 1
-    if not check_i18n(chrome):
+    # Le contrôle i18n (rendu des traductions UK/RU en navigateur) peut être délégué à un workflow dédié, déclenché quand
+    # l'interface change (controle-i18n.yml), plutôt qu'au gate de publication quotidien : il ne valide pas la donnée, et
+    # le contrôle statique des 4 langues de la légende (check_legend, ci-dessus) reste, lui, dans le gate quotidien.
+    if os.environ.get("UAF_SKIP_I18N") == "1":
+        print("I18N|sauté (UAF_SKIP_I18N=1 : délégué à controle-i18n.yml ; légende 4 langues déjà validée)")
+    elif not check_i18n(chrome):
         return 1
     return 0 if int(r.group(2)) == 0 and int(r.group(1)) > 0 else 1
 
