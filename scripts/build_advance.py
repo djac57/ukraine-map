@@ -305,6 +305,28 @@ def prepare(root):
         used.append("Telegram (volume et orientation, agrégats)")
     else:
         missing.append("Telegram (data/telegram_troncons.csv absent ou sans le dernier mois)")
+    # Assauts de l'état-major UA par tronçon et par mois — lus directement de data/officiels_cells_month.csv (source
+    # produite en CI par build_official_signals.py : faits agrégés par maille de 2 km, source "etatmajor_assauts",
+    # colonne par_jour) et agrégés ici maille -> tronçon de 24 km. Depuis 2024 ; dégradation propre si absent / dernier mois manquant.
+    ASS = {}
+    p_as = os.path.join(root, "data", "officiels_cells_month.csv")
+    use_ass = False
+    if os.path.exists(p_as):
+        acc_a = {}
+        for r in csv.DictReader(open(p_as, encoding="utf-8")):
+            if r.get("source") != "etatmajor_assauts" or r["mois"][:7] not in mi:
+                continue
+            maille = int(r["maille"])
+            key = (mi[r["mois"][:7]], ((maille // NX) // TILE) * 1000 + ((maille % NX) // TILE))
+            acc_a[key] = acc_a.get(key, 0.0) + float(r.get("par_jour") or 0)
+        as_months = {key[0] for key in acc_a}
+        use_ass = (NM - 1) in as_months
+        for key, v in acc_a.items():
+            ASS[key] = math.log1p(v)
+    if use_ass:
+        used.append("Assauts état-major UA (agrégats, depuis 2024)")
+    else:
+        missing.append("Assauts état-major UA (officiels_cells_month.csv absent ou sans le dernier mois)")
 
     def dY(t, k, n):
         a, b_ = Y.get((t, k)), Y.get((t - n, k))
@@ -323,6 +345,10 @@ def prepare(root):
             a.append(PM.get((t, k), 0.0))
         if use_tg:
             a.append(TGT.get((t, k), 0.0)); s.append(TGO.get((t, k), 0.0))
+        if use_ass:                                   # assauts état-major UA : volume (log1p) + indicatrice de présence
+            av = ASS.get((t, k))
+            a.append(av if av is not None else 0.0); a.append(float(av is not None))
+            s.append(av if av is not None else 0.0); s.append(float(av is not None))
         FA[(t, k)], FS[(t, k)] = np.array(a), np.array(s)
         # régime établi : mois consécutifs (les plus récents) dans le même sens, vitesse moyenne sur ces mois
         mm = []
