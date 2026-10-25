@@ -1,15 +1,13 @@
 # Impacts Sentinel-2 v1 (signal du DÉTECTEUR hors-champ s2_sens) : refresh mensuel, 100 % cloud, sans compte ni secret.
 # Données : Copernicus Sentinel-2 L2A + ESA WorldCover 2021 (ESA) via Microsoft Planetary Computer (STAC public, pc.sign).
-# Mention à afficher : « Contient des données Copernicus Sentinel modifiées [années] ».
+# Mention : « Contient des données Copernicus Sentinel modifiées [années] ».
 #
-# POURQUOI un workflow séparé de crateres.yml (v2) :
-#   Le détecteur hors-champ (fusion/obs/dynamique.py:92, _s2 défaut) lit la v1 data/impacts_troncons_decades.csv
-#   (impacts spectraux 10 m, denses) — PAS la v2 (cratères stricts). Mesure du 25/10/2026 : la v2 perd les deux reprises
-#   UA prouvées (Vivaldi, Komar), la v1 les voit +81 à +163 j à l'avance. Ce job garde donc frais le SIGNAL DU DÉTECTEUR.
-#   Pipeline porté dans scripts/impacts_v1/ (ex-ukraine-recherche/sar), sans scikit-learn, incrémental (fenêtre M-2 → J-1,
-#   fusion avec l'historique committé). Zéro dépendance locale : grille/champs lus dans site/front.js, data.js,
-#   front_equilibre.js (in-repo) ; tuiles dans scripts/impacts_v1/tiles.json (in-repo) ; feux 2026 dans
-#   data/viirs_api_2026.csv (in-repo) ; normale (feux/impacts 6-12 mois avant) lue dans le CSV committé.
+# MATRICE (motif front→assemble d'update.yml) : le fetch I/O-bound est partagé en N shards parallèles (artefacts),
+# puis un job assemble recolle le cache et agrège (fusion incrémentale M-2 → J-1 avec l'historique committé).
+# Le détecteur lit la v1 data/impacts_troncons_decades.csv (fusion/obs/dynamique.py:92) — pas la v2 (cratères stricts,
+# qui perd Vivaldi+Komar). Pipeline porté dans scripts/impacts_v1/, sans scikit-learn. Zéro dépendance locale
+# (grille/champs : site/front.js, data.js, front_equilibre.js ; tuiles : scripts/impacts_v1/tiles.json ; feux 2026 :
+# data/viirs_api_2026.csv ; normale : CSV committé).
 name: "Impacts S2 v1 mensuel (détecteur)"
 on:
   schedule:
@@ -25,34 +23,62 @@ concurrency:
   group: impacts-v1
   cancel-in-progress: false
 jobs:
-  impacts_v1:
+  fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        # N = 8 shards (chaîne i/N : le dénominateur pilote la taille ; PLOMBAGE = remplacer par ["0/100"])
+        shard: ["0/8", "1/8", "2/8", "3/8", "4/8", "5/8", "6/8", "7/8"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: "Dépendances (Planetary Computer public, aucun compte ni secret ; PAS de scikit-learn)"
+        with: { python-version: "3.12" }
+      - name: "Dépendances (Planetary Computer public ; PAS de scikit-learn)"
         run: pip install numpy scipy rasterio pystac-client planetary-computer pyproj
-      - name: "Fenêtre du mois (start, detect_from, end)"
+      - name: "Fenêtre du mois"
         run: python scripts/impacts_v1/monthly.py window ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
-      - name: "Fetch S2 L2A 10 m + détection d'impacts (fenêtre M-2 → J-1)"
+      - name: "Fetch S2 10 m — shard ${{ matrix.shard }} (fenêtre M-2 → J-1)"
         run: >
           python scripts/impacts_v1/monthly.py run --root .
-          --tmp "${RUNNER_TEMP}/impacts_v1" --shard 0/1
+          --tmp "${RUNNER_TEMP}/impacts_v1" --shard ${{ matrix.shard }}
           ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
-      - name: "Agrégation tronçon×côté×décade + z local, fusion avec l'historique committé"
+      - name: "Publier le cache du shard"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "impacts-v1-cache-${{ strategy.job-index }}"
+          path: ${{ runner.temp }}/impacts_v1/cache
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: ignore
+
+  assemble:
+    needs: fetch
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: "Dépendances"
+        run: pip install numpy scipy rasterio pystac-client planetary-computer pyproj
+      - name: "Récupérer tous les caches de shards"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "impacts-v1-cache-*"
+          path: ${{ runner.temp }}/impacts_v1/cache
+          merge-multiple: true
+      - name: "Agrégation + z local + fusion avec l'historique committé (garde-fou : fetch vide => rien écrit, job échoue)"
         run: >
           python scripts/impacts_v1/monthly.py build --root .
           --tmp "${RUNNER_TEMP}/impacts_v1"
           ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
-        # -> data/impacts_troncons_decades.csv (garde-fou : si le fetch est vide, le CSV committé est conservé et le job échoue)
-      - name: "Versionner (signal du détecteur)"
+      - name: "Versionner le signal du détecteur (sur la branche déclencheuse)"
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git add data/impacts_troncons_decades.csv
-          git diff --cached --quiet || git commit -m "Impacts S2 v1 : signal du détecteur du mois (Copernicus Sentinel-2 via Planetary Computer)"
-          git pull --rebase
-          git push
+          if git diff --cached --quiet; then echo "rien de neuf"; exit 0; fi
+          git commit -m "Impacts S2 v1 : signal du détecteur du $(date -u +%F) (Copernicus Sentinel-2 via Planetary Computer)"
+          git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
