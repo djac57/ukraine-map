@@ -1,0 +1,58 @@
+# Impacts Sentinel-2 v1 (signal du DÉTECTEUR hors-champ s2_sens) : refresh mensuel, 100 % cloud, sans compte ni secret.
+# Données : Copernicus Sentinel-2 L2A + ESA WorldCover 2021 (ESA) via Microsoft Planetary Computer (STAC public, pc.sign).
+# Mention à afficher : « Contient des données Copernicus Sentinel modifiées [années] ».
+#
+# POURQUOI un workflow séparé de crateres.yml (v2) :
+#   Le détecteur hors-champ (fusion/obs/dynamique.py:92, _s2 défaut) lit la v1 data/impacts_troncons_decades.csv
+#   (impacts spectraux 10 m, denses) — PAS la v2 (cratères stricts). Mesure du 25/10/2026 : la v2 perd les deux reprises
+#   UA prouvées (Vivaldi, Komar), la v1 les voit +81 à +163 j à l'avance. Ce job garde donc frais le SIGNAL DU DÉTECTEUR.
+#   Pipeline porté dans scripts/impacts_v1/ (ex-ukraine-recherche/sar), sans scikit-learn, incrémental (fenêtre M-2 → J-1,
+#   fusion avec l'historique committé). Zéro dépendance locale : grille/champs lus dans site/front.js, data.js,
+#   front_equilibre.js (in-repo) ; tuiles dans scripts/impacts_v1/tiles.json (in-repo) ; feux 2026 dans
+#   data/viirs_api_2026.csv (in-repo) ; normale (feux/impacts 6-12 mois avant) lue dans le CSV committé.
+name: "Impacts S2 v1 mensuel (détecteur)"
+on:
+  schedule:
+    - cron: "0 2 11 * *"        # le 11 : décalé du SAR (9) et des cratères v2 (10)
+  workflow_dispatch:
+    inputs:
+      today:
+        description: "Date AAAA-MM-JJ (vide : date du jour ; fenêtre = mois M-2 → J-1)"
+        required: false
+permissions:
+  contents: write
+concurrency:
+  group: impacts-v1
+  cancel-in-progress: false
+jobs:
+  impacts_v1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: "Dépendances (Planetary Computer public, aucun compte ni secret ; PAS de scikit-learn)"
+        run: pip install numpy scipy rasterio pystac-client planetary-computer pyproj
+      - name: "Fenêtre du mois (start, detect_from, end)"
+        run: python scripts/impacts_v1/monthly.py window ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
+      - name: "Fetch S2 L2A 10 m + détection d'impacts (fenêtre M-2 → J-1)"
+        run: >
+          python scripts/impacts_v1/monthly.py run --root .
+          --tmp "${RUNNER_TEMP}/impacts_v1" --shard 0/1
+          ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
+      - name: "Agrégation tronçon×côté×décade + z local, fusion avec l'historique committé"
+        run: >
+          python scripts/impacts_v1/monthly.py build --root .
+          --tmp "${RUNNER_TEMP}/impacts_v1"
+          ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
+        # -> data/impacts_troncons_decades.csv (garde-fou : si le fetch est vide, le CSV committé est conservé et le job échoue)
+      - name: "Versionner (signal du détecteur)"
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add data/impacts_troncons_decades.csv
+          git diff --cached --quiet || git commit -m "Impacts S2 v1 : signal du détecteur du mois (Copernicus Sentinel-2 via Planetary Computer)"
+          git pull --rebase
+          git push
