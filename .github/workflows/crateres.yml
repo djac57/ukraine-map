@@ -1,0 +1,65 @@
+# Cratères Sentinel-2 (v2) : rafraîchissement mensuel de la COUCHE PUBLIÉE, 100 % cloud, sans compte ni secret.
+# Données : Copernicus Sentinel-2 L2A (ESA) via Microsoft Planetary Computer (STAC public, pc.sign).
+# Mention à afficher : « Contient des données Copernicus Sentinel modifiées [années] ».
+#
+# PORTÉE (lire avant de s'y fier comme « détecteur frais ») :
+#   Ce job rafraîchit la couche CRATÈRES v2 : data/impacts_troncons_decades_v2.csv (détecteur strict, cratères groupés),
+#   site/impacts_troncons.js (couche d'affichage) et site/crateres_points.js (positions publiées, J-1). C'est le levier
+#   FUSION_CRAT et la carte des cratères.
+#   Il NE rafraîchit PAS le signal S2 du DÉTECTEUR hors-champ (s2_sens) : celui-ci lit la couche v1
+#   data/impacts_troncons_decades.csv (obs/dynamique.py:143-144 -> _s2 défaut). Mesure du 25/10/2026 : la v2 (cratères
+#   stricts, ~2 400 tron-décades non nuls) PERD les deux reprises UA prouvées (Vivaldi, Komar : +0 j), alors que la v1
+#   (impacts spectraux 10 m, ~8 000 non nuls) les voit +81 à +163 j à l'avance. Pointer le détecteur sur la v2
+#   détruirait le signal prouvé -> NE PAS le faire. La v1 vit dans ukraine-recherche/sar (dépôt NON versionné, importe
+#   scikit-learn, pipeline non incrémental) : la rendre « cloud » suppose de PORTER impacts_front.py + impacts_decades.py
+#   dans ce dépôt (tâche de code à part, pas ce workflow). Voir le rapport E3.
+name: "Cratères S2 mensuel (v2, couche publiée)"
+on:
+  schedule:
+    - cron: "0 2 10 * *"        # le 10 : décalé du SAR (9) ; la fenêtre ne recule qu'au mois M-2, l'historique est fusionné
+  workflow_dispatch:
+    inputs:
+      today:
+        description: "Date AAAA-MM-JJ (vide : date du jour ; la fenêtre = mois M-2 → J-1)"
+        required: false
+permissions:
+  contents: write
+concurrency:
+  group: crateres
+  cancel-in-progress: false
+jobs:
+  crateres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: "Dépendances (Planetary Computer public, aucun compte ni secret)"
+        run: pip install numpy scipy rasterio pystac-client pystac planetary-computer pyproj
+      - name: "Fenêtre du mois (start, detect_from, end)"
+        run: python scripts/crateres_v2/front_monthly.py window ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
+      - name: "Détection cratères (fetch S2 L2A 10 m sur le front, fenêtre M-2 → J-1)"
+        run: >
+          python scripts/crateres_v2/front_monthly.py run --root .
+          --tmp "${RUNNER_TEMP}/crateres_v2" --shard 0/1 --workers 4 --threads 3
+          ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
+      - name: "Agrégat tronçon×côté×décade + couche site (fusion avec l'historique committé)"
+        run: >
+          python scripts/crateres_v2/front_monthly.py build --root .
+          --parts "${RUNNER_TEMP}/crateres_v2/sections_*.csv"
+          ${{ inputs.today && format('--today {0}', inputs.today) || '' }}
+        # -> data/impacts_troncons_decades_v2.csv (merge --from detect_from) + site/impacts_troncons.js
+      - name: "Positions publiées (J-1) → site/crateres_points.js"
+        run: >
+          python scripts/crateres_v2/front_finalize.py points --root .
+          --prive "${RUNNER_TEMP}/crateres_v2/prive" --lag 1 --js site/crateres_points.js
+      - name: "Versionner (data + site)"
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add data/impacts_troncons_decades_v2.csv site/impacts_troncons.js site/crateres_points.js
+          git diff --cached --quiet || git commit -m "Cratères S2 : couche v2 du mois (Copernicus Sentinel-2 via Planetary Computer)"
+          git pull --rebase
+          git push
