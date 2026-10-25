@@ -1,11 +1,10 @@
 # Contrôle i18n (rendu des traductions EN/UK/RU en navigateur : aucun mot français ne doit fuir).
-# Sorti du pipeline de données quotidien (update.yml, UAF_SKIP_I18N) car il NE valide pas la donnée et fait planter
-# Chrome headless sur les runners Linux cloud (le rendu cyrillique sous --virtual-time-budget ne se termine jamais :
-# reproduit avec Chromium ET Google Chrome, --disable-dev-shm-usage et --disable-remote-fonts n'y changent rien).
-# Il tourne donc ici sur le Mac (seul endroit où le rendu i18n passe aujourd'hui), et SEULEMENT quand l'interface change.
-# La couverture statique des 4 langues (check_legend) reste, elle, dans le gate quotidien sur cloud.
-# TODO zéro-local : réécrire check_i18n avec Playwright (attentes explicites au lieu de --virtual-time-budget) pour le
-# faire tourner sur un runner cloud, et supprimer alors ce workflow.
+# Sorti du pipeline de données quotidien (update.yml, UAF_SKIP_I18N) car il NE valide pas la donnée : il ne doit se
+# déclencher QUE quand l'interface change. La couverture statique des 4 langues (check_legend) reste, elle, dans le gate
+# quotidien sur cloud.
+# 100 % CLOUD depuis le 25/10/2026 : check_i18n a été réécrit avec Playwright (attentes explicites) et passe EN/UK/RU sur
+# ubuntu — ce qui a permis de retirer les runners self-hosted du Mac. (L'ancien rendu Chrome --virtual-time-budget se
+# bloquait sur les pages cyrilliques Linux : Chromium comme Chrome, dev-shm/remote-fonts n'y changeaient rien.)
 name: controle-i18n
 on:
   push:
@@ -17,9 +16,16 @@ concurrency: { group: controle-i18n, cancel-in-progress: true }
 
 jobs:
   i18n:
-    runs-on: [self-hosted, m5]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: "Dépendances (PyYAML pour les workflows, Playwright+Chromium pour le rendu i18n)"
+        run: |
+          python -m pip install --disable-pip-version-check pyyaml playwright==1.48.0
+          python -m playwright install --with-deps chromium
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-core fonts-noto-cjk
       - name: "Contrôle des flèches + i18n (EN/UK/RU) sur le site publié"
         run: python scripts/check_arrows.py

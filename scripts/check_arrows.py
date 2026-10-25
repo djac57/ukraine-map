@@ -247,69 +247,81 @@ def check_schema():
 WITNESS = ["occupés", "légende", "calques", "contrôle russe", "zone grise", "flèche", "incertitude", "localités", "mois en cours",
            "Données", "méthode", "susceptibles", "tronçon", "septembre", "octobre", "avancée", "combats", "densité", "Varsovie", "Sébastopol", "Bucarest",
            "Moscou", "Voronej", "Rostov-sur-le-Don", "Cracovie", "Sotchi", "pas d'instantané", "équilibr", "détails", "Modèle", "sans annonces", "Contexte"]
-I18N_HARNESS = """<!doctype html><html><head><meta charset="utf-8"></head><body><pre id=o></pre><iframe id=f src="index.html?lang=__L__" style="width:1100px;height:900px"></iframe>
-<script>f.onload=()=>{const w=f.contentWindow;w.onerror=(m,u,l)=>o.textContent+='ERREUR '+m+' @'+l;
-const go=n=>{ if((!w.FRONTP||!w.__uafGoto)&&n<80) return setTimeout(()=>go(n+1),500);
-  const d=w.document; d.querySelectorAll('input[type=checkbox]').forEach(c=>{ if(!c.checked){c.checked=true;c.dispatchEvent(new Event('change'));} });
-  const p=d.getElementById('panel'); if(p) p.open=true;
-  w.__uafGoto('2026-09', 37.2, 48.3, 8);
-  setTimeout(()=>{ const cv=d.getElementById('map'), r=cv.getBoundingClientRect();
-    cv.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true}));
-    const tip1=d.getElementById('tip').innerText;
-    cv.dispatchEvent(new MouseEvent('click',{clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true}));
-    const tip2=d.getElementById('tip').innerText;
-    const txt=d.body.innerText+' '+tip1+' '+tip2+' '+(w.__uafLastLabels||[]).join(' ')+' '+[...d.querySelectorAll('option')].map(o=>o.textContent).join(' ');
-    const lab=(w.__uafLastLabels||[]), latin=lab.filter(x=>!/[а-яіїєґё]/i.test(x));
-    o.textContent=JSON.stringify({txt, latin: latin.length, labels: lab.length, ex: latin.slice(0,12)});},4000);};
- setTimeout(()=>go(0),1500);};</script></body></html>"""
+# Actions dans la page (cases cochées, panneau ouvert, zoom sur le saillant) puis lecture (survol + clic → info-bulles,
+# texte, étiquettes dessinées). Mêmes gestes que l'ancien harnais iframe, exécutés par Playwright sur la page elle-même.
+I18N_ACTIONS = """() => {
+  document.querySelectorAll('input[type=checkbox]').forEach(c => { if (!c.checked) { c.checked = true; c.dispatchEvent(new Event('change')); } });
+  const p = document.getElementById('panel'); if (p) p.open = true;
+  window.__uafGoto('2026-09', 37.2, 48.3, 8);
+}"""
+I18N_READ = """() => {
+  const d = document, cv = d.getElementById('map'), r = cv.getBoundingClientRect();
+  cv.dispatchEvent(new MouseEvent('mousemove', {clientX: r.left + r.width/2, clientY: r.top + r.height/2, bubbles: true}));
+  const tip1 = (d.getElementById('tip') || {}).innerText || '';
+  cv.dispatchEvent(new MouseEvent('click', {clientX: r.left + r.width/2, clientY: r.top + r.height/2, bubbles: true}));
+  const tip2 = (d.getElementById('tip') || {}).innerText || '';
+  const lab = window.__uafLastLabels || [];
+  const txt = d.body.innerText + ' ' + tip1 + ' ' + tip2 + ' ' + lab.join(' ') + ' ' + [...d.querySelectorAll('option')].map(o => o.textContent).join(' ');
+  const latin = lab.filter(x => !/[а-яіїєґё]/i.test(x));
+  return {txt, latin: latin.length, labels: lab.length, ex: latin.slice(0, 12)};
+}"""
 
 
-def check_i18n(chrome):
-    """Bloquant : aucun mot-témoin français en EN, UK, RU."""
-    import json
-    import tempfile
+def check_i18n(chrome=None):
+    """Bloquant : aucun mot-témoin français en EN, UK, RU. Rendu via Playwright, avec attentes EXPLICITES (chargement de
+    l'app, puis gestes, puis lecture) plutôt que le mode --virtual-time-budget de Chrome headless, qui se bloquait sur les
+    pages cyrilliques des runners Linux cloud. `chrome` est ignoré (Playwright pilote son propre Chromium)."""
+    # scripts/inspect.py (outil du projet) MASQUE le module standard `inspect` quand scripts/ est en tête de sys.path
+    # (cas de `python scripts/check_arrows.py`) : Playwright en a besoin. On retire le dossier du script de sys.path (et on
+    # purge un `inspect` masqué du cache) le temps d'importer Playwright, puis on le remet.
+    import sys as _sys
+    _sd = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
+    _rm = [p for p in list(_sys.path) if p in ("", ".") or os.path.realpath(p or ".") == _sd]
+    for p in _rm:
+        _sys.path.remove(p)
+    _bad = _sys.modules.get("inspect")
+    if _bad is not None and getattr(_bad, "__file__", None) and os.path.realpath(os.path.dirname(_bad.__file__)) == _sd:
+        del _sys.modules["inspect"]
+    try:
+        from playwright.sync_api import sync_playwright
+    finally:
+        for p in _rm:
+            _sys.path.insert(0, p)
+
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
     ok = True
-    for lang in ("en", "uk", "ru"):
-        path = os.path.join(SITE, "_check_i18n.html")
-        open(path, "w").write(I18N_HARNESS.replace("__L__", lang))
-
-        class Quiet(http.server.SimpleHTTPRequestHandler):
-            def log_message(self, *a):
-                pass
+    with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=SITE)) as httpd:
+        port = httpd.server_address[1]
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
         try:
-            with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=SITE)) as httpd:
-                port = httpd.server_address[1]
-                threading.Thread(target=httpd.serve_forever, daemon=True).start()
-                out = ""
-                # Chrome headless se bloque parfois : runner chargé, et surtout profil par défaut partagé avec le contrôle
-                # des flèches (qui tourne juste avant) et d'une langue à l'autre — un répertoire de profil DÉDIÉ par
-                # lancement évite le verrou, une relance couvre le reste, plutôt qu'un TimeoutExpired non rattrapé qui
-                # ferait tomber tout le pipeline. Le contrôle lui-même reste strict (une page non lue reste un ECHEC).
-                for attempt in (1, 2):
-                    prof = tempfile.mkdtemp(prefix=f"cri18n_{lang}_")
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+                for lang in ("en", "uk", "ru"):
+                    res = {}
                     try:
-                        out = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage", "--disable-remote-fonts", f"--user-data-dir={prof}",
-                                              "--virtual-time-budget=60000", "--dump-dom",
-                                              f"http://127.0.0.1:{port}/_check_i18n.html"], capture_output=True, text=True, timeout=300).stdout
-                        break
-                    except subprocess.TimeoutExpired:
-                        print(f"check_arrows.py : I18N|{lang} : Chrome expiré (300 s), tentative {attempt}/2")
-                    finally:
-                        shutil.rmtree(prof, ignore_errors=True)
-                httpd.shutdown()
+                        page = browser.new_page(viewport={"width": 1100, "height": 900})
+                        # domcontentloaded (pas "load") : on n'attend PAS les tuiles/polices externes (c'est leur attente
+                        # qui bloquait le mode --virtual-time-budget sur Linux). Le JS de l'app tourne quand même et pose
+                        # FRONTP/__uafGoto ; le texte et les étiquettes se lisent sans les tuiles de fond.
+                        page.goto(f"http://127.0.0.1:{port}/index.html?lang={lang}", wait_until="domcontentloaded", timeout=60000)
+                        page.wait_for_function("() => !!(window.FRONTP && window.__uafGoto)", timeout=60000)
+                        page.evaluate(I18N_ACTIONS)
+                        page.wait_for_timeout(4000)  # laisser le rendu des étiquettes (canvas) se faire
+                        res = page.evaluate(I18N_READ)
+                        page.close()
+                    except Exception as e:  # noqa: BLE001
+                        print(f"check_arrows.py : I18N|{lang} : rendu échoué ({type(e).__name__}: {str(e)[:120]})")
+                    txt = res.get("txt", "")
+                    found = [wd for wd in WITNESS if wd.lower() in txt.lower()]
+                    good = bool(txt) and not found
+                    ok &= good
+                    extra = f" ; étiquettes en écriture latine : {res.get('latin')} sur {res.get('labels')} {res.get('ex')}" if lang != "en" else ""
+                    print(f"I18N|{lang}|{'OK' if good else 'ECHEC'}|{len(txt)} caractères lus ; mots français trouvés : {found if txt else 'page non lue'}{extra}")
+                browser.close()
         finally:
-            os.remove(path)
-        m = re.search(r'<pre id="o">([^<]*)', out)
-        try:
-            res = json.loads(html.unescape(m.group(1))) if m else {}
-        except ValueError:
-            res = {}
-        txt = res.get("txt", "")
-        found = [wd for wd in WITNESS if wd.lower() in txt.lower()]
-        good = bool(txt) and not found
-        ok &= good
-        extra = f" ; étiquettes en écriture latine : {res.get('latin')} sur {res.get('labels')} {res.get('ex')}" if lang != "en" else ""
-        print(f"I18N|{lang}|{'OK' if good else 'ECHEC'}|{len(txt)} caractères lus ; mots français trouvés : {found if txt else 'page non lue'}{extra}")
+            httpd.shutdown()
     return ok
 
 
