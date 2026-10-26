@@ -1155,6 +1155,7 @@ function drawArrows(k){
     const P0 = arrowPx(a.v, k, a.uncertain), w = P0.w, overview = P0.overview, hg = headGuard(HF, a.gx, a.gy, a.dx, a.dy, P0.len / (gAff[2] * k));
     if (!hg) continue;
     const hb = hardLen(a.gx, a.gy, hg.ux, hg.uy, P0.len, k), len = hb.len, hs = Math.min(P0.hs, len * 0.28);
+    if (hb.code) continue;   // flèche arrêtée net par une barrière dure (grand fleuve, plan d'eau, escarpement) : inutile → on ne la dessine pas
     const dx = hg.ux, dy = hg.uy, ex = sx + dx * len, ey = sy + dy * len, col = a.ru ? C.front : C.uactl;
     const hx = -dy, hy = dx;
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
