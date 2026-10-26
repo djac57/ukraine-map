@@ -1165,8 +1165,9 @@ function drawArrows(k){
     const head = () => { ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - dx * hs * 1.6 + hx * hs, ey - dy * hs * 1.6 + hy * hs); ctx.lineTo(ex - dx * hs * 1.6 - hx * hs, ey - dy * hs * 1.6 - hy * hs); ctx.closePath(); };
     ctx.lineCap = "round"; ctx.lineJoin = "round";   // flèches de gradient : pleines, sans contour
     ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = overview ? 0.8 : 0.95; ctx.lineWidth = w;
-    if (a.uncertain) {   // sens incertain : trait en tirets courts (lisibles sur une hampe courte), tête creuse
-      ctx.setLineDash([4, 3]); ctx.lineWidth = Math.max(2.4, w * 1.2); ctx.lineCap = "butt";
+    if (a.uncertain) {   // sens incertain : hampe POINTILLÉE (ronds réguliers, nets même sur une hampe courte), tête creuse
+      const lw = Math.max(2.4, w * 1.2);
+      ctx.setLineDash([0.01, lw * 2.1]); ctx.lineWidth = lw; ctx.lineCap = "round"; ctx.lineJoin = "round";
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - dx * hs * 1.6, ey - dy * hs * 1.6); ctx.stroke();
       ctx.setLineDash([]); ctx.lineWidth = 2; ctx.fillStyle = C.bg; head(); ctx.fill(); ctx.stroke();
     } else if (a.probable) {   // poussée probable (prévision) : hampe pleine, tête creuse
