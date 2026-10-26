@@ -50,15 +50,22 @@ def extract():
                     break
                 pg.wait_for_timeout(1500)
             month = pg.evaluate("() => { const i=window.__uafDraw().front; return (window.FRONT && window.FRONT.months && window.FRONT.months[i] && window.FRONT.months[i].date) || null; }")
+            # charger le champ « contact » (calque off par défaut) pour que __uafContactAt renvoie une valeur
+            pg.evaluate("() => { const c = document.getElementById('lyrContact'); if (c && !c.checked) { c.checked = true; c.dispatchEvent(new Event('change')); } }")
+            pg.wait_for_timeout(1800)
+            sigs = {}   # signaux mesurés au point de chaque détection (P contact, P mouvement)
+            for a in arrows:
+                key = f"{a['lon']},{a['lat']}"
+                if key not in sigs:
+                    sigs[key] = pg.evaluate("([fi,lon,lat]) => window.__uafSignalsAt(fi, lon, lat)", [fi, a["lon"], a["lat"]]) or {}
             b.close()
     print(f"[debug] fi={fi} month={month} arrows={len(arrows)} possible={sum(1 for a in arrows if a.get('possible'))} "
-          f"probable={sum(1 for a in arrows if a.get('probable'))} uncertain={sum(1 for a in arrows if a.get('uncertain'))} "
-          f"sample_keys={list(arrows[0].keys()) if arrows else '—'}", file=sys.stderr)
-    return arrows, month
+          f"probable={sum(1 for a in arrows if a.get('probable'))}", file=sys.stderr)
+    return arrows, month, sigs
 
 
 def main():
-    arrows, month = extract()
+    arrows, month, sigs = extract()
     seen, det = set(), []
     for a in arrows:
         if a.get("probable"):
@@ -73,11 +80,14 @@ def main():
         if (place, kind) in seen:
             continue
         seen.add((place, kind))
+        s = sigs.get(f"{a['lon']},{a['lat']}", {}) or {}
         det.append({"place": place, "side": side, "kind": kind, "notable": place in NOTABLE,
-                    "v": abs(round(a.get("v", 0), 1)), "lon": round(a["lon"], 3), "lat": round(a["lat"], 3)})
+                    "v": abs(round(a.get("v", 0), 1)), "lon": round(a["lon"], 3), "lat": round(a["lat"], 3),
+                    "contact": s.get("contact"), "pmove": s.get("pmove")})
     # priorité : repères connus d'abord, puis poussées (possible/probable) avant mouvements
     det.sort(key=lambda d: (0 if d["notable"] else 1, 0 if d["kind"] in ("ua_possible", "ru_probable") else 1, -d["v"]))
-    items = [{"place": d["place"], "side": d["side"], "kind": d["kind"], "lon": d["lon"], "lat": d["lat"]} for d in det[:3]]
+    items = [{"place": d["place"], "side": d["side"], "kind": d["kind"], "lon": d["lon"], "lat": d["lat"],
+              "contact": d["contact"], "pmove": d["pmove"]} for d in det[:3]]
     out = {"date": month or dt.date.today().isoformat(), "items": items}
     import hashlib, re
     bp = os.path.join(SITE, "brief.js")

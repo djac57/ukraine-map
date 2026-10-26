@@ -1049,6 +1049,19 @@ window.__uafContactShare = (fi, b) => { const F = viewFields("contact"); if (!F 
 window.__uafContactAt = (fi, lon, lat) => { const F = viewFields("contact"); if (!F || !F[fi]) return null; const k = cellOf(lon, lat), j0 = Math.floor(k / GX), i0 = k % GX; let best = 0;
   for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) { const u = d3.bisectLeft(UCELLS, (j0 + dj) * GX + i0 + di); if (UCELLS[u] === (j0 + dj) * GX + i0 + di) best = Math.max(best, F[fi][u] / 63); } return best; };
 window.__uafP = (fi, lon, lat, v) => { const g = fullField(v || CKV(), fi); return g ? g[cellOf(lon, lat)] : null; };
+// signaux mesurés au point (pour l'explication du brief) : P(contact au sol) et P(mouvement 2 mois) du tronçon le plus proche
+window.__uafSignalsAt = (fi, lon, lat) => {
+  const c = cellOf(lon, lat); if (c < 0 || c >= GX * GY) return null;
+  const col = c % GX, row = Math.floor(c / GX);
+  let pm = null, bd = 1e9; const arr = FR.months[fi] && FR.months[fi].pm;
+  if (arr) for (const e of arr) { const d = (e[0] - col) ** 2 + (e[1] - row) ** 2; if (d < bd) { bd = d; pm = e[2]; } }
+  if (bd > 144) pm = null;   // tronçon pmove à plus de ~24 km : non pertinent
+  const ct = __uafContactAt(fi, lon, lat);
+  // asymétrie des combats derrière la ligne (base des poussées UA possibles) : |a| max du secteur
+  const AF = viewFields("asym") ? fullField("asym", fi) : null;
+  let asym = 0; if (AF) for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) { const cc = (row + dj) * GX + (col + di); if (cc >= 0 && cc < GX * GY && Math.abs(AF[cc]) > Math.abs(asym)) asym = AF[cc]; }
+  return { contact: ct == null ? null : Math.round(ct * 100), pmove: pm == null ? null : Math.round(pm), asym: AF ? +Math.abs(asym).toFixed(2) : null };
+};
 window.__uafArea = (fi, b, band, v) => { const g = fullField(v || CKV(), fi), a = (FR.grid.size / 1000) ** 2; let s = 0; for (let c = 0; c < GX * GY; c++) if ((band ? cellPlace[c] === -2 : cellPlace[c] >= 0) && inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) s += (band ? 1 - g[c] : g[c]) * a; return s; };
 window.__uafLine = (fi, b, v) => lines50(v || CKV(), fi).flat().filter(p => inBox(p[0], p[1], b)).length;
 // contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
@@ -3751,7 +3764,11 @@ function fillBrief(){
   const l = document.documentElement.lang || "fr", UI = (window.I18N && (window.I18N[l] || window.I18N.fr)) || {};
   $("briefDate").textContent = B.date ? dateLoc(B.date) : "";
   $("briefList").innerHTML = B.items.map((it, i) => {
-    const k = UI["brK_" + it.kind] || it.kind, side = it.side === "ru" ? "ru" : "ua", expl = UI["brExpl_" + it.kind] || "";
+    const k = UI["brK_" + it.kind] || it.kind, side = it.side === "ru" ? "ru" : "ua";
+    const nums = [];
+    if (it.contact != null) nums.push((UI.brSigContact || "P(contact) ≈ {c} %").replace("{c}", it.contact));
+    if (it.pmove != null && it.kind.startsWith("ru")) nums.push((UI.brSigPmove || "P(mouvement) ≈ {p} %").replace("{p}", it.pmove));   // pmove = base des poussées russes probables
+    const expl = (UI["brExpl_" + it.kind] || "") + (nums.length ? " — " + nums.join(" · ") : "");
     return `<li><button type="button" class="brief-item" data-i="${i}"><span class="dot ${side}"></span><b>${escH(it.place)}</b> <span class="k">— ${escH(k)}</span><span class="brief-go">${escH(UI.brGo || "voir ↓")}</span></button><div class="brief-expl" hidden>${escH(expl)}</div></li>`;
   }).join("");
   box.hidden = false;
