@@ -1809,7 +1809,6 @@ function strikeMonth(){
     (byOb[ob] = byOb[ob] || [[0,0],[0,0],[0,0],[0,0]]);
     byOb[ob][ti][0] += l; byOb[ob][ti][1] += d;
   }
-  if (byOb["UA-32"] && !byOb["UA-30"]) byOb["UA-30"] = byOb["UA-32"];   // Kyiv ville colorée avec l'oblast
   let mx = 1;
   for (const v of Object.values(byOb)) mx = Math.max(mx, obTotal(v));
   return strikeCache = {m: missM(), t: key, byOb, mx};
@@ -1894,25 +1893,36 @@ function drawArcs(k){
   if (missM() < 0) return;
   drawStrikesRu(k);
   const A = arcMonth(), S = strikeMonth();
+  // TOUT en coordonnées ÉCRAN : taille et texte constants au zoom, lisibilité maximale
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.lineCap = "round"; ctx.lineJoin = "round";
-  // halos de destination (oblasts visés) : disque doux au centroïde ∝ volume reçu du type choisi — remplace les aplats ternes
-  const haloMx = Math.max(1, ...Object.values(S.byOb).map(obTotal));
-  for (const [tid, v] of Object.entries(S.byOb)) {
-    const n = obTotal(v); if (!n) continue;
-    const c = regionCentroid[tid]; if (!c) continue; const a = proj(c); if (!a) continue;
-    const r = (8 + 26 * Math.sqrt(n / haloMx)) / k, g = ctx.createRadialGradient(a[0], a[1], 0, a[0], a[1], r);
-    g.addColorStop(0, arcRgba(0.4)); g.addColorStop(1, arcRgba(0));
-    ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, 7); ctx.fill();
-    if (arcFocus && arcFocus.kind === "region" && arcFocus.id === tid) { const p = regionPath[tid]; if (p) { ctx.strokeStyle = C.arc; ctx.lineWidth = 1.5 / k; ctx.stroke(p); } }
+  const sp = (lon, lat) => { const q = proj([lon, lat]); return [q[0] * k + tr.x, q[1] * k + tr.y]; };
+  // zones de lancement : petits anneaux « d'où ça part » (secondaire, discret)
+  for (const z of A.zones) { const [x, y] = sp(z.lon, z.lat);
+    const r = 3 + 4.5 * Math.sqrt(z.n / A.mz), on = arcFocus && arcFocus.kind === "zone" && arcFocus.id === z.key;
+    ctx.globalAlpha = on ? 1 : 0.9; ctx.fillStyle = C["map-bg"]; ctx.strokeStyle = arcRgba(0.85); ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke(); }
+  // oblasts visés : cercle plein gradué + NOMBRE de frappes du mois (« où ça tombe, combien »)
+  const raw = [];
+  for (const [tid, v] of Object.entries(S.byOb)) { const n = obTotal(v); if (!n) continue;
+    const c = regionCentroid[tid]; if (!c) continue; const [x, y] = sp(c[0], c[1]); raw.push({x, y, n, tid}); }
+  raw.sort((a, b) => b.n - a.n);
+  const circles = [];   // fusionne les pastilles quasi superposées (ex. ville de Kyiv + son oblast)
+  for (const o of raw) { const near = circles.find(m => Math.hypot(m.x - o.x, m.y - o.y) < 16); if (near) near.n += o.n; else circles.push(o); }
+  const mxN = Math.max(1, ...circles.map(o => o.n));
+  for (const o of circles) o.r = 7 + 19 * Math.sqrt(o.n / mxN);
+  circles.sort((a, b) => b.r - a.r);   // gros dessous, petits dessus
+  for (const o of circles) {
+    const on = arcFocus && arcFocus.kind === "region" && arcFocus.id === o.tid;
+    ctx.globalAlpha = 0.82; ctx.fillStyle = arcRgba(on ? 0.7 : 0.5); ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1; ctx.strokeStyle = arcRgba(0.95); ctx.lineWidth = on ? 2 : 1.3; ctx.stroke();
   }
-  // corridors de menace (lancement → oblast)
-  drawCorridors(k, A);
-  // zones de lancement (origines des corridors)
-  for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (!a) continue;
-    const r = zoneR(z, A) / k, on = arcFocus && arcFocus.kind === "zone" && arcFocus.id === z.key;
-    ctx.globalAlpha = on ? 1 : 0.85; ctx.fillStyle = C.arc; ctx.strokeStyle = C.bg; ctx.lineWidth = 1.2 / k;
-    ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, 7); ctx.fill(); ctx.stroke(); }
-  ctx.globalAlpha = 1;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 11px 'JetBrains Mono', monospace";
+  for (const o of circles) { if (o.r < 9) continue;   // pas de chiffre dans les plus petits cercles
+    const t = o.n >= 1000 ? (o.n / 1000).toFixed(o.n < 10000 ? 1 : 0) + "k" : "" + o.n;
+    ctx.lineWidth = 3; ctx.strokeStyle = C["map-bg"]; ctx.globalAlpha = 0.9; ctx.strokeText(t, o.x, o.y);
+    ctx.globalAlpha = 1; ctx.fillStyle = C.ink; ctx.fillText(t, o.x, o.y); }
+  ctx.restore();
 }
 // diagnostic (headless) : zones de lancement du mois affiché, en pixels de la carte
 window.__uafArcZones = () => arcMonth().zones.map(z => { const a = proj([z.lon, z.lat]); return {name: z.names.join(", "), x: a[0] * tr.k + tr.x, y: a[1] * tr.k + tr.y, n: Math.round(z.n)}; }).sort((p, q) => q.n - p.n);
@@ -2767,8 +2777,8 @@ if ($("lyrEcartMod")) $("lyrEcartMod").onchange = e => { showEcartMod = e.target
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
-$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if ($("arcOpts")) $("arcOpts").hidden = !showArcs; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); if (showArcs) animCorridors(); };
-if ($("arcType")) $("arcType").onchange = e => { strikeType = e.target.value; arcFocus = null; legend(); draw(); animCorridors(); };
+$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if ($("arcOpts")) $("arcOpts").hidden = !showArcs; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); };
+if ($("arcType")) $("arcType").onchange = e => { strikeType = e.target.value; arcFocus = null; legend(); draw(); };
 // charge le fichier d'une source de fusion (front_fusion.js / front_fusion_robuste.js) ; onerror → repli gracieux (fail)
 function loadFusion(src, ok, fail){
   if (window.FRONTP && window.FRONTP[src] && fusMonthsOf(src)) return ok();
@@ -3123,7 +3133,7 @@ function legend(){
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>${_t("événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)")}</span>`;
-  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : corridors de menace (lancement → oblast ciblé, épaisseur selon le volume) · halos sur les oblasts visés (type choisi) ; survoler un oblast donne le détail par type et le taux d'interception (source : armée de l'air ukrainienne, compilation P. Ivaniuk)")}</span>` +
+  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : oblasts visés (taille du cercle et nombre = frappes du mois, type choisi) · petits anneaux : zones de lancement ; survoler un oblast donne le détail par type et le taux d'interception (source : armée de l'air ukrainienne, compilation P. Ivaniuk)")}</span>` +
     `<span><i style="background:${SRU_COL()};opacity:.6;border-radius:0"></i>${_t("frappes ukrainiennes signalées sur la Russie et les territoires occupés : régions citées dans les bilans d'interceptions du MoD RF (annonces d'une partie), mentions des autorités régionales de Belgorod, Koursk et Briansk, feux anormaux près de sites industriels ; aucune zone de lancement")} ${_t("Bilans du MoD RF moins complets depuis avril 2026 (le ministère publie surtout sur MAX).")}</span>`;
   $("legend").innerHTML = html;
 }

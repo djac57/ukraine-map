@@ -288,7 +288,7 @@ def _sync_playwright():
 
 
 # Couches dont le RENDU est vérifié (activer la case doit changer le canvas) : celles qui ont déjà disparu silencieusement.
-RENDER_LAYERS = [("lyrArcs", "missiles et drones (corridors)")]
+RENDER_LAYERS = [("lyrArcs", "missiles et drones (oblasts visés)")]
 
 
 def check_render():
