@@ -83,7 +83,7 @@ $("stats").innerHTML = [
 
 // ---------- carte ----------
 const canvas = $("map"), ctx = canvas.getContext("2d");
-let W = 0, H = 0, dpr = 1, proj, paths = {}, px, py, cellXY, cities = [];
+let W = 0, H = 0, dpr = 1, proj, paths = {}, px, py, cellXY, cities = [], searchPin = null;
 let tr = d3.zoomIdentity, cur = lastIdx, mode = "pts", showFire = false, showLoss = false, showFront = true, showLines = true, showUcdp = false, showArcs = false, perim = "tout";
 // couche missiles/drones : type de frappe affiché (tout | balistique | croisière | shahed | autre) et cascade d'alertes
 let strikeType = "tout", showCascade = false;
@@ -2119,6 +2119,19 @@ function draw(){
   }
   // signaux Telegram en dernier : ponctuels et petits, ils passaient sous le liseré ambre, la zone grise et les noms de villes
   if (showTg) drawTg(k);
+  // marqueur de la localité recherchée (coordonnées écran, au-dessus de tout)
+  if (searchPin) {
+    const q = proj([searchPin.lon, searchPin.lat]), x = q[0] * k + tr.x, y = q[1] * k + tr.y;
+    if (x >= -30 && x <= W + 30 && y >= -30 && y <= H + 30) {
+      ctx.strokeStyle = C.accent; ctx.fillStyle = C.accent; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 7); ctx.fill();
+      const nm = searchPin.n; ctx.font = "bold 11px 'JetBrains Mono', monospace"; ctx.textBaseline = "middle";
+      const w = ctx.measureText(nm).width;
+      ctx.fillStyle = C["map-bg"]; ctx.globalAlpha = .85; ctx.fillRect(x + 10, y - 8, w + 6, 16); ctx.globalAlpha = 1;
+      ctx.fillStyle = C.accent; ctx.fillText(nm, x + 13, y);
+    }
+  }
 }
 function drawPoints(k){
   ctx.globalCompositeOperation = C.dark ? "lighter" : "source-over";
@@ -2205,6 +2218,99 @@ $("zreset").onclick = () => sel.transition().duration(400).call(zoom.transform, 
 function zoomTo(lon, lat, k){
   const q = proj([lon, lat]);
   sel.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(W/2, H/2).scale(k).translate(-q[0], -q[1]));
+}
+
+// ---------- recherche de localité (GeoNames, places.json ; autocomplete + tolérance aux fautes) ----------
+let PLC = null, OBL = null, plLoad = false, sugList = [], sugSel = -1;
+const sIn = $("placeSearch"), sUl = $("placeSug");
+const escH = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+// même normalisation que build_places.py : diacritiques latins retirés, apostrophes/tirets -> espace, cyrillique conservé
+function normQ(s){ return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[''`’\-–—/.]+/g, " ").replace(/\s+/g, " ").trim(); }
+// distance d'édition bornée (sort dès que toute la ligne dépasse le seuil)
+function levD(a, b, max){
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > max) return max + 1;
+  let prev = []; for (let j = 0; j <= lb; j++) prev[j] = j;
+  for (let i = 1; i <= la; i++){
+    const cur = [i], ai = a.charCodeAt(i - 1); let mn = i;
+    for (let j = 1; j <= lb; j++){
+      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ai === b.charCodeAt(j - 1) ? 0 : 1));
+      cur[j] = v; if (v < mn) mn = v;
+    }
+    if (mn > max) return max + 1;
+    prev = cur;
+  }
+  return prev[lb];
+}
+function searchPlaces(qr){
+  const q = normQ(qr);
+  if (q.length < 2 || !PLC) return [];
+  const LIM = 8, pre = [], sub = [], inc = new Set();
+  for (const r of PLC){
+    let best = 9;
+    for (const k of r[6]){
+      if (k === q) { best = 0; break; }
+      if (k.startsWith(q)) { if (best > 1) best = 1; }
+      else if (best > 2 && k.indexOf(q) >= 0) best = 2;
+    }
+    if (best <= 1) { pre.push(r); inc.add(r); }
+    else if (best === 2) { sub.push(r); inc.add(r); }
+    if (pre.length >= LIM) break;   // PLC trié par population : les premiers préfixes sont les plus peuplés
+  }
+  let res = pre.concat(sub).slice(0, LIM);
+  // tolérance aux fautes : peu de résultats et requête assez longue -> repli flou
+  if (res.length < 4 && q.length >= 4){
+    const md = q.length >= 7 ? 2 : 1, fuz = [];
+    for (const r of PLC){
+      if (inc.has(r)) continue;
+      for (const k of r[6]){
+        if (Math.abs(k.length - q.length) > md || (k[0] !== q[0] && k.indexOf(q[0]) < 0)) continue;
+        if (levD(k, q, md) <= md) { fuz.push(r); break; }
+      }
+      if (fuz.length >= LIM) break;
+    }
+    res = res.concat(fuz).slice(0, LIM);
+  }
+  return res;
+}
+function renderSug(){
+  if (!sugList.length){
+    if (sIn.value.trim().length >= 2 && PLC){ sUl.innerHTML = `<li class="none">${escH(_t("aucune localité"))}</li>`; sUl.hidden = false; sIn.setAttribute("aria-expanded", "true"); }
+    else { sUl.hidden = true; sIn.setAttribute("aria-expanded", "false"); }
+    return;
+  }
+  sUl.innerHTML = sugList.map((r, i) => `<li role="option" data-i="${i}" aria-selected="${i === sugSel}"><span>${escH(r[0])}</span><span class="ob">${escH(OBL[r[3]] || "")}</span></li>`).join("");
+  sUl.hidden = false; sIn.setAttribute("aria-expanded", "true");
+}
+function loadPlaces(after){
+  if (PLC) { after && after(); return; }
+  if (plLoad) return; plLoad = true;
+  fetch("places.json?v=1").then(r => r.json()).then(d => {
+    OBL = d.oblasts; PLC = d.places;
+    for (const r of PLC) r[6] = r[5].split(" ");
+    after && after();
+  }).catch(() => { plLoad = false; });
+}
+function pickPlace(r){
+  if (!r) return;
+  searchPin = {lon: r[2], lat: r[1], n: r[0]};
+  zoomTo(r[2], r[1], 8);
+  sIn.value = r[0]; sugList = []; sugSel = -1; sUl.hidden = true; sIn.setAttribute("aria-expanded", "false"); sIn.blur();
+}
+if (sIn.tagName === "INPUT"){
+  let sugT = null;
+  const run = () => { sugSel = -1; sugList = searchPlaces(sIn.value); renderSug(); };
+  sIn.addEventListener("focus", () => loadPlaces(() => { if (sIn.value.trim()) run(); }));
+  sIn.addEventListener("input", () => { loadPlaces(); clearTimeout(sugT); sugT = setTimeout(run, 110); });
+  sIn.addEventListener("keydown", e => {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && sugList.length){
+      e.preventDefault(); sugSel = (sugSel + (e.key === "ArrowDown" ? 1 : -1) + sugList.length) % sugList.length; renderSug();
+      const el = sUl.querySelector(`[data-i="${sugSel}"]`); el && el.scrollIntoView({block: "nearest"});
+    } else if (e.key === "Enter" && sugList.length){ e.preventDefault(); pickPlace(sugList[sugSel >= 0 ? sugSel : 0]); }
+    else if (e.key === "Escape"){ sIn.value = ""; sugList = []; sUl.hidden = true; sIn.setAttribute("aria-expanded", "false"); if (searchPin){ searchPin = null; draw(); } }
+  });
+  sUl.addEventListener("mousedown", e => { const li = e.target.closest("[data-i]"); if (li){ e.preventDefault(); pickPlace(sugList[+li.dataset.i]); } });
+  sIn.addEventListener("blur", () => setTimeout(() => { sUl.hidden = true; sIn.setAttribute("aria-expanded", "false"); }, 150));
 }
 
 // ---------- contrôles ----------
