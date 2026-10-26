@@ -1035,7 +1035,7 @@ window.__uafState = () => ({k: tr.k, x: tr.x, y: tr.y, tip: tip.style.display, s
 // diagnostic (headless) : recadrage et mois
 window.__uafGoto = (month, lon, lat, k) => { const i = D.months.indexOf(month); if (i >= 0) setMonth(i); zoomTo(lon, lat, k); };
 // diagnostic (headless) : flèches d'un mois en coordonnées géographiques
-window.__uafArrows = (fi, L, v) => (L === "overview" ? overviewArrows(fi, v || CKV()) : computeArrows(fi, L, v || CKV())).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)], vm: a.vm, uncertain: !!a.uncertain}; });
+window.__uafArrows = (fi, L, v) => (L === "overview" ? overviewArrows(fi, v || CKV()) : computeArrows(fi, L, v || CKV())).map(a => { const ll = proj.invert([gAff[0] + a.gx * gAff[2], gAff[1] + a.gy * gAff[2]]); return {lon: +ll[0].toFixed(2), lat: +ll[1].toFixed(2), ru: a.ru, v: +a.v.toFixed(2), dir: [+a.dx.toFixed(2), +a.dy.toFixed(2)], vm: a.vm, uncertain: !!a.uncertain, possible: !!a.possible, probable: !!a.probable, why: a.why || null}; });
 // diagnostic (headless) : p(contrôle russe) en un point, km² russes et sommets de la ligne 50 % dans une boîte
 const cellOf = (lon, lat) => { const q = proj([lon, lat]); return Math.floor((q[1] - gAff[1]) / gAff[2]) * GX + Math.floor((q[0] - gAff[0]) / gAff[2]); };
 const inBox = (gx, gy, b) => { const ll = proj.invert([gAff[0] + gx * gAff[2], gAff[1] + gy * gAff[2]]); return ll[0] >= b[0] && ll[0] <= b[1] && ll[1] >= b[2] && ll[1] <= b[3]; };
@@ -3736,9 +3736,22 @@ document.querySelectorAll("[data-lang-btn]").forEach(b => b.onclick = () => setL
   // sans choix mémorisé : langue du navigateur (comme la carte), sinon anglais
   if (!l) { l = "en"; for (const x of (navigator.languages || [navigator.language || ""])) { const c = String(x).slice(0, 2).toLowerCase(); if (["fr", "en", "uk", "ru"].includes(c)) { l = c; break; } } }
   if (document.querySelector(`.intro .i18n[data-lang="${l}"]`)) setLang(l); }
-legend(); full();
+// brief « ce qui se passe » : rendu de window.BRIEF (brief.js, généré par scripts/build_brief.py) ; localisé, puce par camp
+function fillBrief(){
+  const box = $("briefBox"); if (!box || box === DUMMY.briefBox) return;
+  const B = window.BRIEF;
+  if (!B || !Array.isArray(B.items) || !B.items.length) { box.hidden = true; return; }
+  const l = document.documentElement.lang || "fr", UI = (window.I18N && (window.I18N[l] || window.I18N.fr)) || {};
+  $("briefDate").textContent = B.date ? dateLoc(B.date) : "";
+  $("briefList").innerHTML = B.items.map(it => {
+    const k = UI["brK_" + it.kind] || it.kind, side = it.side === "ru" ? "ru" : "ua";
+    return `<li><span class="dot ${side}"></span><b>${escH(it.place)}</b> <span class="k">— ${escH(k)}</span></li>`;
+  }).join("");
+  box.hidden = false;
+}
+legend(); full(); fillBrief();
 window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); });
-document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw();
+document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw(); fillBrief();
   // graphiques reconstruits : replacer la boîte orange du pas affiché ; libellés posés une fois par JS (lecture, onglet)
   marks.forEach(f => f()); $("play").textContent = timer ? pauseLabel() : playLabel(); document.title = _t("La guerre vue du ciel"); });
 document.title = _t("La guerre vue du ciel");

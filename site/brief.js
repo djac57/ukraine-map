@@ -1,0 +1,1 @@
+window.BRIEF={"date": "2026-10-25", "items": [{"place": "Novopavlivka", "side": "ru", "kind": "ru_probable"}, {"place": "Dobropillia", "side": "ru", "kind": "ru_probable"}, {"place": "Komar", "side": "ua", "kind": "ua_possible"}]};
