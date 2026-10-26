@@ -144,6 +144,7 @@ const fieldName = () => REPLAY.on ? "__replay" : (fvar || amode());
 const mcOf = mo => amode() === "fusion" && mo.mcFus ? mo.mcFus : amode() === "nowcast" && mo.mcNow ? mo.mcNow : mo.mc;
 const BASEMAP_V = "7934ff79a1";
 let showBase = !!(document.getElementById("lyrBase") && document.getElementById("lyrBase").checked), baseGeo = null;
+let showRaions = !!(document.getElementById("lyrRaions") && document.getElementById("lyrRaions").checked);   // limites de raïons (districts 2020), couche de repère
 function loadBasemap(){
   if (window.BASEMAP || document.getElementById("bmScript")) return;
   const sc = document.createElement("script"); sc.id = "bmScript"; sc.src = `basemap.js?v=${BASEMAP_V}`;
@@ -2015,6 +2016,7 @@ function layout(){
   paths.uaClip = mk(G.regions.filter(f => f.properties.c === "UKR" || f.properties.id === "UA-43" || f.properties.id === "UA-40")
     .concat(G.countries.filter(f => f.properties.iso === "UA")));
   paths.regions = mk(G.regions);
+  if (window.RAIONS && RAIONS.raions) paths.raions = mk(RAIONS.raions);   // limites de raïons (couche de repère)
   for (const f of G.regions) if (f.properties.id) { regionPath[f.properties.id] = mk([f]); regionFeat[f.properties.id] = f; }
   paths.borders = mk(G.borders);
   paths.rivers = mk(G.rivers);
@@ -2119,6 +2121,8 @@ function draw(){
   if (RELIEF_MODE === "over") drawRelief(k);
   ctx.lineWidth = 0.8/k; ctx.strokeStyle = C.water; ctx.stroke(paths.rivers);
   ctx.lineWidth = 0.5/k; ctx.strokeStyle = C.admin; ctx.stroke(paths.regions);
+  if (showRaions && paths.raions) {   // limites de raïons (districts 2020) : pointillé admin fin, sous la frontière d'État
+    ctx.save(); ctx.lineWidth = 0.6/k; ctx.strokeStyle = C.admin; ctx.globalAlpha = 0.7; ctx.setLineDash([3.5/k, 2.2/k]); ctx.stroke(paths.raions); ctx.restore(); }
   ctx.lineWidth = 1.1/k; ctx.strokeStyle = C.border; ctx.stroke(paths.borders);
 
   drawInfra(k);
@@ -2853,6 +2857,7 @@ if ($("lyrCombat")) $("lyrCombat").onchange = e => { showCombat = e.target.check
   if ($("lyrAsym")) { $("lyrAsym").checked = e.target.checked; $("lyrAsym").onchange({target: $("lyrAsym")}); } };
 $("lyrArrows").onchange = e => { showArrows = e.target.checked; if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); legend(); draw(); };
 $("lyrBase").onchange = e => { showBase = e.target.checked; if (showBase) loadBasemap(); draw(); };
+if ($("lyrRaions")) $("lyrRaions").onchange = e => { showRaions = e.target.checked; legend(); draw(); };
 if ($("lyrInfra")) $("lyrInfra").onchange = e => { showInfra = e.target.checked; if (showInfra) loadInfra(() => { legend(); draw(); }); legend(); draw(); };
 const tip = $("tip");
 // info-bulle courte au survol (3 lignes au plus) ; les détails (sources, votes, z, composition) au clic sur la maille.
