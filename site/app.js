@@ -1775,18 +1775,23 @@ const regionPath = {}, regionFeat = {};
 // mois des missiles et frappes affiché : le mois courant s'il est publié (mois complet + 1 jour), sinon le dernier mois
 // publié s'il précède directement (mois en cours) ; −1 sinon
 const arcM = () => cur <= cutIdx ? cur : cur - cutIdx <= 1 ? cutIdx : -1;
+// mois des MISSILES affiché : les frappes ont un jour de retard de plus que le front (dernier mois complet). Quand le mois
+// courant n'a pas encore de données missiles (ex. octobre affiché, série jusqu'à septembre), on retombe sur le dernier mois
+// missiles publié — sinon la couche ne dessinait rien au mois par défaut.
+const LAST_MISS = Math.max(-1, ...((O.launch && O.launch.arcs) || []).map(a => a[0]), ...((O.strikes && O.strikes.oblastMonth) || []).map(r => r[0]));
+const missM = () => { const m = arcM(); return m < 0 ? LAST_MISS : Math.min(m, LAST_MISS); };
 function arcMonth(){
-  if (arcCache.m === arcM()) return arcCache;
+  if (arcCache.m === missM()) return arcCache;
   const pl = O.launch.places, zones = new Map(), regs = {};
   for (const [mi, li, tid, n] of O.launch.arcs) {
-    if (mi !== arcM() || !regionCentroid[tid]) continue;
+    if (mi !== missM() || !regionCentroid[tid]) continue;
     const key = pl[li][1] + "," + pl[li][2];
     let z = zones.get(key); if (!z) zones.set(key, z = {key, lon: pl[li][1], lat: pl[li][2], names: [], n: 0, flows: {}});
     if (!z.names.includes(pl[li][0])) z.names.push(pl[li][0]);
     z.n += n; z.flows[tid] = (z.flows[tid] || 0) + n; regs[tid] = (regs[tid] || 0) + n;
   }
   const zs = [...zones.values()], mz = Math.max(1, ...zs.map(z => z.n)), mr = Math.max(1, ...Object.values(regs));
-  return arcCache = {m: arcM(), zones: zs, regs, mz, mr};
+  return arcCache = {m: missM(), zones: zs, regs, mz, mr};
 }
 const zoneR = (z, A) => 3.5 + 10 * Math.sqrt(z.n / A.mz);
 // frappes classées par TYPE (osint.js O.strikes) : index du type sélectionné, ou −1 pour « toute »
@@ -1797,17 +1802,17 @@ const obDown = v => { const ti = strikeTIdx(); return ti < 0 ? v.reduce((s, p) =
 let strikeCache = {m: -2, t: ""};
 function strikeMonth(){
   const key = strikeType;
-  if (strikeCache.m === arcM() && strikeCache.t === key) return strikeCache;
+  if (strikeCache.m === missM() && strikeCache.t === key) return strikeCache;
   const byOb = {};
   if (O.strikes) for (const [mi, ob, ti, l, d] of O.strikes.oblastMonth) {
-    if (mi !== arcM()) continue;
+    if (mi !== missM()) continue;
     (byOb[ob] = byOb[ob] || [[0,0],[0,0],[0,0],[0,0]]);
     byOb[ob][ti][0] += l; byOb[ob][ti][1] += d;
   }
   if (byOb["UA-32"] && !byOb["UA-30"]) byOb["UA-30"] = byOb["UA-32"];   // Kyiv ville colorée avec l'oblast
   let mx = 1;
   for (const v of Object.values(byOb)) mx = Math.max(mx, obTotal(v));
-  return strikeCache = {m: arcM(), t: key, byOb, mx};
+  return strikeCache = {m: missM(), t: key, byOb, mx};
 }
 // cascade d'alertes aériennes : dernière nuit disponible (J-1), approximation grossière du passage de la menace
 function cascadeNight(){ const a = O.alerts && O.alerts.daily; return a && a.length ? a[a.length - 1] : null; }
@@ -1881,7 +1886,7 @@ function drawCorridors(k, A){
   ctx.restore();
 }
 function drawArcs(k){
-  if (arcM() < 0) return;
+  if (missM() < 0) return;
   drawStrikesRu(k);
   const A = arcMonth(), S = strikeMonth();
   ctx.lineCap = "round"; ctx.lineJoin = "round";
@@ -1956,7 +1961,7 @@ function sruHover(ll){
 // survol de la couche : zone de lancement (cercle) ou oblast visé ; renvoie le texte de l'info-bulle ou null
 const STR_LABEL = () => ({balistique: _t("balistique"), "croisière": _t("croisière"), shahed: _t("Shahed"), autre: _t("reco / autre")});
 function arcHover(mx, my){
-  if (!showArcs || arcM() < 0) return null;
+  if (!showArcs || missM() < 0) return null;
   const A = arcMonth(), S = strikeMonth(), k = tr.k, gx = (mx - tr.x) / k, gy = (my - tr.y) / k;
   let f = null;
   for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (a && Math.hypot((a[0] - gx) * k, (a[1] - gy) * k) <= zoneR(z, A) + 3) { f = {kind: "zone", id: z.key, z}; break; } }
@@ -3156,7 +3161,7 @@ function layerNotes(){
   if (showUcdp) { let any = false; for (let j = 0; j < NU; j++) if (UC[j*5+2] === cur) { any = true; break; }
     if (!any && ucdpMonth() !== cur) n.push(_t("combats UCDP : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(ucdpMonth())}));
     else if (!any) n.push(_t(cur > cutIdx || D.months[cur] > (O.ucdp.last || "") ? "combats UCDP : pas encore publiés pour ce mois" : "combats UCDP : aucun événement localisé")); }
-  if (showArcs && arcM() >= 0 && arcM() !== cur) n.push(_t("missiles : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(arcM())}));
+  if (showArcs && missM() >= 0 && missM() !== cur) n.push(_t("missiles : ce mois n'est pas encore publié, dernier mois publié affiché ({m})", {m: monthLabel(missM())}));
   else if (showArcs && !O.launch.arcs.some(a => a[0] === cur)) n.push(_t(cur > cutIdx ? "missiles : pas encore publiés (mois complet + 1 jour)" : D.months[cur] < "2022-10" ? "missiles : série à partir d'octobre 2022" : "missiles : aucune cible précisée ce mois-ci"));
   return n;
 }
