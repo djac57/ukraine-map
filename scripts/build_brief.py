@@ -82,6 +82,18 @@ def extract():
     return arrows, month, sigs, trends
 
 
+def _prior_trends():
+    """Tendances déjà publiées dans site/brief.js, par lieu — repli quand Gemini est indisponible un jour (quota/panne/clé)."""
+    try:
+        import re as _re
+        txt = open(os.path.join(SITE, "brief.js"), encoding="utf-8").read()
+        m = _re.search(r"window\.BRIEF\s*=\s*(\{.*\})\s*;", txt, _re.S)
+        prev = json.loads(m.group(1)) if m else {}
+        return {it["place"]: it["trend"] for it in prev.get("items", []) if it.get("trend")}
+    except Exception:
+        return {}
+
+
 def llm_trends(dets):
     """Couche TENDANCE (best-effort) : un seul appel Gemini lit la trajectoire mensuelle de NOS signaux
     (contrôle russe %, P(mouvement) %) par détection et écrit une courte phrase FR « plus ample que le
@@ -154,6 +166,10 @@ def main():
     det.sort(key=lambda d: (0 if d["notable"] else 1, 0 if d["kind"] in ("ua_possible", "ru_probable") else 1, -d["v"]))
     top = det[:3]
     trend_txt = llm_trends(top)   # tendance LLM best-effort (dégradation propre si pas de clé / échec)
+    prior = _prior_trends()       # repli : garder la tendance déjà publiée pour un lieu encore détecté
+    for d in top:
+        if not trend_txt.get(d["place"]) and _ok_trend(prior.get(d["place"])):
+            trend_txt[d["place"]] = prior[d["place"]]
     items = [{"place": d["place"], "side": d["side"], "kind": d["kind"], "lon": d["lon"], "lat": d["lat"],
               "contact": d["contact"], "pmove": d["pmove"], **({"trend": trend_txt[d["place"]]} if trend_txt.get(d["place"]) else {})}
              for d in top]
