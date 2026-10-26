@@ -33,8 +33,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # comparer à origin/main (pas au checkout) : un brief porteur de tendances doit gagner même si main a été écrasé
+          # entre-temps par un run concurrent sans clé (course au déploiement du secret). Sinon rien ne s'y oppose.
+          git fetch origin main
           git add site/brief.js site/index.html
-          git diff --cached --quiet && { echo "rien à committer"; exit 0; }
+          git diff --quiet origin/main -- site/brief.js site/index.html && { echo "identique à main, rien à faire"; exit 0; }
           git commit -m "Brief quotidien : détections du jour"
           git pull --rebase --autostash origin main || true
           git push
