@@ -2106,6 +2106,7 @@ function draw(){
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
   if (showUcdp) drawUcdp(k);
   if (showLoss) drawLosses(k);
+  if (showArcs) drawArcs(k);
   if (showImp) drawImp(k);
   if (showPm) drawPm(k);
   if (showAdv) drawAdv(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
@@ -2757,7 +2758,9 @@ if ($("lyrEcartMod")) $("lyrEcartMod").onchange = e => { showEcartMod = e.target
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
-// couche missiles et drones retirée de l'interface (showArcs reste faux) ; code de rendu laissé inerte
+$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if ($("arcOpts")) $("arcOpts").hidden = !showArcs; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); if (showArcs) animCorridors(); };
+if ($("arcType")) $("arcType").onchange = e => { strikeType = e.target.value; arcFocus = null; legend(); draw(); animCorridors(); };
+if ($("lyrCasc")) $("lyrCasc").onchange = e => { showCascade = e.target.checked; legend(); draw(); };
 // charge le fichier d'une source de fusion (front_fusion.js / front_fusion_robuste.js) ; onerror → repli gracieux (fail)
 function loadFusion(src, ok, fail){
   if (window.FRONTP && window.FRONTP[src] && fusMonthsOf(src)) return ok();
