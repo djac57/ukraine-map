@@ -1865,22 +1865,27 @@ function drawCorridors(k, A){
       flows.push({a, b, n: z.flows[tid]}); } }
   if (!flows.length) return;
   const mx = Math.max(...flows.map(f => f.n));
-  const keep = flows.filter(f => f.n >= 0.08 * mx).sort((p, q) => q.n - p.n).slice(0, 22);
+  // peu de corridors, fins et discrets : on garde les flux dominants (≥ 18 % du max, 9 au plus) pour éviter le fouillis
+  const keep = flows.filter(f => f.n >= 0.18 * mx).sort((p, q) => q.n - p.n).slice(0, 9);
   const prog = corridorProg();
   ctx.save(); ctx.lineCap = "round";
   for (const f of keep) {
     const [x0, y0] = f.a, [x1, y1] = f.b, dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
-    const bow = Math.min(len * 0.2, 46 / k), cx = (x0 + x1) / 2 - dy / len * bow, cy = (y0 + y1) / 2 + dx / len * bow;
-    const w = (0.6 + 2.8 * Math.sqrt(f.n / mx)) / k, bz = (t) => { const u = 1 - t; return [u * u * x0 + 2 * u * t * cx + t * t * x1, u * u * y0 + 2 * u * t * cy + t * t * y1]; };
-    ctx.strokeStyle = arcRgba(0.55); ctx.lineWidth = w;
+    // forte courbure (bornée) : sépare visuellement des flux qui, tracés droits, convergeraient en étoile sur la capitale
+    const bow = Math.min(len * 0.32, 95 / k), cx = (x0 + x1) / 2 - dy / len * bow, cy = (y0 + y1) / 2 + dx / len * bow;
+    const w = (0.4 + 1.3 * Math.sqrt(f.n / mx)) / k, bz = (t) => { const u = 1 - t; return [u * u * x0 + 2 * u * t * cx + t * t * x1, u * u * y0 + 2 * u * t * cy + t * t * y1]; };
+    // dégradé le long du flux : quasi invisible au départ (zones denses), discret à l'arrivée → l'œil suit vers la cible
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, arcRgba(0.06)); g.addColorStop(1, arcRgba(0.5));
+    ctx.strokeStyle = g; ctx.lineWidth = w;
     ctx.beginPath(); ctx.moveTo(x0, y0);
-    for (let s = 1; s <= 16; s++) { const p = bz(prog * s / 16); ctx.lineTo(p[0], p[1]); }
+    for (let s = 1; s <= 18; s++) { const p = bz(prog * s / 18); ctx.lineTo(p[0], p[1]); }
     ctx.stroke();
-    if (prog > 0.85) {   // tête de flèche à l'arrivée
-      const e = bz(0.97), ang = Math.atan2(y1 - e[1], x1 - e[0]), hl = (5 + 2 * Math.sqrt(f.n / mx)) / k;
-      ctx.fillStyle = arcRgba(0.85); ctx.beginPath(); ctx.moveTo(x1, y1);
-      ctx.lineTo(x1 - hl * Math.cos(ang - 0.4), y1 - hl * Math.sin(ang - 0.4));
-      ctx.lineTo(x1 - hl * Math.cos(ang + 0.4), y1 - hl * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fill();
+    if (prog > 0.9) {   // petite tête de flèche à l'arrivée (sens de la menace)
+      const e = bz(0.96), ang = Math.atan2(y1 - e[1], x1 - e[0]), hl = (3.5 + 1.5 * Math.sqrt(f.n / mx)) / k;
+      ctx.fillStyle = arcRgba(0.55); ctx.beginPath(); ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 - hl * Math.cos(ang - 0.42), y1 - hl * Math.sin(ang - 0.42));
+      ctx.lineTo(x1 - hl * Math.cos(ang + 0.42), y1 - hl * Math.sin(ang + 0.42)); ctx.closePath(); ctx.fill();
     }
   }
   ctx.restore();
@@ -1908,7 +1913,6 @@ function drawArcs(k){
     ctx.globalAlpha = on ? 1 : 0.85; ctx.fillStyle = C.arc; ctx.strokeStyle = C.bg; ctx.lineWidth = 1.2 / k;
     ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, 7); ctx.fill(); ctx.stroke(); }
   ctx.globalAlpha = 1;
-  if (showCascade) drawCascade(k);
 }
 // diagnostic (headless) : zones de lancement du mois affiché, en pixels de la carte
 window.__uafArcZones = () => arcMonth().zones.map(z => { const a = proj([z.lon, z.lat]); return {name: z.names.join(", "), x: a[0] * tr.k + tr.x, y: a[1] * tr.k + tr.y, n: Math.round(z.n)}; }).sort((p, q) => q.n - p.n);
@@ -2765,7 +2769,6 @@ $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
 $("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if ($("arcOpts")) $("arcOpts").hidden = !showArcs; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); if (showArcs) animCorridors(); };
 if ($("arcType")) $("arcType").onchange = e => { strikeType = e.target.value; arcFocus = null; legend(); draw(); animCorridors(); };
-if ($("lyrCasc")) $("lyrCasc").onchange = e => { showCascade = e.target.checked; legend(); draw(); };
 // charge le fichier d'une source de fusion (front_fusion.js / front_fusion_robuste.js) ; onerror → repli gracieux (fail)
 function loadFusion(src, ok, fail){
   if (window.FRONTP && window.FRONTP[src] && fusMonthsOf(src)) return ok();
@@ -3121,7 +3124,6 @@ function legend(){
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>${_t("événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)")}</span>`;
   if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : corridors de menace (lancement → oblast ciblé, épaisseur selon le volume) · halos sur les oblasts visés (type choisi) ; survoler un oblast donne le détail par type et le taux d'interception (source : armée de l'air ukrainienne, compilation P. Ivaniuk)")}</span>` +
-    (showCascade && cascadeNight() ? `<span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("cascade d'alertes aériennes (passage de la menace), nuit du {d}, J-1 — tracé GROSSIER reliant les oblasts dans l'ordre des alertes, PAS une trajectoire de vol réelle (données : Vadimkin, MIT)", {d: dateLoc(cascadeNight().date)})}</span>` : "") +
     `<span><i style="background:${SRU_COL()};opacity:.6;border-radius:0"></i>${_t("frappes ukrainiennes signalées sur la Russie et les territoires occupés : régions citées dans les bilans d'interceptions du MoD RF (annonces d'une partie), mentions des autorités régionales de Belgorod, Koursk et Briansk, feux anormaux près de sites industriels ; aucune zone de lancement")} ${_t("Bilans du MoD RF moins complets depuis avril 2026 (le ministère publie surtout sur MAX).")}</span>`;
   $("legend").innerHTML = html;
 }
