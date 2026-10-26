@@ -31,6 +31,8 @@ const monthName = (y, m) => document.documentElement.lang && document.documentEl
   : MOIS[+m - 1] + " " + y;
 const dayName = (y, m, d) => document.documentElement.lang && document.documentElement.lang !== "fr"
   ? new Intl.DateTimeFormat(LOC(), {day: "numeric", month: "long", year: "numeric"}).format(new Date(+y, +m - 1, +d)) : `${+d} ${MOIS[+m - 1]} ${y}`;
+// date localisée depuis une chaîne ISO (pour les textes traduits : évite un nom de mois français visible en EN/UK/RU)
+const dateLoc = s => { const [y, m, d] = s.split("-"); return dayName(y, m, d); };
 const monthLabel = i => { const [y,m] = D.months[i].split("-"); return monthName(y, m); };
 const dateFr = s => { const [y,m,d] = s.split("-"); return (+d) + " " + MOIS[+m-1] + " " + y; };
 
@@ -1839,21 +1841,66 @@ function drawCascade(k){
   for (const i of drawn) { ctx.beginPath(); ctx.arc(nodes[i].a[0], nodes[i].a[1], 1.3 / k, 0, 7); ctx.fill(); }
   ctx.restore();
 }
+// couleur de l'arc en rgba (le palette ne fournit que la couleur pleine) : gère hex (#rgb/#rrggbb) et rgb(...)
+function arcRgba(a){
+  const col = C.arc;
+  if (col[0] === "#") { let h = col.slice(1); if (h.length === 3) h = h.replace(/./g, c => c + c); const n = parseInt(h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
+  const m = col.match(/\d+/g); return m ? `rgba(${m[0]},${m[1]},${m[2]},${a})` : col;
+}
+// révélation animée des corridors à l'activation / changement de type (one-shot, pas de boucle perpétuelle)
+let corridorT0 = 0;
+function corridorProg(){ if (!corridorT0) return 1; const e = (performance.now() - corridorT0) / 650; return e >= 1 ? 1 : e * (2 - e); }
+function animCorridors(){ if (!showArcs) return; corridorT0 = performance.now(); const tick = () => { draw(); if (corridorProg() < 1) requestAnimationFrame(tick); else corridorT0 = 0; }; requestAnimationFrame(tick); }
+// corridors de menace : flux lancement → oblast ciblé, courbés, épaisseur ∝ volume ; agrégés, seuillés et plafonnés
+// (≤ 22) pour un tracé sobre — le « look Shahed tracker » sans le fouillis qui avait fait retirer les arcs bruts.
+function drawCorridors(k, A){
+  const flows = [];
+  for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (!a) continue;
+    for (const tid in z.flows) { const c = regionCentroid[tid]; if (!c) continue; const b = proj(c); if (!b) continue;
+      flows.push({a, b, n: z.flows[tid]}); } }
+  if (!flows.length) return;
+  const mx = Math.max(...flows.map(f => f.n));
+  const keep = flows.filter(f => f.n >= 0.08 * mx).sort((p, q) => q.n - p.n).slice(0, 22);
+  const prog = corridorProg();
+  ctx.save(); ctx.lineCap = "round";
+  for (const f of keep) {
+    const [x0, y0] = f.a, [x1, y1] = f.b, dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+    const bow = Math.min(len * 0.2, 46 / k), cx = (x0 + x1) / 2 - dy / len * bow, cy = (y0 + y1) / 2 + dx / len * bow;
+    const w = (0.6 + 2.8 * Math.sqrt(f.n / mx)) / k, bz = (t) => { const u = 1 - t; return [u * u * x0 + 2 * u * t * cx + t * t * x1, u * u * y0 + 2 * u * t * cy + t * t * y1]; };
+    ctx.strokeStyle = arcRgba(0.55); ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    for (let s = 1; s <= 16; s++) { const p = bz(prog * s / 16); ctx.lineTo(p[0], p[1]); }
+    ctx.stroke();
+    if (prog > 0.85) {   // tête de flèche à l'arrivée
+      const e = bz(0.97), ang = Math.atan2(y1 - e[1], x1 - e[0]), hl = (5 + 2 * Math.sqrt(f.n / mx)) / k;
+      ctx.fillStyle = arcRgba(0.85); ctx.beginPath(); ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 - hl * Math.cos(ang - 0.4), y1 - hl * Math.sin(ang - 0.4));
+      ctx.lineTo(x1 - hl * Math.cos(ang + 0.4), y1 - hl * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
 function drawArcs(k){
   if (arcM() < 0) return;
   drawStrikesRu(k);
   const A = arcMonth(), S = strikeMonth();
   ctx.lineCap = "round"; ctx.lineJoin = "round";
-  // choroplèthe des oblasts visés, teintée selon le TYPE sélectionné (lancés du mois)
-  for (const [tid, v] of Object.entries(S.byOb)) { const p = regionPath[tid]; if (!p) continue;
+  // halos de destination (oblasts visés) : disque doux au centroïde ∝ volume reçu du type choisi — remplace les aplats ternes
+  const haloMx = Math.max(1, ...Object.values(S.byOb).map(obTotal));
+  for (const [tid, v] of Object.entries(S.byOb)) {
     const n = obTotal(v); if (!n) continue;
-    ctx.globalAlpha = 0.1 + 0.5 * Math.sqrt(n / S.mx); ctx.fillStyle = C.arc; ctx.fill(p);
-    if (arcFocus && arcFocus.kind === "region" && arcFocus.id === tid) { ctx.globalAlpha = 1; ctx.strokeStyle = C.arc; ctx.lineWidth = 2 / k; ctx.stroke(p); } }
-  // (les arcs source→cible, trop envahissants, ont été retirés : les flux sont désormais donnés EN TEXTE au survol, cf. arcHover)
-  // zones de lancement (O.launch, inchangé)
+    const c = regionCentroid[tid]; if (!c) continue; const a = proj(c); if (!a) continue;
+    const r = (8 + 26 * Math.sqrt(n / haloMx)) / k, g = ctx.createRadialGradient(a[0], a[1], 0, a[0], a[1], r);
+    g.addColorStop(0, arcRgba(0.4)); g.addColorStop(1, arcRgba(0));
+    ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, 7); ctx.fill();
+    if (arcFocus && arcFocus.kind === "region" && arcFocus.id === tid) { const p = regionPath[tid]; if (p) { ctx.strokeStyle = C.arc; ctx.lineWidth = 1.5 / k; ctx.stroke(p); } }
+  }
+  // corridors de menace (lancement → oblast)
+  drawCorridors(k, A);
+  // zones de lancement (origines des corridors)
   for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (!a) continue;
     const r = zoneR(z, A) / k, on = arcFocus && arcFocus.kind === "zone" && arcFocus.id === z.key;
-    ctx.globalAlpha = on ? 1 : 0.8; ctx.fillStyle = C.arc; ctx.strokeStyle = C.bg; ctx.lineWidth = 1.2 / k;
+    ctx.globalAlpha = on ? 1 : 0.85; ctx.fillStyle = C.arc; ctx.strokeStyle = C.bg; ctx.lineWidth = 1.2 / k;
     ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, 7); ctx.fill(); ctx.stroke(); }
   ctx.globalAlpha = 1;
   if (showCascade) drawCascade(k);
@@ -2711,8 +2758,8 @@ if ($("lyrEcartMod")) $("lyrEcartMod").onchange = e => { showEcartMod = e.target
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
-$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if ($("arcOpts")) $("arcOpts").hidden = !showArcs; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); };
-if ($("arcType")) $("arcType").onchange = e => { strikeType = e.target.value; arcFocus = null; legend(); draw(); };
+$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if ($("arcOpts")) $("arcOpts").hidden = !showArcs; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); if (showArcs) animCorridors(); };
+if ($("arcType")) $("arcType").onchange = e => { strikeType = e.target.value; arcFocus = null; legend(); draw(); animCorridors(); };
 if ($("lyrCasc")) $("lyrCasc").onchange = e => { showCascade = e.target.checked; legend(); draw(); };
 // charge le fichier d'une source de fusion (front_fusion.js / front_fusion_robuste.js) ; onerror → repli gracieux (fail)
 function loadFusion(src, ok, fail){
@@ -3068,8 +3115,8 @@ function legend(){
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>${_t("événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)")}</span>`;
-  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : oblasts visés (teinte selon les frappes du type choisi ce mois-ci) · zones de lancement (cercles selon le nombre) ; survoler un oblast donne le détail par type et le taux d'interception (source : armée de l'air ukrainienne, compilation P. Ivaniuk)")}</span>` +
-    (showCascade && cascadeNight() ? `<span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("cascade d'alertes aériennes (passage de la menace), nuit du {d}, J-1 — tracé GROSSIER reliant les oblasts dans l'ordre des alertes, PAS une trajectoire de vol réelle (données : Vadimkin, MIT)", {d: dateFr(cascadeNight().date)})}</span>` : "") +
+  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : corridors de menace (lancement → oblast ciblé, épaisseur selon le volume) · halos sur les oblasts visés (type choisi) ; survoler un oblast donne le détail par type et le taux d'interception (source : armée de l'air ukrainienne, compilation P. Ivaniuk)")}</span>` +
+    (showCascade && cascadeNight() ? `<span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("cascade d'alertes aériennes (passage de la menace), nuit du {d}, J-1 — tracé GROSSIER reliant les oblasts dans l'ordre des alertes, PAS une trajectoire de vol réelle (données : Vadimkin, MIT)", {d: dateLoc(cascadeNight().date)})}</span>` : "") +
     `<span><i style="background:${SRU_COL()};opacity:.6;border-radius:0"></i>${_t("frappes ukrainiennes signalées sur la Russie et les territoires occupés : régions citées dans les bilans d'interceptions du MoD RF (annonces d'une partie), mentions des autorités régionales de Belgorod, Koursk et Briansk, feux anormaux près de sites industriels ; aucune zone de lancement")} ${_t("Bilans du MoD RF moins complets depuis avril 2026 (le ministère publie surtout sur MAX).")}</span>`;
   $("legend").innerHTML = html;
 }
