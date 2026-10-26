@@ -1062,6 +1062,23 @@ window.__uafSignalsAt = (fi, lon, lat) => {
   let asym = 0; if (AF) for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) { const cc = (row + dj) * GX + (col + di); if (cc >= 0 && cc < GX * GY && Math.abs(AF[cc]) > Math.abs(asym)) asym = AF[cc]; }
   return { contact: ct == null ? null : Math.round(ct * 100), pmove: pm == null ? null : Math.round(pm), asym: AF ? +Math.abs(asym).toFixed(2) : null };
 };
+// trajectoire MENSUELLE des signaux d'un secteur (pour la tendance du brief) : contrôle russe moyen et pmove du tronçon,
+// un point par mois (dernier frame de chaque mois), sur les n derniers mois
+window.__uafTrendAt = (lon, lat, n) => {
+  const M = FR.months, rep = {};
+  for (let i = 0; i < M.length; i++) if (M[i] && M[i].date) rep[M[i].date.slice(0, 7)] = i;
+  const idx = Object.keys(rep).sort().slice(-(n || 6)).map(k => rep[k]);
+  const c = cellOf(lon, lat); if (c < 0 || c >= GX * GY) return [];
+  const col = c % GX, row = Math.floor(c / GX), out = [];
+  for (const i of idx) {
+    const g = fullField(CKV(), i); let s = 0, k = 0;
+    if (g) for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) { const cc = (row + dj) * GX + (col + di); if (cc >= 0 && cc < GX * GY) { s += g[cc]; k++; } }
+    let pm = null, bd = 1e9; const arr = M[i].pm;
+    if (arr) for (const e of arr) { const d = (e[0] - col) ** 2 + (e[1] - row) ** 2; if (d < bd) { bd = d; pm = e[2]; } }
+    out.push({ mois: M[i].date.slice(0, 7), ctrl: k ? Math.round(s / k * 100) : null, pmove: (bd <= 144 && pm != null) ? Math.round(pm) : null });
+  }
+  return out;
+};
 window.__uafArea = (fi, b, band, v) => { const g = fullField(v || CKV(), fi), a = (FR.grid.size / 1000) ** 2; let s = 0; for (let c = 0; c < GX * GY; c++) if ((band ? cellPlace[c] === -2 : cellPlace[c] >= 0) && inBox(c % GX + 0.5, Math.floor(c / GX) + 0.5, b)) s += (band ? 1 - g[c] : g[c]) * a; return s; };
 window.__uafLine = (fi, b, v) => lines50(v || CKV(), fi).flat().filter(p => inBox(p[0], p[1], b)).length;
 // contrôle automatique (headless) : base à moins de 2 km de la ligne 50 %, angle avec la normale locale < 30°
@@ -3769,7 +3786,9 @@ function fillBrief(){
     if (it.contact != null) nums.push((UI.brSigContact || "P(contact) ≈ {c} %").replace("{c}", it.contact));
     if (it.pmove != null && it.kind.startsWith("ru")) nums.push((UI.brSigPmove || "P(mouvement) ≈ {p} %").replace("{p}", it.pmove));   // pmove = base des poussées russes probables
     const expl = (UI["brExpl_" + it.kind] || "") + (nums.length ? " — " + nums.join(" · ") : "");
-    return `<li><button type="button" class="brief-item" data-i="${i}"><span class="dot ${side}"></span><b>${escH(it.place)}</b> <span class="k">— ${escH(k)}</span><span class="brief-go">${escH(UI.brGo || "voir ↓")}</span></button><div class="brief-expl" hidden>${escH(expl)}</div></li>`;
+    const trend = it.trend && (it.trend[l] || it.trend.fr);   // tendance longue (LLM, 4 langues) — « plus ample que le déterministe »
+    const trendHtml = trend ? `<div class="brief-trend">📈 ${escH(trend)}</div>` : "";
+    return `<li><button type="button" class="brief-item" data-i="${i}"><span class="dot ${side}"></span><b>${escH(it.place)}</b> <span class="k">— ${escH(k)}</span><span class="brief-go">${escH(UI.brGo || "voir ↓")}</span></button><div class="brief-expl" hidden>${trendHtml}<div class="brief-sig">${escH(expl)}</div></div></li>`;
   }).join("");
   box.hidden = false;
 }

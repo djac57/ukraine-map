@@ -1,13 +1,15 @@
 # Brief quotidien « ce qui se passe au sol » : extrait NOS détections (flèches poussée possible/probable) du mois courant
 # via Playwright (diagnostic __uafArrows de la carte) et écrit site/brief.js, affiché en haut de la carte.
-# DÉTERMINISTE (aucun LLM, aucune clé, zéro coût). Tourne APRÈS l'update du matin (données fraîches déjà commitées).
+# Colonne vertébrale DÉTERMINISTE (fiable, gratuite) + couche TENDANCE best-effort : un appel Gemini free-tier/jour lit
+# la trajectoire mensuelle de NOS signaux et ajoute une phrase de tendance (4 langues). Sans clé/échec → brief seul.
+# Tourne APRÈS l'update du matin (données fraîches déjà commitées).
 name: brief-quotidien
 on:
   schedule: [{ cron: "0 6 * * *" }]   # GitHub retarde ~5 h → ~11 h UTC, après le déploiement de l'update du matin
   workflow_dispatch: {}
   push:
     branches: [main]
-    paths: [scripts/build_brief.py]
+    paths: [scripts/build_brief.py, scripts/gemini_client.py]
 permissions: { contents: write }
 concurrency: { group: brief, cancel-in-progress: false }
 
@@ -25,6 +27,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: "Générer le brief (nos détections → site/brief.js)"
         run: python scripts/build_brief.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}   # couche tendance best-effort ; absent → brief déterministe seul
       - name: "Commit du brief si changé"
         run: |
           git config user.name "github-actions[bot]"
