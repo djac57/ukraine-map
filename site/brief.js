@@ -1,1 +1,1 @@
-window.BRIEF={"date": "2026-10-25", "items": [{"place": "Novopavlivka", "side": "ru", "kind": "ru_probable"}, {"place": "Dobropillia", "side": "ru", "kind": "ru_probable"}, {"place": "Komar", "side": "ua", "kind": "ua_possible"}]};
+window.BRIEF={"date": "2026-10-25", "items": [{"place": "Novopavlivka", "side": "ru", "kind": "ru_probable", "lon": 37.44, "lat": 48.53}, {"place": "Dobropillia", "side": "ru", "kind": "ru_probable", "lon": 37.03, "lat": 48.38}, {"place": "Komar", "side": "ua", "kind": "ua_possible", "lon": 36.81, "lat": 47.96}]};

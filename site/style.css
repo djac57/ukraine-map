@@ -43,8 +43,14 @@ h2{font-size:24px;margin:48px 0 6px;letter-spacing:-.01em}
 .briefbox[hidden]{display:none}
 .briefbox-head{display:flex;align-items:baseline;gap:9px;font-weight:600;color:var(--ink);margin-bottom:7px}
 .briefbox-date{font-weight:400;font-size:11px;color:var(--muted)}
-.briefbox ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
-.briefbox li{display:flex;align-items:baseline;gap:9px;color:var(--ink)}
+.briefbox ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.briefbox li{display:flex;flex-direction:column;color:var(--ink)}
+.brief-item{display:flex;align-items:baseline;gap:9px;width:100%;text-align:left;background:none;border:0;padding:3px 5px;margin:0;cursor:pointer;font:inherit;color:inherit;border-radius:3px}
+.brief-item:hover,.brief-item:focus-visible{background:rgba(var(--uactl-rgb),.12);outline:none}
+.brief-go{margin-left:auto;font-size:11px;color:var(--accent);opacity:0;white-space:nowrap;transition:opacity .12s}
+.brief-item:hover .brief-go,.brief-item:focus-visible .brief-go{opacity:.9}
+.brief-expl{font-size:11.5px;color:var(--muted);padding:1px 5px 5px 27px;line-height:1.45}
+.brief-expl[hidden]{display:none}
 .briefbox li .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;position:relative;top:1px}
 .briefbox li .dot.ru{background:var(--front)}
 .briefbox li .dot.ua{background:var(--uactl)}

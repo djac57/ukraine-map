@@ -73,10 +73,11 @@ def main():
         if (place, kind) in seen:
             continue
         seen.add((place, kind))
-        det.append({"place": place, "side": side, "kind": kind, "notable": place in NOTABLE, "v": abs(round(a.get("v", 0), 1))})
+        det.append({"place": place, "side": side, "kind": kind, "notable": place in NOTABLE,
+                    "v": abs(round(a.get("v", 0), 1)), "lon": round(a["lon"], 3), "lat": round(a["lat"], 3)})
     # priorité : repères connus d'abord, puis poussées (possible/probable) avant mouvements
     det.sort(key=lambda d: (0 if d["notable"] else 1, 0 if d["kind"] in ("ua_possible", "ru_probable") else 1, -d["v"]))
-    items = [{"place": d["place"], "side": d["side"], "kind": d["kind"]} for d in det[:3]]
+    items = [{"place": d["place"], "side": d["side"], "kind": d["kind"], "lon": d["lon"], "lat": d["lat"]} for d in det[:3]]
     out = {"date": month or dt.date.today().isoformat(), "items": items}
     import hashlib, re
     bp = os.path.join(SITE, "brief.js")

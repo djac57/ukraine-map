@@ -3736,19 +3736,33 @@ document.querySelectorAll("[data-lang-btn]").forEach(b => b.onclick = () => setL
   // sans choix mémorisé : langue du navigateur (comme la carte), sinon anglais
   if (!l) { l = "en"; for (const x of (navigator.languages || [navigator.language || ""])) { const c = String(x).slice(0, 2).toLowerCase(); if (["fr", "en", "uk", "ru"].includes(c)) { l = c; break; } } }
   if (document.querySelector(`.intro .i18n[data-lang="${l}"]`)) setLang(l); }
-// brief « ce qui se passe » : rendu de window.BRIEF (brief.js, généré par scripts/build_brief.py) ; localisé, puce par camp
+// brief « ce qui se passe » : window.BRIEF (brief.js, scripts/build_brief.py). Lieu CLIQUABLE → zoom + active les signaux
+// qui ont déclenché la détection + explication. Localisé, puce par camp.
+const BRIEF_LAYERS = {   // calques des signaux derrière chaque type de détection
+  ua_possible: ["lyrAsym", "lyrFire"],   // combats anormaux derrière la ligne russe + feux en excès
+  ru_probable: ["lyrPm", "lyrFire"],     // où la ligne va bouger + feux
+  ua_move: ["lyrArrows", "lyrFire"], ru_move: ["lyrArrows", "lyrFire"],
+};
+function briefEnable(ids){ for (const id of ids || []) { const cb = $(id); if (cb && cb.tagName === "INPUT" && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change")); } } }
 function fillBrief(){
-  const box = $("briefBox"); if (!box || box === DUMMY.briefBox) return;
-  const B = window.BRIEF;
+  if (!document.getElementById("briefBox")) return;
+  const box = $("briefBox"), B = window.BRIEF;
   if (!B || !Array.isArray(B.items) || !B.items.length) { box.hidden = true; return; }
   const l = document.documentElement.lang || "fr", UI = (window.I18N && (window.I18N[l] || window.I18N.fr)) || {};
   $("briefDate").textContent = B.date ? dateLoc(B.date) : "";
-  $("briefList").innerHTML = B.items.map(it => {
-    const k = UI["brK_" + it.kind] || it.kind, side = it.side === "ru" ? "ru" : "ua";
-    return `<li><span class="dot ${side}"></span><b>${escH(it.place)}</b> <span class="k">— ${escH(k)}</span></li>`;
+  $("briefList").innerHTML = B.items.map((it, i) => {
+    const k = UI["brK_" + it.kind] || it.kind, side = it.side === "ru" ? "ru" : "ua", expl = UI["brExpl_" + it.kind] || "";
+    return `<li><button type="button" class="brief-item" data-i="${i}"><span class="dot ${side}"></span><b>${escH(it.place)}</b> <span class="k">— ${escH(k)}</span><span class="brief-go">${escH(UI.brGo || "voir ↓")}</span></button><div class="brief-expl" hidden>${escH(expl)}</div></li>`;
   }).join("");
   box.hidden = false;
 }
+if (document.getElementById("briefList")) $("briefList").addEventListener("click", e => {
+  const btn = e.target.closest(".brief-item"); if (!btn) return;
+  const it = ((window.BRIEF || {}).items || [])[+btn.dataset.i]; if (!it) return;
+  briefEnable(BRIEF_LAYERS[it.kind]);
+  const expl = btn.parentElement.querySelector(".brief-expl"); if (expl) expl.hidden = false;
+  if (it.lon != null) { zoomTo(it.lon, it.lat, 9); const m = $("map"); if (m.scrollIntoView) m.scrollIntoView({behavior: "smooth", block: "center"}); }
+});
 legend(); full(); fillBrief();
 window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); });
 document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw(); fillBrief();
