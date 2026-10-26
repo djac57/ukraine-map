@@ -1,6 +1,9 @@
 # Données brutes (cache Actions, jamais versionnées)
 raw/
 
+# Contrôle de rendu (screenshots Playwright, artefacts CI, jamais versionnés)
+_render_shots/
+
 # Python, macOS
 __pycache__/
 *.pyc

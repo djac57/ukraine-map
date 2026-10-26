@@ -9,7 +9,7 @@ name: controle-i18n
 on:
   push:
     branches: [main]
-    paths: [site/i18n.js, site/index.html, site/methode.html, site/app.js]
+    paths: [site/i18n.js, site/index.html, site/methode.html, site/app.js, scripts/check_arrows.py]
   workflow_dispatch: {}
 permissions: { contents: read }
 concurrency: { group: controle-i18n, cancel-in-progress: true }
@@ -27,5 +27,13 @@ jobs:
           python -m pip install --disable-pip-version-check pyyaml playwright==1.48.0
           python -m playwright install --with-deps chromium
           sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-core fonts-noto-cjk
-      - name: "Contrôle des flèches + i18n (EN/UK/RU) sur le site publié"
+      - name: "Contrôle des flèches + i18n (EN/UK/RU) + rendu des couches sur le site publié"
         run: python scripts/check_arrows.py
+      - name: "Screenshots de rendu (artefact, même en cas d'échec)"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-shots
+          path: _render_shots/
+          if-no-files-found: ignore
+          retention-days: 14

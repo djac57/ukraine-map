@@ -267,10 +267,7 @@ I18N_READ = """() => {
 }"""
 
 
-def check_i18n(chrome=None):
-    """Bloquant : aucun mot-témoin français en EN, UK, RU. Rendu via Playwright, avec attentes EXPLICITES (chargement de
-    l'app, puis gestes, puis lecture) plutôt que le mode --virtual-time-budget de Chrome headless, qui se bloquait sur les
-    pages cyrilliques des runners Linux cloud. `chrome` est ignoré (Playwright pilote son propre Chromium)."""
+def _sync_playwright():
     # scripts/inspect.py (outil du projet) MASQUE le module standard `inspect` quand scripts/ est en tête de sys.path
     # (cas de `python scripts/check_arrows.py`) : Playwright en a besoin. On retire le dossier du script de sys.path (et on
     # purge un `inspect` masqué du cache) le temps d'importer Playwright, puis on le remet.
@@ -287,6 +284,73 @@ def check_i18n(chrome=None):
     finally:
         for p in _rm:
             _sys.path.insert(0, p)
+    return sync_playwright
+
+
+# Couches dont le RENDU est vérifié (activer la case doit changer le canvas) : celles qui ont déjà disparu silencieusement.
+RENDER_LAYERS = [("lyrArcs", "missiles et drones (corridors)")]
+
+
+def check_render():
+    """Bloquant : au mois par DÉFAUT, activer une couche doit CHANGER le canvas — sinon « rien ne s'affiche » (cas vécu :
+    données missiles en retard d'un mois sur le front, la couche filtrait un mois vide). On coupe le fond de carte (tuiles
+    externes) pour des captures stables et non teintées, on compare les octets PNG avant/après, et on dépose un screenshot
+    par couche en artefact (répertoire _render_shots/). Playwright pilote Chromium."""
+    sync_playwright = _sync_playwright()
+    shots = os.path.join(ROOT, "_render_shots")
+    os.makedirs(shots, exist_ok=True)
+    clip = {"x": 255, "y": 190, "width": 1145, "height": 575}  # zone carte (sous l'en-tête), là où les couches dessinent
+
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+    ok = True
+    with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=SITE)) as httpd:
+        port = httpd.server_address[1]
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+                for cid, name in RENDER_LAYERS:
+                    res = {"zones": None}
+                    try:
+                        page = browser.new_page(viewport={"width": 1400, "height": 900})
+                        page.goto(f"http://127.0.0.1:{port}/index.html?lang=en", wait_until="domcontentloaded", timeout=60000)
+                        page.wait_for_function("() => !!(window.FRONTP && window.__uafGoto)", timeout=60000)
+                        # couper le fond de carte (tuiles externes) pour des captures déterministes ; laisser le rendu se poser
+                        page.evaluate("() => { const b = document.getElementById('lyrBase'); if (b && b.checked) { b.checked = false; b.dispatchEvent(new Event('change')); } }")
+                        page.wait_for_timeout(2500)
+                        before = page.screenshot(clip=clip)
+                        page.evaluate("(id) => { const c = document.getElementById(id); if (c && !c.checked) { c.checked = true; c.dispatchEvent(new Event('change')); } }", cid)
+                        page.wait_for_timeout(2800)  # révélation animée + chargements asynchrones de la couche
+                        after = page.screenshot(clip=clip, path=os.path.join(shots, cid + ".png"))
+                        if cid == "lyrArcs":
+                            res["zones"] = page.evaluate("() => (window.__uafArcZones ? window.__uafArcZones().length : -1)")
+                        res["changed"] = before != after
+                        page.close()
+                    except Exception as e:  # noqa: BLE001
+                        print(f"RENDER|{name}|ECHEC|rendu échoué ({type(e).__name__}: {str(e)[:120]})")
+                        ok = False
+                        continue
+                    good = bool(res.get("changed"))
+                    extra = ""
+                    if cid == "lyrArcs":
+                        z = res["zones"]
+                        extra = f" ; zones de lancement au mois par défaut : {z}"
+                        good = good and isinstance(z, int) and z > 0   # le repli missM() doit fournir des données
+                    ok &= good
+                    print(f"RENDER|{name}|{'OK' if good else 'ECHEC'}|le canvas {'change' if res.get('changed') else 'NE CHANGE PAS'} à l'activation{extra}")
+                browser.close()
+        finally:
+            httpd.shutdown()
+    return ok
+
+
+def check_i18n(chrome=None):
+    """Bloquant : aucun mot-témoin français en EN, UK, RU. Rendu via Playwright, avec attentes EXPLICITES (chargement de
+    l'app, puis gestes, puis lecture) plutôt que le mode --virtual-time-budget de Chrome headless, qui se bloquait sur les
+    pages cyrilliques des runners Linux cloud. `chrome` est ignoré (Playwright pilote son propre Chromium)."""
+    sync_playwright = _sync_playwright()
 
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *a):
@@ -410,8 +474,12 @@ def main():
     # le contrôle statique des 4 langues de la légende (check_legend, ci-dessus) reste, lui, dans le gate quotidien.
     if os.environ.get("UAF_SKIP_I18N") == "1":
         print("I18N|sauté (UAF_SKIP_I18N=1 : délégué à controle-i18n.yml ; légende 4 langues déjà validée)")
-    elif not check_i18n(chrome):
-        return 1
+        print("RENDER|sauté (UAF_SKIP_I18N=1 : contrôle de rendu délégué à controle-i18n.yml, Playwright)")
+    else:
+        if not check_i18n(chrome):
+            return 1
+        if not check_render():
+            return 1
     return 0 if int(r.group(2)) == 0 and int(r.group(1)) > 0 else 1
 
 
