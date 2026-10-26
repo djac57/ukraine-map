@@ -1796,23 +1796,7 @@ function drawArcs(k){
   for (const [tid, n] of Object.entries(regs)) { const p = regionPath[tid]; if (!p) continue;
     ctx.globalAlpha = 0.1 + 0.5 * Math.sqrt(n / A.mr); ctx.fillStyle = C.arc; ctx.fill(p);
     if (arcFocus && arcFocus.kind === "region" && arcFocus.id === tid) { ctx.globalAlpha = 1; ctx.strokeStyle = C.arc; ctx.lineWidth = 2 / k; ctx.stroke(p); } }
-  // flux de la zone ou de l'oblast survolé
-  if (arcFocus) {
-    const flows = arcFocus.kind === "zone" ? Object.entries((A.zones.find(z => z.key === arcFocus.id) || {flows: {}}).flows).map(([t, n]) => [arcFocus.id, t, n])
-      : A.zones.filter(z => z.flows[arcFocus.id]).map(z => [z.key, arcFocus.id, z.flows[arcFocus.id]]);
-    const mf = Math.max(1, ...flows.map(f => f[2]));
-    for (const [zk, tid, n] of flows) {
-      const z = A.zones.find(q => q.key === zk), a = proj([z.lon, z.lat]), b = proj(regionCentroid[tid]); if (!a || !b) continue;
-      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], cx = mx - dy * 0.15, cy = my + dx * 0.15;
-      const w = (1 + 4 * Math.sqrt(n / mf)) / k;
-      ctx.globalAlpha = 0.85; ctx.strokeStyle = C.arc; ctx.lineWidth = w;
-      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.quadraticCurveTo(cx, cy, b[0], b[1]); ctx.stroke();
-      // tête côté cible, dans l'axe de la fin de la courbe
-      const tx = b[0] - cx, ty = b[1] - cy, tl = Math.hypot(tx, ty) || 1, ux = tx / tl, uy = ty / tl, hs = Math.min(6, 2.5 + w * k) / k;
-      ctx.globalAlpha = 1; ctx.fillStyle = C.arc; ctx.beginPath(); ctx.moveTo(b[0], b[1]);
-      ctx.lineTo(b[0] - ux * hs * 1.8 - uy * hs, b[1] - uy * hs * 1.8 + ux * hs); ctx.lineTo(b[0] - ux * hs * 1.8 + uy * hs, b[1] - uy * hs * 1.8 - ux * hs); ctx.closePath(); ctx.fill();
-    }
-  }
+  // (les arcs source→cible, trop envahissants, ont été retirés : les flux sont désormais donnés EN TEXTE au survol, cf. arcHover)
   // zones de lancement
   for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (!a) continue;
     const r = zoneR(z, A) / k, on = arcFocus && arcFocus.kind === "zone" && arcFocus.id === z.key;
