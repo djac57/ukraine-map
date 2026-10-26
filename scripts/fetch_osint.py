@@ -27,6 +27,9 @@ UA = "Mozilla/5.0 (compatible; ukraine-feux/1.0; non-commercial research)"
 WS = "https://ukr.warspotting.net/api/losses/russia/{d}/{p}/"
 ORYX = "https://raw.githubusercontent.com/scarnecchia/oryx_data/main/daily_count.csv"
 MISSILES = "https://www.kaggle.com/api/v1/datasets/download/piterfm/massive-missile-attacks-on-ukraine"
+# Alertes aériennes par oblast (Vadimkin, licence MIT) : données bénévoles, fraîches jusqu'à aujourd'hui, niveau oblast.
+# (official_data_en.csv a le raïon mais s'arrête début septembre 2026 : on prend le « volunteer » pour le récent.)
+AIR_ALERTS = "https://raw.githubusercontent.com/Vadimkin/ukrainian-air-raid-sirens-dataset/main/datasets/volunteer_data_en.csv"
 START = dt.date(2022, 2, 24)
 LAG_DAYS = int(os.environ.get("LAG_DAYS", "1"))   # décalage de publication : J-1 depuis le 19/10/2026 (décision de l'utilisateur ; J-7 auparavant)
 
@@ -177,6 +180,10 @@ def main():
             for name in ("missile_attacks_daily.csv", "missiles_and_uavs.csv"):
                 open(os.path.join(raw_dir, name), "wb").write(z.read(name))
         print("Missiles et drones : OK")
+    data = get(AIR_ALERTS, timeout=300)
+    if data:
+        open(os.path.join(raw_dir, "air_alerts.csv"), "wb").write(data)
+        print(f"Alertes aériennes (Vadimkin, MIT) : {len(data) // 1024} Ko")
     viina(raw_dir)
     ucdp(raw_dir)
     geonames_ru(raw_dir)

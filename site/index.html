@@ -58,7 +58,7 @@
       <div data-lyr="lyrFire" hidden><svg width="30" height="10"><circle cx="9" cy="5" r="2.5" fill="var(--fire-now)"/><circle cx="20" cy="5" r="2" fill="var(--fire-old)"/></svg><span data-t="lgFire">feux anormaux vus par satellite (FIRMS)</span></div>
       <div data-lyr="lyrLoss" hidden><svg width="30" height="10"><rect x="11" y="1" width="8" height="8" fill="var(--loss-now)"/></svg><span data-t="lgLoss">pertes de matériel documentées (WarSpotting)</span></div>
       <div data-lyr="lyrUcdp" data-off hidden><svg width="30" height="10"><rect x="10" y="0" width="10" height="10" fill="var(--ucdp)" opacity=".8"/></svg><span data-t="lgUcdp">combats au sol (UCDP)</span></div>
-      <div data-lyr="lyrArcs" hidden><svg width="30" height="10"><rect x="1" y="1" width="9" height="8" fill="var(--arc)" opacity=".5"/><rect x="11" y="1" width="9" height="8" fill="#6f7f1f" opacity=".55"/><circle cx="25.5" cy="5" r="3.5" fill="var(--arc)" stroke="var(--bg)"/></svg><span data-t="lgArcs">missiles et drones : régions visées (bleu : par la Russie ; olive : par l'Ukraine) · cercles : zones de lancement russes</span></div>
+      <div data-lyr="lyrArcs" hidden><svg width="30" height="10"><rect x="1" y="1" width="9" height="8" fill="var(--arc)" opacity=".5"/><rect x="11" y="1" width="9" height="8" fill="#6f7f1f" opacity=".55"/><circle cx="25.5" cy="5" r="3.5" fill="var(--arc)" stroke="var(--bg)"/></svg><span data-t="lgArcs">missiles et drones : oblasts visés par type de frappe (bleu : Russie ; olive : Ukraine) · cercles : zones de lancement russes · cascade d'alertes J-1, tracé grossier (données : Vadimkin, MIT)</span></div>
     </details>
     <details class="lggrp" open data-grp="lgGrpCtx"><summary data-t="lgGrpCtx">contexte</summary>
       <div data-lyr="lyrBase" hidden><svg width="30" height="10"><line x1="0" y1="7" x2="30" y2="3" stroke="var(--road)" stroke-width="1.4"/><circle cx="15" cy="5" r="2" fill="var(--label)"/></svg><span data-t="lgBase">routes et localités</span></div>
@@ -137,6 +137,16 @@
     <div class="controls" id="fireOpts" hidden style="margin:4px 0 0">
       <span class="seg" role="group"><button class="btn" id="modePts" type="button" aria-pressed="true" data-t="pts">points</button><button class="btn" id="modeDen" type="button" aria-pressed="false" data-t="den">densité</button></span>
     </div>
+    <div class="controls" id="arcOpts" hidden style="margin:4px 0 0;gap:8px;align-items:center">
+      <label style="font-size:12px"><span data-t="stType">type de frappe</span> <select id="arcType" style="font-size:12px">
+        <option value="tout" data-t="stTout">toute</option>
+        <option value="balistique" data-t="stBal">balistique</option>
+        <option value="croisière" data-t="stCruise">croisière</option>
+        <option value="shahed" data-t="stShahed">Shahed</option>
+        <option value="autre" data-t="stOther">reco / autre</option>
+      </select></label>
+      <label class="chk" style="margin:0"><input type="checkbox" id="lyrCasc"> <span data-t="cbCasc">cascade d'alertes (J-1)</span></label>
+    </div>
   </fieldset>
 </div>
 <div class="legend" id="legend" style="padding:0 12px 8px"></div>
@@ -151,7 +161,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="i18n.js?v=f59cf7a46e"></script>
+<script src="i18n.js?v=3c24972661"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="data.js?v=42798d52e1"></script>
@@ -159,7 +169,7 @@
 <script src="front_nowcast.js?v=cfdf0e2e90"></script>
 <script src="front_contact.js?v=4e48b66e4f"></script>
 <script src="front.js?v=1e68b5cdb0"></script>
-<script src="osint.js?v=72b321775d"></script>
+<script src="osint.js?v=56f2c9ab14"></script>
 <script src="ecart_mod.js?v=530f561d6f"></script>
 <script>
 // langue de l'interface : ?lang=xx, sinon choix mémorisé, sinon français ; chaînes dans i18n.js
@@ -188,6 +198,6 @@
 </script>
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
-<script src="app.js?v=3a59156584"></script>
+<script src="app.js?v=754bc2f2e5"></script>
 </body>
 </html>

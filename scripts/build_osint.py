@@ -163,6 +163,140 @@ def missiles(months, cutoff):
     return {"perMonth": per, "first": first, "last": last}
 
 
+# --- Typologie des frappes : 4 catégories dérivées de missiles_and_uavs.csv (jointure par modèle) ---
+# balistique (Iskander-M, KN-23, Kinzhal, C-300/400 en mode sol-sol), croisière (Kalibr, X-101, X-22, Oniks…),
+# shahed = drone d'attaque / munition rôdeuse (Shahed/Geran, Lancet, Kub), autre = reconnaissance, bombes planantes, inconnu.
+STRIKE_TYPES = ["balistique", "croisière", "shahed", "autre"]
+_LOITER = re.compile(r"Shahed|Geran|Lancet|\bKub\b|Молн", re.I)
+_BAL = re.compile(r"Iskander-M|KN-23|Kinzhal|Ballistic|\bC-3|\bC-4|Фенікс", re.I)
+_CRUISE = re.compile(r"Kalibr|Oniks|Zircon|Banderol|Iskander-K|X-\d|Привет|Картограф", re.I)
+_BOMB = re.compile(r"Bomb|GBU|KAB", re.I)
+
+
+def _comp_type(model, cat, typ):
+    """Type d'un modèle ÉLÉMENTAIRE (une seule arme) → index dans STRIKE_TYPES."""
+    c = cat.get(model)
+    t = typ.get(model) or ""
+    if c:
+        if "ballistic" in c:
+            return 0
+        if c == "cruise missile":
+            return 1
+        if c == "UAV":
+            return 2 if "loiter" in t else 3
+        if "surface-to-air" in c:          # « surface-to-air and ballistic » (C-300 + Iskander) → balistique ; C-300/400 seuls → autre
+            return 0 if "ballistic" in c else 3
+        if c == "guided bomb":
+            return 3
+    if _LOITER.search(model):
+        return 2
+    if _BAL.search(model):
+        return 0
+    if _CRUISE.search(model):
+        return 1
+    if _BOMB.search(model):
+        return 3
+    return 3
+
+
+def _row_type(model, is_shahed_val, cat, typ):
+    """Type d'une LIGNE d'attaque (le modèle peut combiner plusieurs armes « A and B ») → index dans STRIKE_TYPES.
+    Priorité d'un tir mixte : balistique > croisière > shahed > autre (l'arme la plus notable l'emporte, cas rare)."""
+    try:
+        if float(is_shahed_val) > 0:
+            return 2
+    except (TypeError, ValueError):
+        pass
+    comps = [c.strip() for c in (model or "").split(" and ") if c.strip()] or [model or ""]
+    seen = {_comp_type(c, cat, typ) for c in comps}
+    for ti in (0, 1, 2, 3):
+        if ti in seen:
+            return ti
+    return 3
+
+
+def strikes(months, cutoff):
+    """Frappes russes classées par TYPE, agrégées par OBLAST cible (jointure missiles_and_uavs.csv) :
+    - monthType : total national lancés / abattus par type et par mois (tout l'historique) ;
+    - oblastMonth : lancés / abattus par oblast, mois et type (part égale entre les oblasts cités d'une ligne) ;
+    - daily : total national par type sur ~90 derniers jours (J-1), pour la courbe quotidienne du panneau.
+    Reste au niveau OBLAST (mapping de arcs(), étendu) ; ne descend pas au raïon faute de géométrie."""
+    cat = {}
+    typ = {}
+    for r in csv.DictReader(open(os.path.join(RAW, "missiles_and_uavs.csv"))):
+        cat[r["model"]] = r["category"]
+        typ[r["model"]] = r["type"]
+    midx = {m: i for i, m in enumerate(months)}
+    # nom → code oblast : on réutilise TARGET (arcs) et on complète les quelques manquants
+    name2ob = dict(TARGET)
+    name2ob["Kyiv"] = "UA-32"                       # ville repliée sur l'oblast (comme l'affichage de la choroplèthe)
+    name2ob["Zakarpattia oblast"] = "UA-21"
+    name2ob["Ivano-Frankivsk obкlast"] = "UA-26"    # coquille source (к cyrillique)
+
+    def num(v):
+        try:
+            f = float(v)
+            return 0 if math.isnan(f) else int(round(f))
+        except (TypeError, ValueError):
+            return 0
+
+    def oblasts_of(r):
+        cand = set()
+        ar = r.get("affected region")
+        if ar:
+            import ast
+            try:
+                for x in ast.literal_eval(ar):
+                    cand.add(str(x).strip())
+            except (ValueError, SyntaxError):
+                pass
+        for col in ("target_main", "target"):
+            for t in re.split(r" and |,", r.get(col) or ""):
+                t = t.strip()
+                if t:
+                    cand.add(t)
+        return {name2ob[c] for c in cand if c in name2ob}
+
+    month_type = [[[0, 0] for _ in STRIKE_TYPES] for _ in months]
+    ob_acc = defaultdict(lambda: [0.0, 0.0])        # (mi, oblast, ti) → [lancés, abattus]
+    today = dt.date.today()
+    end_day = (today - dt.timedelta(days=LAG_DAYS)).isoformat()
+    start_day = (today - dt.timedelta(days=LAG_DAYS + 89)).isoformat()
+    day_type = defaultdict(lambda: [[0, 0] for _ in STRIKE_TYPES])
+    first = last = None
+    for r in csv.DictReader(open(os.path.join(RAW, "missile_attacks_daily.csv"))):
+        d = (r["time_end"] or r["time_start"])[:10]
+        m = d[:7]
+        ti = _row_type(r["model"], r.get("is_shahed"), cat, typ)
+        lv, dv = num(r["launched"]), num(r["destroyed"])
+        if m <= cutoff and m in midx:
+            mt = month_type[midx[m]][ti]
+            mt[0] += lv
+            mt[1] += dv
+            obs = oblasts_of(r)
+            if obs:
+                sl, sd = lv / len(obs), dv / len(obs)
+                for ob in obs:
+                    acc = ob_acc[(midx[m], ob, ti)]
+                    acc[0] += sl
+                    acc[1] += sd
+            first, last = min(first or d, d), max(last or d, d)
+        if start_day <= d <= end_day:
+            dt_ = day_type[d][ti]
+            dt_[0] += lv
+            dt_[1] += dv
+    oblast_month = []
+    for (mi, ob, ti), (sl, sd) in sorted(ob_acc.items()):
+        li, di = int(round(sl)), int(round(sd))
+        di = min(di, li)
+        if li or di:
+            oblast_month.append([mi, ob, ti, li, di])
+    days = sorted(day_type)
+    daily = [[d] + [v[0] for v in day_type[d]] + [v[1] for v in day_type[d]] for d in days]
+    return {"types": STRIKE_TYPES, "monthType": month_type, "oblastMonth": oblast_month,
+            "daily": daily, "first": first, "last": last, "lastDay": days[-1] if days else end_day}
+
+
 # Lieux de lancement cités par l'armée de l'air ukrainienne (lon, lat) ; directions vagues ignorées
 LAUNCH = {
     "Primorsko-Akhtarsk": (38.17, 46.05), "Kursk oblast": (36.19, 51.73), "Кursk oblast": (36.19, 51.73),
@@ -234,6 +368,49 @@ def arcs(months, cutoff):
     return {"places": [[n, *LAUNCH[n]] for n in names], "arcs": out, "specificShare": share}
 
 
+# Cascade d'alertes aériennes (Vadimkin, MIT) : nom d'oblast (forme adjectivale EN) → code géométrie UA-xx.
+ALERT_OBLAST = {
+    "Cherkaska oblast": "UA-71", "Chernihivska oblast": "UA-74", "Chernivetska oblast": "UA-77",
+    "Dnipropetrovska oblast": "UA-12", "Donetska oblast": "UA-14", "Ivano-Frankivska oblast": "UA-26",
+    "Kharkivska oblast": "UA-63", "Khersonska oblast": "UA-65", "Khmelnytska oblast": "UA-68",
+    "Kirovohradska oblast": "UA-35", "Kyiv City": "UA-32", "Kyivska oblast": "UA-32", "Luhanska oblast": "UA-09",
+    "Lvivska oblast": "UA-46", "Mykolaivska oblast": "UA-48", "Odeska oblast": "UA-51", "Poltavska oblast": "UA-53",
+    "Rivnenska oblast": "UA-56", "Sumska oblast": "UA-59", "Ternopilska oblast": "UA-61", "Vinnytska oblast": "UA-05",
+    "Volynska oblast": "UA-07", "Zakarpatska oblast": "UA-21", "Zaporizka oblast": "UA-23", "Zhytomyrska oblast": "UA-18",
+}
+
+
+def alerts():
+    """Cascade d'alertes aériennes par NUIT (approximation grossière du passage de la menace, PAS une trajectoire de vol).
+    Chaque « nuit » = fenêtre midi→midi UTC (une vague de nuit à cheval sur minuit reste groupée). Séquence = premier
+    déclenchement par oblast, ordonné dans le temps. Niveau OBLAST, ~90 derniers jours, J-1 (jamais de temps réel)."""
+    path = os.path.join(RAW, "air_alerts.csv")
+    today = dt.date.today()
+    last_night = today - dt.timedelta(days=LAG_DAYS)
+    first_night = last_night - dt.timedelta(days=89)
+    nights = defaultdict(dict)                       # date de nuit → {code oblast : premier déclenchement (datetime)}
+    for r in csv.DictReader(open(path, encoding="utf-8")):
+        code = ALERT_OBLAST.get((r.get("region") or "").strip())
+        if not code:
+            continue
+        try:
+            ts = dt.datetime.fromisoformat(r["started_at"])
+        except (ValueError, KeyError):
+            continue
+        night = (ts - dt.timedelta(hours=12)).date()
+        if not (first_night <= night <= last_night):
+            continue
+        cur = nights[night].get(code)
+        if cur is None or ts < cur:
+            nights[night][code] = ts
+    daily = []
+    for night in sorted(nights):
+        seq = sorted(nights[night].items(), key=lambda kv: kv[1])
+        daily.append({"date": night.isoformat(), "seq": [[code, ts.strftime("%H:%M")] for code, ts in seq]})
+    return {"source": "Vadimkin", "daily": daily,
+            "first": daily[0]["date"] if daily else None, "last": daily[-1]["date"] if daily else None}
+
+
 def ucdp(months, cutoff):
     """Événements UCDP (GED 26.1 jusqu'en 2025, puis « candidate » mensuels), Ukraine et Russie frontalière, précision ≤ 25 km."""
     midx = {m: i for i, m in enumerate(months)}
@@ -291,14 +468,15 @@ UCDP_ART = re.compile(r"shell|artillery|mortar|mlrs|grad|howitzer", re.I)
 def main():
     guard.require_files("build_osint.py", [os.path.join(RAW, f) for f in (
         "oryx_daily_count.csv", "oryx_event_destroyed.csv", "oryx_event_abandoned.csv", "oryx_event_captured.csv",
-        "oryx_event_damaged.csv", "missile_attacks_daily.csv", "missiles_and_uavs.csv", "ucdp/ged261-csv.zip")]
+        "oryx_event_damaged.csv", "missile_attacks_daily.csv", "missiles_and_uavs.csv", "air_alerts.csv", "ucdp/ged261-csv.zip")]
         + [os.path.join(RAW, "warspotting")])
     months = month_list()
     today = dt.date.today()
     cutoff = last_complete_month(today)
     data = {"generated": today.isoformat(), "cutoff": cutoff, "groups": GROUPS,
             "ws": warspotting(months, cutoff), "oryx": oryx(months), "missiles": missiles(months, cutoff),
-            "launch": arcs(months, cutoff), "ucdp": ucdp(months, cutoff)}
+            "launch": arcs(months, cutoff), "strikes": strikes(months, cutoff), "alerts": alerts(),
+            "ucdp": ucdp(months, cutoff)}
     old = guard.published("osint.js", "OSINT")
     if old:
         guard.check("build_osint.py", [
@@ -322,10 +500,18 @@ def main():
     if new != src:
         open(page, "w", encoding="utf-8").write(new)
     ws = data["ws"]
+    st, al = data["strikes"], data["alerts"]
+    li = months.index(cutoff) if cutoff in months else -1
+    rep = st["monthType"][li] if li >= 0 else None
+    repl = " ; ".join(f"{t} {v[0]}→{v[1]}" for t, v in zip(STRIKE_TYPES, rep)) if rep else "—"
     print(f"osint.js : {len(js) // 1024} Ko · WarSpotting {ws['total']} pertes ({ws['geo']} géolocalisées, "
           f"{ws['first']} → {ws['last']}) · Oryx au {data['oryx']['lastDay']} · missiles {data['missiles']['first']} → "
           f"{data['missiles']['last']} · UCDP jusqu'à {data['ucdp']['last']} ({sum(data['ucdp']['perMonth'])} événements) · "
           f"{len(data['launch']['arcs'])} arcs (cibles précisées : {data['launch']['specificShare']} % des lancements) · coupure {cutoff}")
+    print(f"  frappes par type · {len(st['oblastMonth'])} (mois×oblast×type), {len(st['daily'])} jours quotidiens "
+          f"(→ {st['lastDay']}) · {cutoff} lancés→abattus : {repl}")
+    print(f"  cascade d'alertes (Vadimkin, MIT) : {len(al['daily'])} nuits {al['first']} → {al['last']} ; "
+          f"dernière nuit = {len(al['daily'][-1]['seq']) if al['daily'] else 0} oblasts")
 
 
 if __name__ == "__main__":

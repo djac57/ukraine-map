@@ -85,6 +85,8 @@ $("stats").innerHTML = [
 const canvas = $("map"), ctx = canvas.getContext("2d");
 let W = 0, H = 0, dpr = 1, proj, paths = {}, px, py, cellXY, cities = [];
 let tr = d3.zoomIdentity, cur = lastIdx, mode = "pts", showFire = false, showLoss = false, showFront = true, showLines = true, showUcdp = false, showArcs = false, perim = "tout";
+// couche missiles/drones : type de frappe affiché (tout | balistique | croisière | shahed | autre) et cascade d'alertes
+let strikeType = "tout", showCascade = false;
 const lossOn = O.groups.map(() => true);
 const cutIdx = D.months.indexOf(O.cutoff);
 if (cutIdx >= 0 && cutIdx < cur) cur = cutIdx;  // par défaut : dernier mois où toutes les couches sont publiées
@@ -1785,24 +1787,76 @@ function arcMonth(){
   return arcCache = {m: arcM(), zones: zs, regs, mz, mr};
 }
 const zoneR = (z, A) => 3.5 + 10 * Math.sqrt(z.n / A.mz);
+// frappes classées par TYPE (osint.js O.strikes) : index du type sélectionné, ou −1 pour « toute »
+const STR_TYPES = (O.strikes && O.strikes.types) || ["balistique", "croisière", "shahed", "autre"];
+const strikeTIdx = () => STR_TYPES.indexOf(strikeType);
+const obTotal = v => { const ti = strikeTIdx(); return ti < 0 ? v.reduce((s, p) => s + p[0], 0) : v[ti][0]; };
+const obDown = v => { const ti = strikeTIdx(); return ti < 0 ? v.reduce((s, p) => s + p[1], 0) : v[ti][1]; };
+let strikeCache = {m: -2, t: ""};
+function strikeMonth(){
+  const key = strikeType;
+  if (strikeCache.m === arcM() && strikeCache.t === key) return strikeCache;
+  const byOb = {};
+  if (O.strikes) for (const [mi, ob, ti, l, d] of O.strikes.oblastMonth) {
+    if (mi !== arcM()) continue;
+    (byOb[ob] = byOb[ob] || [[0,0],[0,0],[0,0],[0,0]]);
+    byOb[ob][ti][0] += l; byOb[ob][ti][1] += d;
+  }
+  if (byOb["UA-32"] && !byOb["UA-30"]) byOb["UA-30"] = byOb["UA-32"];   // Kyiv ville colorée avec l'oblast
+  let mx = 1;
+  for (const v of Object.values(byOb)) mx = Math.max(mx, obTotal(v));
+  return strikeCache = {m: arcM(), t: key, byOb, mx};
+}
+// cascade d'alertes aériennes : dernière nuit disponible (J-1), approximation grossière du passage de la menace
+function cascadeNight(){ const a = O.alerts && O.alerts.daily; return a && a.length ? a[a.length - 1] : null; }
+// seuil de saut : les nuits de masse allument tout le pays en quelques minutes ; on ne relie que les PASSAGES
+// LOCAUX (oblasts voisins consécutifs dans le temps), pour un tracé sobre plutôt qu'un maillage de bout en bout.
+const CASC_MAX_DEG = 2.6;
+function drawCascade(k){
+  const N = cascadeNight(); if (!N || N.seq.length < 2) return;
+  const nodes = [];
+  for (const [ob] of N.seq) { const c = regionCentroid[ob]; if (!c) continue; const a = proj(c); if (a) nodes.push({a, c}); }
+  if (nodes.length < 2) return;
+  ctx.save();
+  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.fillStyle = C.arc; ctx.strokeStyle = C.arc;
+  const drawn = new Set();
+  for (let i = 1; i < nodes.length; i++) {
+    const p = nodes[i-1], q = nodes[i];
+    const dd = Math.hypot(q.c[0]-p.c[0], q.c[1]-p.c[1]);
+    if (dd > CASC_MAX_DEG) continue;                    // saut trop long (menaces simultanées) : non relié
+    const al = 0.2 + 0.4 * (i / (nodes.length - 1));
+    ctx.globalAlpha = al; ctx.lineWidth = 0.9 / k;
+    ctx.beginPath(); ctx.moveTo(p.a[0], p.a[1]); ctx.lineTo(q.a[0], q.a[1]); ctx.stroke();
+    // petite tête de flèche au bout tardif (sens du passage)
+    const ang = Math.atan2(q.a[1]-p.a[1], q.a[0]-p.a[0]), hl = 5.5 / k;
+    ctx.beginPath(); ctx.moveTo(q.a[0], q.a[1]);
+    ctx.lineTo(q.a[0] - hl*Math.cos(ang - 0.45), q.a[1] - hl*Math.sin(ang - 0.45));
+    ctx.lineTo(q.a[0] - hl*Math.cos(ang + 0.45), q.a[1] - hl*Math.sin(ang + 0.45));
+    ctx.closePath(); ctx.fill();
+    drawn.add(i-1); drawn.add(i);
+  }
+  ctx.globalAlpha = 0.7;
+  for (const i of drawn) { ctx.beginPath(); ctx.arc(nodes[i].a[0], nodes[i].a[1], 1.3 / k, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
 function drawArcs(k){
   if (arcM() < 0) return;
   drawStrikesRu(k);
-  const A = arcMonth();
+  const A = arcMonth(), S = strikeMonth();
   ctx.lineCap = "round"; ctx.lineJoin = "round";
-  // choroplèthe des oblasts visés
-  const regs = Object.assign({}, A.regs);
-  if (regs["UA-32"] && !regs["UA-30"]) regs["UA-30"] = regs["UA-32"];   // Kyiv ville comptée avec l'oblast dans les rapports
-  for (const [tid, n] of Object.entries(regs)) { const p = regionPath[tid]; if (!p) continue;
-    ctx.globalAlpha = 0.1 + 0.5 * Math.sqrt(n / A.mr); ctx.fillStyle = C.arc; ctx.fill(p);
+  // choroplèthe des oblasts visés, teintée selon le TYPE sélectionné (lancés du mois)
+  for (const [tid, v] of Object.entries(S.byOb)) { const p = regionPath[tid]; if (!p) continue;
+    const n = obTotal(v); if (!n) continue;
+    ctx.globalAlpha = 0.1 + 0.5 * Math.sqrt(n / S.mx); ctx.fillStyle = C.arc; ctx.fill(p);
     if (arcFocus && arcFocus.kind === "region" && arcFocus.id === tid) { ctx.globalAlpha = 1; ctx.strokeStyle = C.arc; ctx.lineWidth = 2 / k; ctx.stroke(p); } }
   // (les arcs source→cible, trop envahissants, ont été retirés : les flux sont désormais donnés EN TEXTE au survol, cf. arcHover)
-  // zones de lancement
+  // zones de lancement (O.launch, inchangé)
   for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (!a) continue;
     const r = zoneR(z, A) / k, on = arcFocus && arcFocus.kind === "zone" && arcFocus.id === z.key;
     ctx.globalAlpha = on ? 1 : 0.8; ctx.fillStyle = C.arc; ctx.strokeStyle = C.bg; ctx.lineWidth = 1.2 / k;
     ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, 7); ctx.fill(); ctx.stroke(); }
   ctx.globalAlpha = 1;
+  if (showCascade) drawCascade(k);
 }
 // diagnostic (headless) : zones de lancement du mois affiché, en pixels de la carte
 window.__uafArcZones = () => arcMonth().zones.map(z => { const a = proj([z.lon, z.lat]); return {name: z.names.join(", "), x: a[0] * tr.k + tr.x, y: a[1] * tr.k + tr.y, n: Math.round(z.n)}; }).sort((p, q) => q.n - p.n);
@@ -1853,14 +1907,14 @@ function sruHover(ll){
   return null;
 }
 // survol de la couche : zone de lancement (cercle) ou oblast visé ; renvoie le texte de l'info-bulle ou null
+const STR_LABEL = () => ({balistique: _t("balistique"), "croisière": _t("croisière"), shahed: _t("Shahed"), autre: _t("reco / autre")});
 function arcHover(mx, my){
   if (!showArcs || arcM() < 0) return null;
-  const A = arcMonth(), k = tr.k, gx = (mx - tr.x) / k, gy = (my - tr.y) / k;
+  const A = arcMonth(), S = strikeMonth(), k = tr.k, gx = (mx - tr.x) / k, gy = (my - tr.y) / k;
   let f = null;
   for (const z of A.zones) { const a = proj([z.lon, z.lat]); if (a && Math.hypot((a[0] - gx) * k, (a[1] - gy) * k) <= zoneR(z, A) + 3) { f = {kind: "zone", id: z.key, z}; break; } }
   if (!f) { const ll = proj.invert([gx, gy]);
-    const ids = Object.keys(A.regs); if (A.regs["UA-32"] && !A.regs["UA-30"]) ids.unshift("UA-30");
-    for (const tid of ids) if (regionFeat[tid] && d3.geoContains(regionFeat[tid], ll)) { f = {kind: "region", id: A.regs[tid] ? tid : "UA-32"}; break; } }
+    for (const tid of Object.keys(S.byOb)) if (regionFeat[tid] && d3.geoContains(regionFeat[tid], ll)) { f = {kind: "region", id: tid}; break; } }
   let sh = null;
   if (!f) { sh = sruHover(proj.invert([gx, gy])); if (sh) f = {kind: "sru", id: sh.id}; }
   const key = f ? f.kind + f.id : null, old = arcFocus ? arcFocus.kind + arcFocus.id : null;
@@ -1869,8 +1923,11 @@ function arcHover(mx, my){
   if (!f) return null;
   if (f.kind === "sru") return sh.text;
   if (f.kind === "zone") return _t("zone de lancement : {z} · {n} lancements vers des cibles précisées ce mois-ci", {z: f.z.names.join(", "), n: fmt(Math.round(f.z.n))});
-  const nm = (regionFeat[f.id].properties || {}).n || f.id;
-  return _t("oblast visé : {o} · {n} lancements (cibles précisées) ce mois-ci", {o: topoC(nm), n: fmt(Math.round(A.regs[f.id]))});
+  const nm = (regionFeat[f.id].properties || {}).n || f.id, v = S.byOb[f.id] || [[0,0],[0,0],[0,0],[0,0]];
+  const L = obTotal(v), D2 = obDown(v), lab = STR_LABEL();
+  const rows = STR_TYPES.map((t, ti) => v[ti][0] ? `<div>${lab[t]} : ${_t("{l} lancés, {d} abattus ({p} %)", {l: fmt(v[ti][0]), d: fmt(v[ti][1]), p: Math.round(100*v[ti][1]/v[ti][0])})}</div>` : "").join("");
+  return _t("oblast visé : {o} · {n} frappes attribuées ce mois-ci (interception {p} %)", {o: topoC(nm), n: fmt(L), p: L ? Math.round(100*D2/L) : 0}) +
+    (strikeTIdx() < 0 ? rows : (v[strikeTIdx()][0] ? `<div>${lab[strikeType]} : ${_t("{l} lancés, {d} abattus ({p} %)", {l: fmt(v[strikeTIdx()][0]), d: fmt(v[strikeTIdx()][1]), p: Math.round(100*v[strikeTIdx()][1]/Math.max(1,v[strikeTIdx()][0]))})}</div>` : ""));
 }
 // mobile : cadrage d'ouverture sur le front (est et sud, de Kharkiv à Kherson)
 const zoneM = {type:"MultiPoint", coordinates:[[32.2,46.1],[39.6,46.1],[39.6,50.5],[32.2,50.5]]};
@@ -2548,7 +2605,9 @@ if ($("lyrEcartMod")) $("lyrEcartMod").onchange = e => { showEcartMod = e.target
 $("lyrFire").onchange = e => { showFire = e.target.checked; $("fireOpts").hidden = !showFire; legend(); draw(); };
 $("lyrLoss").onchange = e => { showLoss = e.target.checked; legend(); draw(); };
 $("lyrUcdp").onchange = e => { showUcdp = e.target.checked; legend(); draw(); };
-$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); };
+$("lyrArcs").onchange = e => { showArcs = e.target.checked; arcFocus = null; if ($("arcOpts")) $("arcOpts").hidden = !showArcs; if (showArcs) loadStrikesRu(() => { sruCache = {m: -1}; draw(); }); legend(); draw(); };
+if ($("arcType")) $("arcType").onchange = e => { strikeType = e.target.value; arcFocus = null; legend(); draw(); };
+if ($("lyrCasc")) $("lyrCasc").onchange = e => { showCascade = e.target.checked; legend(); draw(); };
 // charge le fichier d'une source de fusion (front_fusion.js / front_fusion_robuste.js) ; onerror → repli gracieux (fail)
 function loadFusion(src, ok, fail){
   if (window.FRONTP && window.FRONTP[src] && fusMonthsOf(src)) return ok();
@@ -2903,7 +2962,8 @@ function legend(){
   if (showInfra) html += `<span style="flex-basis:100%;height:0"></span><span><i style="border-top:1px solid rgba(95,95,95,.6);height:0;border-radius:0;vertical-align:3px"></i>${_t("voies ferrées")}</span><span><i style="background:${C.ink};width:6px;height:6px;border-radius:0"></i>${_t("gares principales, sites lourds")}</span><span><i style="background:${C.ink};width:7px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0"></i>${_t("centrales électriques")}</span><span><i style="border:1.2px solid ${C.ink};width:6px;height:6px;border-radius:50%;background:transparent"></i>${_t("aéroports et grandes bases")}</span><span>${_t("contours : zones industrielles de plus de 1 km² ; dessinées seulement après un zoom sur une localité{z} ; infrastructures statiques et publiques (Natural Earth, WRI Global Power Plant Database CC BY 4.0, OurAirports, © contributeurs OpenStreetMap ODbL)", {z: kmPerPx(tr.k) > INFRA_KMPX ? _t(" (zoomez pour les voir)") : ""})}</span>`;
   if (fvar) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:repeating-linear-gradient(-45deg,${C.ink} 0 1.5px,transparent 1.5px 5px);border-radius:0"></i>${_t("zones qui dépendent de la source retirée (probabilité changée de plus de 0,1)")}</span>`;
   if (showUcdp) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.ucdp};border-radius:0"></i>${_t("événements de combat UCDP du mois (mailles de 0,1°, précision ≤ 25 km ; ni camp ni auteur)")}</span>`;
-  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : oblasts visés (teinte selon le volume du mois) · zones de lancement (cercles selon le nombre) ; survoler une zone ou un oblast montre ses flux ({n} % des lancements ont une cible précisée ; source : armée de l'air ukrainienne, compilation P. Ivaniuk)", {n: O.launch.specificShare})}</span>` +
+  if (showArcs) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("missiles et drones : oblasts visés (teinte selon les frappes du type choisi ce mois-ci) · zones de lancement (cercles selon le nombre) ; survoler un oblast donne le détail par type et le taux d'interception (source : armée de l'air ukrainienne, compilation P. Ivaniuk)")}</span>` +
+    (showCascade && cascadeNight() ? `<span><i style="background:${C.arc};height:2px;border-radius:0;vertical-align:3px"></i>${_t("cascade d'alertes aériennes (passage de la menace), nuit du {d}, J-1 — tracé GROSSIER reliant les oblasts dans l'ordre des alertes, PAS une trajectoire de vol réelle (données : Vadimkin, MIT)", {d: dateFr(cascadeNight().date)})}</span>` : "") +
     `<span><i style="background:${SRU_COL()};opacity:.6;border-radius:0"></i>${_t("frappes ukrainiennes signalées sur la Russie et les territoires occupés : régions citées dans les bilans d'interceptions du MoD RF (annonces d'une partie), mentions des autorités régionales de Belgorod, Koursk et Briansk, feux anormaux près de sites industriels ; aucune zone de lancement")} ${_t("Bilans du MoD RF moins complets depuis avril 2026 (le ministère publie surtout sur MAX).")}</span>`;
   $("legend").innerHTML = html;
 }
@@ -3295,7 +3355,39 @@ function updateOsint(){
   else if (!d3.sum(mm)) c += `<span class="na">série disponible à partir de fin septembre 2022</span>`;
   else c += `<div class="r"><span>drones lancés</span><b>${fmt(mm[2])}</b></div><div class="r"><span>dont annoncés abattus</span><b>${fmt(mm[3])}</b></div>` +
     `<div class="r" style="margin-top:6px"><span>missiles lancés</span><b>${fmt(mm[0])}</b></div><div class="r"><span>dont annoncés abattus</span><b>${fmt(mm[1])}</b></div>`;
+  // Répartition par type (osint.js O.strikes) + taux d'interception
+  const STLAB = {balistique: "balistique", "croisière": "croisière", shahed: "Shahed (drones d'attaque)", autre: "reco / autre"};
+  if (O.strikes && !after && O.strikes.monthType[cur] && O.strikes.monthType[cur].some(v => v[0])) {
+    const mt = O.strikes.monthType[cur], tot = mt.reduce((s,v) => [s[0]+v[0], s[1]+v[1]], [0,0]);
+    c += `<h4 style="margin-top:12px">Par type de frappe · ${mlab}</h4><div class="tablewrap"><table class="oryx" style="font-size:12px"><tr><th>type</th><th>lancés</th><th>abattus</th><th>interception</th></tr>` +
+      O.strikes.types.map((t,ti) => mt[ti][0] ? `<tr><td>${STLAB[t]}</td><td>${fmt(mt[ti][0])}</td><td>${fmt(mt[ti][1])}</td><td>${Math.round(100*mt[ti][1]/mt[ti][0])} %</td></tr>` : "").join("") +
+      `<tr style="font-weight:600"><td>total</td><td>${fmt(tot[0])}</td><td>${fmt(tot[1])}</td><td>${tot[0] ? Math.round(100*tot[1]/tot[0]) : 0} %</td></tr></table></div>`;
+  }
+  // Mini-courbe quotidienne (lancés vs abattus) sur ~90 derniers jours
+  if (O.strikes && O.strikes.daily && O.strikes.daily.length) {
+    c += `<h4 style="margin-top:12px">Lancés vs abattus · jour par jour (90 j, J-1, tous types)</h4><div id="strikeDaily" class="chart"></div>` +
+      `<p style="margin:6px 0 0;font-size:12px;color:var(--faint)">barre pleine : engins lancés ; barre foncée : annoncés abattus. Les creux correspondent aux nuits sans attaque de masse. Dernier jour : ${dateFr(O.strikes.lastDay)}.</p>`;
+  }
   $("osint").innerHTML = `<div style="grid-column:1/-1">${a}</div><div>${b}</div><div style="grid-column:span 2">${c}</div>`;
+  if (O.strikes && O.strikes.daily && O.strikes.daily.length && $("strikeDaily") !== DUMMY["strikeDaily"]) strikeDailyChart($("strikeDaily"));
+}
+// courbe quotidienne des frappes (lancés vs abattus, tous types confondus) ; ~90 derniers jours
+function strikeDailyChart(el){
+  if (!el) return;
+  const rows = O.strikes.daily, w = el.clientWidth || (el.parentElement && el.parentElement.clientWidth) || 340, h = 120, m = {t:8, r:4, b:20, l:40};
+  const L = rows.map(r => r[1]+r[2]+r[3]+r[4]), X = rows.map(r => r[5]+r[6]+r[7]+r[8]);
+  const x = d3.scaleBand().domain(d3.range(rows.length)).range([m.l, w-m.r]).paddingInner(0.15);
+  const y = d3.scaleLinear().domain([0, d3.max(L) || 1]).nice().range([h-m.b, m.t]);
+  const svg = d3.create("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("height", h);
+  svg.append("g").selectAll("line").data(y.ticks(3)).join("line").attr("x1",m.l).attr("x2",w-m.r).attr("y1",y).attr("y2",y).attr("stroke",C.rule);
+  svg.append("g").selectAll("text").data(y.ticks(3)).join("text").attr("class","tick").attr("x",m.l-5).attr("y",y).attr("dy","0.32em").attr("text-anchor","end").text(v => L.length && v>=1000 ? (v/1000)+" k" : v);
+  svg.append("g").selectAll("rect").data(L).join("rect").attr("x",(v,i)=>x(i)).attr("width",x.bandwidth()).attr("y",v=>y(v)).attr("height",v=>y(0)-y(v)).attr("fill",C.arc).attr("opacity",.85);
+  svg.append("g").selectAll("rect").data(X).join("rect").attr("x",(v,i)=>x(i)).attr("width",x.bandwidth()).attr("y",v=>y(v)).attr("height",v=>y(0)-y(v)).attr("fill",C.ink||"#000").attr("opacity",.45);
+  svg.append("g").selectAll("text").data(d3.range(rows.length).filter(i => rows[i][0].endsWith("-01") || rows[i][0].endsWith("-15"))).join("text")
+    .attr("class","tick").attr("x",i=>x(i)).attr("y",h-m.b+13).attr("text-anchor","middle").text(i => rows[i][0].slice(5));
+  svg.append("g").selectAll("rect").data(d3.range(rows.length)).join("rect").attr("x",i=>x(i)).attr("width",x.bandwidth()).attr("y",m.t).attr("height",h-m.b-m.t).attr("fill","transparent")
+    .append("title").text(i => `${rows[i][0]} — ${fmt(L[i])} lancés, ${fmt(X[i])} abattus`);
+  el.replaceChildren(svg.node());
 }
 
 // petits graphiques mensuels synchronisés (drones, missiles)
