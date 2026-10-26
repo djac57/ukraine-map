@@ -1,4 +1,4 @@
-LEGENDE|OK|25 cases, 31 entrées ; chaque case a son entrée en 4 langues
+LEGENDE|OK|26 cases, 32 entrées ; chaque case a son entrée en 4 langues
 check_arrows.py : VUE MESUREE|fusion ; source fusion : fusion_robuste
 RESULTAT total=3476 echecs=0 []
 SENS|flèches d’annonces : 432 ; sans sens établi (repère creux) 36 ; confirmations (en retard sur les cartes, sans direction) 71 ; sens vérifié contre le territoire basculé : 327
@@ -47,3 +47,4 @@ VUE|2024-11|OK|15 flèche(s) affichée(s) pour ~317 km en mouvement (minimum 4),
 VUE|2025-03|OK|10 flèche(s) affichée(s) pour ~287 km en mouvement (minimum 3), 0 tronçon(s) sans flèche à moins de 50 km|[[36.94,50.16,"RU",6.58],[36.34,50.23,"RU",6.51],[36.73,48.01,"RU",3.41],[37.59,49.92,"RU",3.09],[37.61,48.31,"RU",1.43],[37.06,48.27,"UA",1.37],[37.63,49.97,"UA",1.37],[37.81,49.71,"UA",1],[38.18,48.93,"UA",1],[37.8,48.35,"UA",1]]
 VUE|2025-08|OK|16 flèche(s) affichée(s) pour ~330 km en mouvement (minimum 4), 0 tronçon(s) sans flèche à moins de 50 km|[[36.75,48.15,"RU",8],[37.28,48.58,"RU",7.62],[36.43,47.93,"RU",7.22],[37.83,48.56,"RU",2.33],[37.77,49.02,"RU",2.2],[35.3,47.6,"RU",1.81],[34.92,51.14,"RU",1.73],[37.64,49.73,"RU",1.5],[37.08,50.3,"UA",1],[37.81,48.57,"RU",1],[37.14,48.39,"RU",1],[37.59,48.49,"RU",1],[37.74,48.48,"RU",1],[37.06,48.3,"RU",1],[36.8,48.15,"RU",1],[36.34,47.76,"RU",1]]
 I18N|sauté (UAF_SKIP_I18N=1 : délégué à controle-i18n.yml ; légende 4 langues déjà validée)
+RENDER|sauté (UAF_SKIP_I18N=1 : contrôle de rendu délégué à controle-i18n.yml, Playwright)
