@@ -233,7 +233,7 @@ def main():
     stats = {}
     # une source peut agréger plusieurs canaux Telegram (gsua : l'état-major ne poste plus les reprises localité
     # par localité, DeepState les annonce encore avec « звільнено »/« деокуповано »)
-    SRC_CHANNELS = {"modru": ["mod_russia"], "gsua": ["GeneralStaffZSU", "DeepStateUA"]}
+    SRC_CHANNELS = {"modru": ["mod_russia"], "gsua": ["GeneralStaffZSU", "DeepStateUA", "operativnoZSU", "Tsaplienko"]}
     for src in ("modru", "gsua"):
         rows, st = [], Counter()
         posts = []
