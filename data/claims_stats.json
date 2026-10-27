@@ -15,16 +15,18 @@
   "taux_rejet_localites": 0.479
  },
  "gsua": {
-  "mentions": 689,
-  "introuvable": 398,
-  "ambigu": 57,
-  "loin du front": 60,
-  "géocodé": 85,
-  "hors oblast cité": 84,
-  "incohérent": 2,
-  "hors Russie": 3,
-  "annonces": 84,
-  "taux_rejet": 0.877,
-  "taux_rejet_localites": 0.705
+  "mentions": 3810,
+  "introuvable": 2213,
+  "ambigu": 396,
+  "loin du front": 136,
+  "géocodé": 812,
+  "hors oblast cité": 211,
+  "incohérent": 4,
+  "hors Russie": 5,
+  "Russie : ambigu ou introuvable": 33,
+  "géocodé (Russie)": 5,
+  "annonces": 631,
+  "taux_rejet": 0.787,
+  "taux_rejet_localites": 0.479
  }
 }
