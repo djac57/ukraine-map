@@ -190,6 +190,10 @@ jobs:
         run: python scripts/build_fusion.py
         timeout-minutes: 20
         continue-on-error: true
+      - name: "Écart MoD RF / nous : localités revendiquées « prises » par le MoD mais tenues par l'UA selon notre ligne fusionnée"
+        run: python scripts/build_ecart_mod.py
+        timeout-minutes: 5
+        continue-on-error: true
       - name: "Variation des km² (estimateur débruité, erreur empirique recalculée)"
         run: python scripts/build_kmchange.py
         timeout-minutes: 5
