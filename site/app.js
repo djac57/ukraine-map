@@ -112,7 +112,7 @@ document.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked =
 document.querySelectorAll("select").forEach(sl => { sl.value = [...sl.options].find(o => o.defaultSelected)?.value ?? sl.options[0].value; sl.setAttribute("autocomplete", "off"); });
 window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
 let fmode = "equilibre", fvar = null, showStates = false;
-const rawOn = {dsm: false, isw: false, wiki: false};
+const rawOn = {dsm: false, isw: false, wiki: false, modru: false, gsua: false};
 let showClaims = false, claimHits = [];
 let showEcartMod = false, ecartHits = [];
 // nowcast (signaux de combat) : par défaut sur la vue équilibrée sans variante de sources ; « cartes seules » sinon
@@ -1285,7 +1285,7 @@ let domainPath = null, bandPath = null;
   bandPath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(mb)[0].coordinates); }
 { const m = new Float32Array(GX * GY); for (let c = 0; c < GX * GY; c++) { const k = cellPlace[c]; if (k >= 0 && pFlags[k]) m[c] = 1; }
   prePath = ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates); }
-const RAWCOL = {dsm: "#1f6fe0", isw: "#e08a00", wiki: "#8a3fd8"};
+const RAWCOL = {dsm: "#1f6fe0", isw: "#e08a00", wiki: "#8a3fd8", modru: "#d62828", gsua: "#1a9e6b"};
 const rawCache = {};
 function rawPath(src, fi){
   const key = src + fi; if (rawCache[key]) return rawCache[key];
@@ -1296,6 +1296,33 @@ function rawPath(src, fi){
   // longe jamais la frontière ni la côte (ce ne sont pas des lignes de front)
   for (let c = 0; c < GX * GY; c++) if (cellPlace[c] < 0) m[c] = nearAll[c] >= 0 ? m[nearAll[c]] : 0;
   return rawCache[key] = any ? ringsPath(d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates) : null;
+}
+// localités revendiquées par une source officielle (modru = prises russes, gsua = reprises ukr.) au plus tard au pas fi
+function claimedSet(src, fi){
+  const s = new Set(), log = (FR.claimLog && FR.claimLog[src]) || {}, D = Date.parse(FR.months[fi].date);
+  for (const kk in log) for (const e of log[kk]) { const d = e[0];
+    if (Date.parse(d.slice(0,4)+"-"+d.slice(4,6)+"-"+d.slice(6)) <= D) { s.add(+kk); break; } }
+  return s;
+}
+// tracé « zone revendiquée » MoD RF / état-major UA : socle neutre = zone russe DeepStateMap au pas fi, puis le MoD RF
+// AJOUTE ses prises annoncées (cumul, jamais de recul) et l'état-major UA RETIRE ses reprises annoncées. Même grille/contour
+// que les tracés bruts (les annonces sont indexées par localité, comme cellPlace).
+const claimZoneCache = {};
+function claimZonePath(src, fi){
+  const key = src + fi; if (claimZoneCache[key] !== undefined) return claimZoneCache[key];
+  const nd = FR.viina.indexOf("dsm"), codes = monthCodes[fi], claimed = claimedSet(src, fi);
+  const m = new Float32Array(GX * GY); let any = false;
+  for (let c = 0; c < GX * GY; c++) { const k = cellPlace[c]; if (k < 0) continue;
+    const v = codes[k] >> (2*nd) & 3, base = v === 2 ? 1 : v === 3 ? 0.5 : 0;
+    const val = src === "modru" ? Math.max(base, claimed.has(k) ? 1 : 0) : (claimed.has(k) ? 0 : base);
+    if (val > 0) { m[c] = val; any = true; } }
+  for (let c = 0; c < GX * GY; c++) if (cellPlace[c] < 0) m[c] = nearAll[c] >= 0 ? m[nearAll[c]] : 0;
+  if (!any) return claimZoneCache[key] = null;
+  // on retire les petits îlots isolés (annonces éparses loin de la ligne) pour garder un tracé lisible
+  const polys = d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates;
+  const ringArea = r => { let a = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]); return Math.abs(a / 2); };
+  const big = polys.filter(p => ringArea(p[0]) >= 12);
+  return claimZoneCache[key] = big.length ? ringsPath(big) : null;
 }
 // zones qui dépendent de la source retirée : |p(variante) − p(modèle complet, cartes seules)| > 0,1
 let diffFor = -2, diffPat = null;
@@ -1731,9 +1758,9 @@ function drawFront(k){
   if (showAsym && fi >= 0) { buildAsym(fi); if (asymPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.85; ctx.imageSmoothingEnabled = false; ctx.drawImage(asymPat, 0, 0, GX, GY); ctx.restore(); } }
   if (showDestr && fi >= 0) { buildDestr(fi); if (destrImg) { ctx.save(); ctx.clip(domainPath); ctx.imageSmoothingEnabled = false; ctx.drawImage(destrImg, 0, 0, GX, GY); ctx.restore(); } }
   if (showCombat && fi >= 0) { buildCombat(fi); if (combatPat) { ctx.save(); ctx.clip(domainPath); ctx.globalAlpha = 0.85; ctx.drawImage(combatPat, 0, 0, GX, GY); ctx.restore(); } }
-  if (fi >= 0) for (const src of ["dsm", "isw", "wiki"]) {
+  if (fi >= 0) for (const src of ["dsm", "isw", "wiki", "modru", "gsua"]) {
     if (!rawOn[src]) continue;
-    const pth = rawPath(src, fi); if (!pth) continue;
+    const pth = (src === "modru" || src === "gsua") ? claimZonePath(src, fi) : rawPath(src, fi); if (!pth) continue;
     // tracés bruts cochés : trait épais sur un liseré clair, pour ressortir sur la densité et la zone grise
     const dash = src === "isw" ? [7*u, 3*u] : src === "wiki" ? [2*u, 3*u] : [];
     ctx.save(); if (uaOnlyPath) ctx.clip(uaOnlyPath);
@@ -3153,7 +3180,11 @@ function legend(){
   if (showLoss) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("pertes russes documentées (WarSpotting), cliquer pour filtrer :")}</span>` +
     O.groups.map((g,i) => `<span class="lchip" role="button" tabindex="0" data-g="${i}" aria-pressed="${lossOn[i]}">${pictoSvg(i, C["loss-now"])}${g}</span>`).join("");
   const raws = Object.entries(rawOn).filter(([, v]) => v).map(([s]) => s);
-  if (raws.length) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("tracés bruts, au pas affiché :")}</span>` + raws.map(s => `<span><i style="border-top:3px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>${_t("tracé {s} : limite de sa zone russe (statut par localité, VIINA)", {s: s === "dsm" ? "DeepStateMap" : s === "isw" ? "ISW" : "Wikipedia"})}</span>`).join("");
+  if (raws.length) html += `<span style="flex-basis:100%;height:0"></span><span>${_t("tracés bruts, au pas affiché :")}</span>` + raws.map(s => {
+    const name = s === "dsm" ? "DeepStateMap" : s === "isw" ? "ISW" : s === "wiki" ? "Wikipedia" : s === "modru" ? _t("MoD russe") : _t("état-major ukrainien");
+    const desc = (s === "modru" || s === "gsua") ? _t("tracé {s} : zone revendiquée cumulée (annonces officielles)", {s: name}) : _t("tracé {s} : limite de sa zone russe (statut par localité, VIINA)", {s: name});
+    return `<span><i style="border-top:3px ${s === "isw" ? "dashed" : s === "wiki" ? "dotted" : "solid"} ${RAWCOL[s]};height:0;border-radius:0;vertical-align:3px"></i>${desc}</span>`;
+  }).join("");
   if (showClaims) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i><i style="background:${C.cool};border-radius:0;clip-path:polygon(0 0,100% 0,50% 100%)"></i>${_t("annonces officielles (30 jours ; pâles : 30 à 60 jours) : rouge, prise annoncée par la Russie ; bleu, reprise annoncée par l'Ukraine ; cliquer un triangle : date et confirmation par une autre carte")}</span>`;
   if (showEcartMod && window.ECART_MOD) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.uactl};border-radius:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)"></i>${_t("écart MoD RF / nous : {n} localités que le MoD RF revendique « prises » mais que notre ligne attribue encore à l'Ukraine (losange pointillé : géocodage douteux) ; soit environ {km} km² (r = 10 km, ± 2 000), un ruban le long du front ; notre instantané est mensuel (au {d}), zoomez pour le détail", {n: ECART_MOD.n_surrevendiquees_ua, km: fmt(ECART_MOD.ecart_km2_r10), d: ECART_MOD.notre_date})}</span>`;
   if (showArrows) html += `<span style="flex-basis:100%;height:0"></span><span><i style="background:${C.front};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée russe")}</span><span><i style="background:${C.uactl};height:3px;border-radius:0;vertical-align:3px"></i>${_t("avancée ukrainienne")}</span>` +

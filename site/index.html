@@ -71,6 +71,8 @@
       <div data-lyr="raw:dsm" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#1f6fe0" stroke-width="3"/></svg><span data-t="lgRawDsm">tracé DeepStateMap</span></div>
       <div data-lyr="raw:isw" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#e08a00" stroke-width="3" stroke-dasharray="5 3"/></svg><span data-t="lgRawIsw">tracé ISW</span></div>
       <div data-lyr="raw:wiki" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#8a3fd8" stroke-width="3" stroke-dasharray="1.5 2.5"/></svg><span data-t="lgRawWiki">tracé Wikipédia</span></div>
+      <div data-lyr="raw:modru" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#d62828" stroke-width="3"/></svg><span data-t="lgRawModru">tracé MoD russe (zone revendiquée)</span></div>
+      <div data-lyr="raw:gsua" hidden><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#1a9e6b" stroke-width="3"/></svg><span data-t="lgRawGsua">tracé état-major UA (zone revendiquée)</span></div>
     </details>
     <details class="lggrp" open data-grp="lgGrpMove"><summary data-t="lgGrpMove">mouvements</summary>
       <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h17" stroke="var(--front)" stroke-width="1.8"/><path d="M19 1l7 4-7 4z" fill="var(--front)"/></svg><span data-t="lgArr">qui avance (rouge : Russie, bleu : Ukraine)</span></div>
@@ -158,6 +160,8 @@
     <label class="chk"><input type="checkbox" data-raw="dsm"> DeepStateMap</label>
     <label class="chk"><input type="checkbox" data-raw="isw"> ISW</label>
     <label class="chk"><input type="checkbox" data-raw="wiki"> Wikipédia</label>
+    <label class="chk"><input type="checkbox" data-raw="modru"> <span data-t="cbRawModru">MoD russe</span></label>
+    <label class="chk"><input type="checkbox" data-raw="gsua"> <span data-t="cbRawGsua">État-major UA</span></label>
   </fieldset>
   <fieldset><legend data-t="gCtx">Contexte</legend>
     <label class="chk"><input type="checkbox" id="lyrFire"> <span data-t="cbFire">feux anormaux</span></label>
@@ -194,7 +198,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="i18n.js?v=2724d0fc7e"></script>
+<script src="i18n.js?v=0711055ccd"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="raions.js?v=fae513dbae"></script>
@@ -234,6 +238,10 @@
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
 <script src="brief.js?v=7a343f0b4d"></script>
+<<<<<<< Updated upstream
 <script src="app.js?v=d8efff5a6c"></script>
+=======
+<script src="app.js?v=59294258c8"></script>
+>>>>>>> Stashed changes
 </body>
 </html>
