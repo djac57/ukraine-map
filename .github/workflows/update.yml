@@ -243,6 +243,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { ref: "${{ github.ref_name }}" }
+      # brief « ce qui se passe au sol » : régénéré ICI pour qu'il colle TOUJOURS à la dernière frame assemblée
+      # (plus de cron séparé décalé). Playwright lit le site fraîchement committé par le job assemble.
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: "Brief quotidien (dernière frame) : Playwright + Chromium"
+        run: |
+          python -m pip install --disable-pip-version-check playwright==1.48.0
+          python -m playwright install --with-deps chromium
+          python scripts/build_brief.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}   # couche tendance best-effort ; absent → brief déterministe
+      - name: "Commit du brief s'il a changé (commit bot : ne redéclenche pas de run)"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin "${GITHUB_REF_NAME}"
+          git add site/brief.js site/index.html
+          git diff --quiet "origin/${GITHUB_REF_NAME}" -- site/brief.js site/index.html && echo "brief inchangé" \
+            || { git commit -m "Brief quotidien : détections du jour (chaîné à l'update)"; git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"; }
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }

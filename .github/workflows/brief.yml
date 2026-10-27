@@ -2,10 +2,10 @@
 # via Playwright (diagnostic __uafArrows de la carte) et écrit site/brief.js, affiché en haut de la carte.
 # Colonne vertébrale DÉTERMINISTE (fiable, gratuite) + couche TENDANCE best-effort : un appel Gemini free-tier/jour lit
 # la trajectoire mensuelle de NOS signaux et ajoute une phrase de tendance (4 langues). Sans clé/échec → brief seul.
-# Tourne APRÈS l'update du matin (données fraîches déjà commitées).
+# Le brief quotidien est désormais CHAÎNÉ à la fin de update.yml (job deploy) pour coller toujours à la dernière
+# frame assemblée — plus de cron séparé décalé. Ce workflow ne reste que pour le test manuel / au push du script.
 name: brief-quotidien
 on:
-  schedule: [{ cron: "0 6 * * *" }]   # GitHub retarde ~5 h → ~11 h UTC, après le déploiement de l'update du matin
   workflow_dispatch: {}
   push:
     branches: [main]
