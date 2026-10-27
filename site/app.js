@@ -3848,8 +3848,8 @@ legend(); full(); fillBrief();
 window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); });
 document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw(); fillBrief();
   // graphiques reconstruits : replacer la boîte orange du pas affiché ; libellés posés une fois par JS (lecture, onglet)
-  marks.forEach(f => f()); $("play").textContent = timer ? pauseLabel() : playLabel(); document.title = _t("Carte du front en Ukraine — La guerre vue du ciel"); });
-document.title = _t("Carte du front en Ukraine — La guerre vue du ciel");
+  marks.forEach(f => f()); $("play").textContent = timer ? pauseLabel() : playLabel(); document.title = _t("Où passe le front en Ukraine ? — La guerre vue du ciel"); });
+document.title = _t("Où passe le front en Ukraine ? — La guerre vue du ciel");
 let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (canvas.parentElement.clientWidth !== W) full(); }, 150); });
 document.fonts && document.fonts.ready.then(() => draw());
 // légende de la carte repliée d'office sur mobile (elle prenait la place de la carte) ; un toucher l'ouvre

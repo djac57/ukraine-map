@@ -252,7 +252,7 @@ const TX = {
   "attaques signalées, sans présence signalée": ["attacks reported, no presence reported", "повідомлено про атаки, без присутності", "отмечены атаки, без присутствия"],
   "▶ lecture": ["▶ play", "▶ відтворити", "▶ воспроизвести"],
   "La guerre vue du ciel": ["The war seen from the sky", "Війна з неба", "Война с неба"],
-  "Carte du front en Ukraine — La guerre vue du ciel": ["Ukraine front line map — The war seen from the sky", "Карта фронту в Україні — Війна з неба", "Карта фронта в Украине — Война с неба"],
+  "Où passe le front en Ukraine ? — La guerre vue du ciel": ["Where is the front line in Ukraine? — The war seen from the sky", "Де проходить лінія фронту в Україні? — Війна з неба", "Где проходит линия фронта в Украине? — Война с неба"],
   "❚❚ pause": ["❚❚ pause", "❚❚ пауза", "❚❚ пауза"],
   "gare": ["station", "вокзал", "вокзал"],
   "centrale nucléaire": ["nuclear power plant", "АЕС", "АЭС"],
