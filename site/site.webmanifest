@@ -1,0 +1,14 @@
+{
+  "name": "Carte du front en Ukraine — La guerre vue du ciel",
+  "short_name": "Front Ukraine",
+  "description": "Carte interactive du front en Ukraine : probabilité de contrôle et km² occupés, depuis février 2022.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d0c",
+  "theme_color": "#0b0d0c",
+  "icons": [
+    { "src": "icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "logo.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}
