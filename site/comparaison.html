@@ -3,14 +3,222 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Qui avait raison ? — page déplacée</title>
-<link rel="canonical" href="https://ukraine-front.pp.ua/qui-avait-raison.html">
-<meta http-equiv="refresh" content="0; url=qui-avait-raison.html">
-<meta name="robots" content="noindex, follow">
-<script>location.replace("qui-avait-raison.html" + location.hash);</script>
-<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:40rem;margin:4rem auto;padding:0 16px;line-height:1.6;color:#111}@media (prefers-color-scheme:dark){body{background:#0b0d0c;color:#e8e8e8}a{color:#8ab4ff}}</style>
+<title>Qui avait raison ? — carte du front en Ukraine</title>
+<meta name="description" content="Démonstration vérifiable, cas par cas : où notre estimation du front a vu une bascule avant le consensus des cartes (DeepStateMap, ISW), où elle s'est trompée, et à quel point elle s'écarte vraiment des cartes. Chiffres mesurés en walk-forward, ratés assumés.">
+<link rel="canonical" href="https://ukraine-front.pp.ua/comparaison.html">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0b0d0c">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="La guerre vue du ciel">
+<meta property="og:url" content="https://ukraine-front.pp.ua/comparaison.html">
+<meta property="og:title" content="Qui avait raison ? — carte du front en Ukraine">
+<meta property="og:description" content="Cas par cas : où le modèle a vu juste avant les cartes, et où il a raté. Chiffres mesurés en walk-forward, ratés assumés.">
+<meta property="og:image" content="https://ukraine-front.pp.ua/og.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ukraine-front.pp.ua/og.png">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=46ff896693">
+<style>
+/* page « qui avait raison ? » — styles propres, additifs, aucun fichier partagé touché */
+.qar h2{margin-top:52px}
+.qar .lead{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:760px;margin:0 0 14px}
+.qar .honest{border-left:3px solid var(--cool);background:var(--panel);border-radius:4px;padding:10px 14px;margin:14px 0;font-size:14px;color:var(--ink);max-width:760px}
+.qar .honest b{color:var(--ink)}
+.qar .cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin:16px 0 0}
+.qar .card{background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.qar .card h3{margin:0;font-size:16px}
+.qar .card .flag{font-family:"JetBrains Mono",monospace;font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+.qar .card .flag.ok{color:var(--ember)}
+.qar .card .flag.no{color:var(--cool)}
+.qar .card .flag.mix{color:var(--accent)}
+.qar .card p{margin:0;font-size:13.5px;color:var(--muted)}
+.qar .frise{border:1px solid var(--rule);border-radius:4px;background:var(--panel);padding:10px 6px 4px;margin:14px 0}
+.qar .frise svg{display:block;width:100%;height:auto;overflow:visible}
+.qar .frise text{font-family:"JetBrains Mono",monospace;fill:var(--muted)}
+.qar .chrono{list-style:none;margin:12px 0 0;padding:0;max-width:760px;font-size:14px}
+.qar .chrono li{display:grid;grid-template-columns:92px 14px 1fr;gap:10px;align-items:baseline;padding:5px 0;border-top:1px solid var(--rule)}
+.qar .chrono .d{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--accent);white-space:nowrap}
+.qar .chrono .dot{width:9px;height:9px;border-radius:50%;position:relative;top:3px}
+.qar .chrono .dot.us{background:var(--cool)}
+.qar .chrono .dot.map{background:var(--front)}
+.qar .chrono .dot.fus{background:var(--accent)}
+.qar .chrono b{color:var(--ink);font-weight:600}
+.qar .chrono .k{color:var(--muted)}
+.qar table.sect{width:100%;border-collapse:collapse;font-family:"JetBrains Mono",monospace;font-size:13px}
+.qar table.sect td,.qar table.sect th{padding:6px 7px;border-bottom:1px solid var(--rule);text-align:right}
+.qar table.sect th{color:var(--faint);font-weight:400;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.qar table.sect td:first-child,.qar table.sect th:first-child{text-align:left;color:var(--ink)}
+.qar table.sect .pos{color:var(--ember)}
+.qar table.sect .neg{color:var(--cool)}
+.qar .srcnote{font-size:12px;color:var(--faint);max-width:760px;margin:8px 0 0}
+.qar .srcnote code{font-family:"JetBrains Mono",monospace}
+.qar .legk{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0 0}
+.qar .legk i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+@media (max-width:560px){
+  .qar .chrono li{grid-template-columns:76px 12px 1fr;gap:8px}
+}
+</style>
+<script data-goatcounter="https://ukraine-map.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </head>
 <body>
-<p>Cette page a été déplacée vers <a href="qui-avait-raison.html">« Qui avait raison ? »</a>. Vous allez être redirigé automatiquement.</p>
+<div class="wrap qar">
+<header class="top"><span><a href="index.html" style="color:inherit">← la carte</a> · qui avait raison&nbsp;?</span><button class="btn" id="theme" type="button" aria-label="Changer de thème">◐ thème</button></header>
+
+<p class="kicker">Ukraine · front · OSINT · validation</p>
+<h1>Qui avait raison&nbsp;?</h1>
+<p class="dek">Avoir « une belle carte » ne prouve rien. Cette page tente une démonstration vérifiable&nbsp;: cas par cas, où notre estimation du front a vu une bascule <strong>avant</strong> que le consensus des cartes (DeepStateMap, ISW, Wikipédia) ne la confirme — et, à parts égales, où elle s'est trompée. Tout est mesuré en <em>walk-forward</em> (aucune information postérieure à la date jugée) et rapporté honnêtement, les ratés comme les réussites.</p>
+<p class="src">Public visé&nbsp;: les analystes OSINT qui suivent le front au jour le jour. On ne cherche pas à avoir « vu avant les humains » — des cartographes attentifs repèrent souvent une poussée très tôt. On montre autre chose&nbsp;: que la ligne publiée bouge <strong>via des signaux physiques</strong> (feux, radar, impacts Sentinel-2, Telegram agrégé) et non en recopiant DeepState, et on le prouve en chiffres. La « vérité » reste faite de cartes&nbsp;: une avance qu'aucune carte ne finit par confirmer ne compte pas ici.</p>
+
+<div class="stats">
+  <div class="stat"><b>+122&nbsp;j</b><span>avance du signal physique hors-cartes sur le cas Vivaldi, avant la bascule des cartes</span></div>
+  <div class="stat"><b>49&nbsp;%</b><span>des bascules passées vues avant le consensus des cartes (DeepStateMap&nbsp;: 41&nbsp;%)</span></div>
+  <div class="stat"><b>≈ 16&nbsp;%</b><span>part « hors-cartes » de la fusion&nbsp;: la ligne s'écarte vraiment des cartes</span></div>
+  <div class="stat"><b>≈ 6&nbsp;200&nbsp;km²</b><span>que le ministère russe revendique mais que notre ligne attribue encore à l'Ukraine</span></div>
+</div>
+
+<h2>Le cas Vivaldi — vu tôt, et entièrement hors-cartes</h2>
+<p class="lead">Contre-offensive ukrainienne au nord de Lyman, été 2026. Sur les cartes de référence, le saillant reste <strong>figé</strong> de mars au 20 septembre, puis bascule au 10 octobre. Pendant ce temps, un signal purement physique — l'asymétrie des impacts détectés par Sentinel-2, qui ne dérive d'aucune carte — monte nettement côté russe (le défenseur est frappé) bien avant.</p>
+
+<div class="frise" role="img" aria-label="Frise : le signal physique Sentinel-2 franchit son seuil le 10 juin 2026, les cartes ne basculent que le 10 octobre, soit 122 jours plus tard.">
+<svg viewBox="0 0 800 250" preserveAspectRatio="xMidYMid meet">
+  <!-- axe -->
+  <line x1="60" y1="150" x2="760" y2="150" stroke="var(--rule)" stroke-width="1.5"/>
+  <!-- ticks mois -->
+  <g font-size="11" text-anchor="middle">
+    <line x1="60"  y1="146" x2="60"  y2="154" stroke="var(--rule)"/><text x="60"  y="170">avr.</text>
+    <line x1="164" y1="146" x2="164" y2="154" stroke="var(--rule)"/><text x="164" y="170">mai</text>
+    <line x1="271" y1="146" x2="271" y2="154" stroke="var(--rule)"/><text x="271" y="170">juin</text>
+    <line x1="375" y1="146" x2="375" y2="154" stroke="var(--rule)"/><text x="375" y="170">juil.</text>
+    <line x1="483" y1="146" x2="483" y2="154" stroke="var(--rule)"/><text x="483" y="170">août</text>
+    <line x1="590" y1="146" x2="590" y2="154" stroke="var(--rule)"/><text x="590" y="170">sept.</text>
+    <line x1="694" y1="146" x2="694" y2="154" stroke="var(--rule)"/><text x="694" y="170">oct.</text>
+  </g>
+  <!-- nos signaux (au-dessus) -->
+  <g font-size="11">
+    <line x1="160" y1="150" x2="160" y2="112" stroke="var(--faint)" stroke-width="1" stroke-dasharray="3 3"/>
+    <circle cx="160" cy="112" r="5" fill="var(--faint)"/>
+    <text x="160" y="104" text-anchor="middle" fill="var(--faint)">asym. combats</text>
+    <text x="160" y="92"  text-anchor="middle" fill="var(--faint)">(indice, ~fin avr.)</text>
+
+    <line x1="268" y1="150" x2="268" y2="90" stroke="var(--accent)" stroke-width="1"/>
+    <circle cx="268" cy="90" r="5" fill="var(--accent)"/>
+    <text x="268" y="82" text-anchor="middle" fill="var(--accent)">fusion&nbsp;: reprise</text>
+    <text x="268" y="70" text-anchor="middle" fill="var(--accent)">≥ 50 km² (31/05)</text>
+
+    <line x1="303" y1="150" x2="303" y2="124" stroke="var(--cool)" stroke-width="2"/>
+    <circle cx="303" cy="124" r="6" fill="var(--cool)"/>
+    <text x="320" y="128" text-anchor="start" fill="var(--cool)">10/06&nbsp;: Sentinel-2 franchit le seuil</text>
+
+    <line x1="514" y1="150" x2="514" y2="110" stroke="var(--cool)" stroke-width="2"/>
+    <circle cx="514" cy="110" r="6" fill="var(--cool)"/>
+    <text x="514" y="102" text-anchor="middle" fill="var(--cool)">10/08&nbsp;: asymétrie</text>
+    <text x="514" y="90"  text-anchor="middle" fill="var(--cool)">russe installée</text>
+  </g>
+  <!-- cartes (en dessous) -->
+  <g font-size="11">
+    <line x1="60" y1="150" x2="656" y2="150" stroke="var(--front)" stroke-width="3" opacity="0.28"/>
+    <text x="300" y="196" text-anchor="middle" fill="var(--front)" opacity="0.8">cartes figées (saillant à 15,5 km)</text>
+    <line x1="725" y1="150" x2="725" y2="212" stroke="var(--front)" stroke-width="2"/>
+    <circle cx="725" cy="212" r="6" fill="var(--front)"/>
+    <text x="725" y="230" text-anchor="middle" fill="var(--front)">10/10&nbsp;: bascule des cartes</text>
+  </g>
+  <!-- écart +122 j -->
+  <g font-size="11">
+    <path d="M303 36 H725" stroke="var(--ink)" stroke-width="1"/>
+    <path d="M303 32 V40 M725 32 V40" stroke="var(--ink)" stroke-width="1"/>
+    <text x="514" y="28" text-anchor="middle" fill="var(--ink)" font-weight="700">+122 jours d'avance, hors-cartes</text>
+  </g>
+</svg>
+</div>
+<p class="legk"><span><i style="background:var(--cool)"></i>signal physique hors-cartes (Sentinel-2)</span><span><i style="background:var(--accent)"></i>notre fusion</span><span><i style="background:var(--front)"></i>consensus des cartes</span><span><i style="background:var(--faint)"></i>indice (donnée mensuelle, « suggéré »)</span></p>
+
+<ul class="chrono">
+  <li><span class="d">~30 avr. 2026</span><span class="dot us"></span><span><b>Indice.</b> L'asymétrie des combats s'allume côté ukrainien. <span class="k">Sur donnée mensuelle, avec un trou FIRMS en mai&nbsp;: avance « suggérée », pas robuste.</span></span></li>
+  <li><span class="d">31 mai 2026</span><span class="dot fus"></span><span><b>Notre fusion</b> voit la reprise ≥ 50 km². <span class="k">Les cartes ne l'actent qu'au 30 juin&nbsp;: +30 j.</span></span></li>
+  <li><span class="d">10 juin 2026</span><span class="dot us"></span><span><b>Premier signal robuste, hors-cartes.</b> L'asymétrie des impacts Sentinel-2 franchit son seuil. <span class="k">C'est la date qui donne les +122 j.</span></span></li>
+  <li><span class="d">10 août 2026</span><span class="dot us"></span><span><b>Asymétrie franche</b> et durable côté russe (z&nbsp;: 3,8 → 20). <span class="k">~50 à 60 j avant que la tuile ne bouge.</span></span></li>
+  <li><span class="d">20 sept. 2026</span><span class="dot map"></span><span>Les cartes <b>commencent</b> à bouger (reprise visible). <span class="k">Jusque-là, saillant figé à 15,5 km de profondeur russe.</span></span></li>
+  <li><span class="d">10 oct. 2026</span><span class="dot map"></span><span><b>Bascule du consensus</b> des cartes. <span class="k">Telegram, lui, est resté aveugle à Vivaldi&nbsp;: les deux camps y rapportaient surtout l'assaut russe.</span></span></li>
+</ul>
+<p class="srcnote">Sources&nbsp;: banc « détecteur de contre-offensives » (walk-forward strict, tronçon 15048, nord de Lyman) et banc de fusion quotidienne. L'avance de 122 j est l'écart entre le premier franchissement du signal Sentinel-2 (10/06) et le départ des cartes (10/10)&nbsp;; l'avance « robuste » (asymétrie durablement installée) est de l'ordre de 50 à 60 j. La couche texture Sentinel-2 à 10 m classe aussi les tronçons de Lyman 1ᵉ–2ᵉ sur 37 dès juin, soit ~3 mois avant la bascule de septembre.</p>
+
+<h2>L'avance, mesurée — et ses limites</h2>
+<p class="lead">Sur 3&nbsp;766 bascules de territoire appariées (2023 → 2026), on mesure, maille par maille, si notre champ a vu le changement avant le consensus des cartes. Résultat honnête&nbsp;: notre ligne anticipe <strong>49&nbsp;%</strong> des bascules, contre <strong>41&nbsp;%</strong> pour DeepStateMap — la carte la plus précoce — et <strong>30&nbsp;%</strong> pour un témoin placebo (même champ, sens tiré au hasard). L'avance moyenne sur le consensus est de <strong>+12&nbsp;j</strong>&nbsp;; sur le régime récent (2025-26), la médiane là où nous sommes devant monte à <strong>+20&nbsp;j</strong>.</p>
+
+<div class="tablewrap">
+<table class="sect">
+<thead><tr><th>Secteur</th><th>médiane vs DeepState</th><th>vs consensus</th><th>n</th></tr></thead>
+<tbody>
+<tr><td>Pokrovsk / Kourakhove</td><td class="pos">+31 j</td><td class="pos">+30 j</td><td>495</td></tr>
+<tr><td>Kostiantynivka / Toretsk</td><td>0 j</td><td class="pos">+36 j</td><td>580</td></tr>
+<tr><td>Zaporijjia (Orikhiv)</td><td>0 j</td><td class="pos">+20 j</td><td>255</td></tr>
+<tr><td>Lyman / Kreminna</td><td class="neg">−31 j</td><td class="pos">+10 j</td><td>195</td></tr>
+<tr><td>Bakhmout / Siversk</td><td class="neg">−8 j</td><td class="neg">−11 j</td><td>224</td></tr>
+<tr><td>Kherson / Dnipro</td><td class="neg">−8 j</td><td class="neg">−4 j</td><td>270</td></tr>
+<tr><td>Kharkiv nord / Vovtchansk</td><td class="neg">−41 j</td><td class="neg">−41 j</td><td>195</td></tr>
+<tr><td>Soumy / frontière nord *</td><td class="neg">−161 j</td><td class="neg">−90 j</td><td>171</td></tr>
+</tbody>
+</table>
+</div>
+<p class="srcnote">Avance médiane en jours (positif = vu avant). * Soumy&nbsp;: peu de mailles et pas de ligne intérieure stable → chiffre peu fiable, laissé par honnêteté. À Lyman, DeepState porte très tôt une avancée nord-Lyman jamais confirmée par une autre carte&nbsp;: on est « en retard » sur un appel isolé, mais devant le consensus (+10 j). Source&nbsp;: banc d'avance « qui avait raison » (<code>kpi_avance</code>, pas décadaire, champ mensuel publié).</p>
+
+<h2>Nos ratés, assumés</h2>
+<p class="lead">C'est ce qui rend le reste crédible. Le signal physique est un <strong>indice concordant, pas une flèche autonome</strong>.</p>
+<div class="cardgrid">
+  <div class="card"><span class="flag no">manqué</span><h3>Kharkiv, septembre 2022</h3><p>La percée ukrainienne n'a déclenché aucune alerte physique avant la bascule des cartes. Vue uniquement par Telegram, au moment même.</p></div>
+  <div class="card"><span class="flag no">manqué</span><h3>Robotyne, été 2023</h3><p>Aucun tronçon repéré&nbsp;: l'avancée est restée sous la résolution de la tuile de 24 km. Trop fine pour notre maille.</p></div>
+  <div class="card"><span class="flag mix">bruit</span><h3>Fausses alertes&nbsp;: 85 à 92 %</h3><p>Pris seul comme déclencheur, le détecteur physique produit ~15 alertes/mois pour une précision de 8 à 15 %&nbsp;— un signal réel (×2 le hasard), mais inexploitable comme flèche autonome.</p></div>
+  <div class="card"><span class="flag no">en retard</span><h3>Kharkiv nord, Vovtchansk</h3><p>Secteur frontalier où les cartes mènent franchement&nbsp;: −41 j partout, 17 % des bascules seulement vues avant DeepState.</p></div>
+</div>
+
+<h2>Indépendance aux cartes — honnêtement</h2>
+<p class="lead">On recopie-t-on DeepState ? Non&nbsp;: on peut le mesurer. La part « hors-cartes » (écart de notre champ fusionné aux cartes du jour) atteint <strong>14,2&nbsp;% (2025)</strong> et <strong>16,8&nbsp;% (2026)</strong> sur la vue de fusion robuste publiée. La ligne se déplace vraiment&nbsp;: elle s'écarte des cartes d'environ <strong>2,9 km</strong> en moyenne, là où la ligne « nowcast » collée aux cartes ne bouge que de 0,1 km.</p>
+<div class="honest">
+<b>La contrepartie, sans la cacher.</b> Ces 16 % mélangent deux choses&nbsp;: (a) le <em>dé-biaisage</em> des cartes (corriger leur retard connu) — ce qui n'est pas « recopier », mais reste dérivé des cartes&nbsp;; (b) la part <em>purement physique</em> (feux, pertes, Sentinel-2, Telegram), qui ne pèse que <strong>~2 à 4 points</strong>. Et sur le km près, le gain disparaît&nbsp;: sur le front calme de 2026, notre chiffre de surface sur 30 jours ne bat pas les cartes du jour, et la ligne fine n'est pas plus précise que le consensus. On devance <em>plus souvent</em> les cartes&nbsp;; on n'est pas <em>plus précis</em> qu'elles.
+</div>
+
+<h2>L'écart avec le ministère russe de la Défense</h2>
+<p class="lead">Un différenciateur mesurable&nbsp;: le MoD RF revendique le contrôle d'environ <strong>6&nbsp;200 km²</strong> (± 2&nbsp;000 selon le lissage) et de <strong>~222 localités</strong> que notre ligne fusionnée attribue encore à l'Ukraine — soit ~2,9 % de plus que ce que nous accordons déjà à la Russie. L'écart est un ruban le long du front (97 % à ≤ 30 km de notre ligne, profondeur médiane 8 km)&nbsp;: le MoD annonce la prise de villages qui sont, selon nos sources, encore contestés ou tenus par l'UA.</p>
+<div class="honest">
+<b>Prudence.</b> Notre dernier champ fusionné est mensuel (fin septembre 2026)&nbsp;; des annonces vont jusqu'au 10 octobre&nbsp;: les prises des tout derniers jours apparaissent « sur-revendiquées » en partie parce que notre instantané n'a pas encore bougé. Le sous-ensemble « annoncé depuis 2025 » (195 localités) atténue ce biais sans l'éliminer. L'idée de cette comparaison revient à l'analyste M0nstas.
+</div>
+
+<h2>Méthode et prudence</h2>
+<p class="sub"><em>Walk-forward strict</em>&nbsp;: à chaque date jugée, on n'utilise que ce que le site montrait à ce jour-là (décalage J-1, aucune information postérieure). La « bascule » d'une maille est datée au consensus de DeepStateMap, de l'ISW et de Wikipédia — et pour qu'une carte ne vote pas pour elle-même, on la juge sur les deux autres. Les signaux physiques (feux FIRMS, combats UCDP, pertes WarSpotting, impacts et texture Sentinel-2, Telegram agrégé) sont standardisés par tronçon sur le passé seulement. Trois garde-fous d'honnêteté&nbsp;: un témoin placebo (sens des écarts tiré au hasard), la reproduction des bancs publiés, et le rappel que <strong>la vérité est elle-même faite de cartes</strong> — battre le consensus, c'est devancer des cartes qui finissent par converger, pas la réalité absolue. Détail complet&nbsp;: <a href="methode.html#sources">méthode et sources</a>.</p>
+
+<footer>
+<p><a href="index.html">← la carte</a> · <a href="methode.html#sources">méthode et sources</a> · page générée le <span id="gen"></span>.</p>
+<p>Chiffres mesurés sur les bancs internes (détecteur de contre-offensives, avance sur les cartes, écart MoD RF, dépendance aux cartes), reproductibles. On met en valeur sans inventer&nbsp;: aucun chiffre de cette page n'est avancé s'il ne se vérifie pas dans les données.</p>
+</footer>
+</div>
+
+<script>
+// thème — même clé que le reste du site ("uaf-theme"), script autoportant
+(function(){
+  var root = document.documentElement;
+  try { var t = localStorage.getItem("uaf-theme"); if (t) root.dataset.theme = t; } catch(e) {}
+  var btn = document.getElementById("theme");
+  if (btn) btn.onclick = function(){
+    var dark = getComputedStyle(root).colorScheme.indexOf("dark") >= 0;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("uaf-theme", root.dataset.theme); } catch(e) {}
+  };
+  try {
+    var el = document.getElementById("gen");
+    if (el) el.textContent = new Date().toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
+  } catch(e) {}
+})();
+</script>
 </body>
 </html>
