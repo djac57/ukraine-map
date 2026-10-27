@@ -55,7 +55,7 @@ RU_REGION = [(r"курск" + r"\w*\s+(?:област|обл\.)" + r"|курсь
              (r"брянск\w*\s+(?:област|обл\.)|брянськ\w*\s+(?:област|обл\.)|брянщин", "10")]
 VERBS = {
     "modru": re.compile(r"освобож|освободил|контроль над|взят[ыо]? под контроль|взяли под контроль", re.I),
-    "gsua": re.compile(r"звільн|повернули під контроль|встановили контроль|контроль над", re.I),
+    "gsua": re.compile(r"звільн|деокуп|повернули під контроль|встановили контроль|контроль над", re.I),
 }
 NOISE = re.compile(r"полон|плен|служб|посад|звільнити небо|освободить небо|заручник|заложник", re.I)
 NEG = re.compile(r"фейк|неправда|ложь|не соответствует|не відповідає|спростов", re.I)
@@ -231,13 +231,21 @@ def main():
         return False
 
     stats = {}
-    for src, channel in (("modru", "mod_russia"), ("gsua", "GeneralStaffZSU")):
-        path = os.path.join(RAW, "claims", f"{channel}.json")
+    # une source peut agréger plusieurs canaux Telegram (gsua : l'état-major ne poste plus les reprises localité
+    # par localité, DeepState les annonce encore avec « звільнено »/« деокуповано »)
+    SRC_CHANNELS = {"modru": ["mod_russia"], "gsua": ["GeneralStaffZSU", "DeepStateUA"]}
+    for src in ("modru", "gsua"):
         rows, st = [], Counter()
-        if not os.path.exists(path):
-            print(f"{channel} : pas de données")
+        posts = []
+        for channel in SRC_CHANNELS[src]:
+            path = os.path.join(RAW, "claims", f"{channel}.json")
+            if os.path.exists(path):
+                posts += json.load(open(path))
+            else:
+                print(f"{channel} : pas de données")
+        if not posts:
             continue
-        for post in json.load(open(path)):
+        for post in posts:
             day = post["date"]
             if day < "2022-02-24" or day > limit or NEG.search(post["text"]):
                 continue

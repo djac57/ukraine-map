@@ -33,6 +33,9 @@ CHANNELS = {
     "GeneralStaffZSU": ["звільн", "контроль над", "відбили", "повернули під контроль",
                         # bilans quotidiens par direction (assauts, frappes aériennes)
                         "напрямку", "бойових зіткнень"],
+    # DeepState annonce encore les reprises ukrainiennes (« звільнено », « деокуповано ») que l'état-major
+    # ne poste plus localité par localité ; on ne retient QUE le vocabulaire sans ambiguïté côté ukrainien.
+    "DeepStateUA": ["звільн", "деокуп"],
 }
 START = "2022-02-24"
 PAUSE = 2.0
@@ -64,7 +67,7 @@ def parse(page, channel):
     return out
 
 
-LOW = {"mod_russia": 12000, "GeneralStaffZSU": 0}  # identifiants antérieurs au 24 février 2022
+LOW = {"mod_russia": 12000, "GeneralStaffZSU": 0, "DeepStateUA": 0}  # identifiants antérieurs au 24 février 2022
 WORKERS = 4
 
 
