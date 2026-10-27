@@ -1311,14 +1311,28 @@ const claimZoneCache = {};
 function claimZonePath(src, fi){
   const key = src + fi; if (claimZoneCache[key] !== undefined) return claimZoneCache[key];
   const nd = FR.viina.indexOf("dsm"), codes = monthCodes[fi], claimed = claimedSet(src, fi);
-  const m = new Float32Array(GX * GY); let any = false;
+  // socle DeepState (valeur par maille), rempli hors d'Ukraine pour que le contour ne longe ni la frontière ni la côte
+  const base = new Float32Array(GX * GY);
   for (let c = 0; c < GX * GY; c++) { const k = cellPlace[c]; if (k < 0) continue;
-    const v = codes[k] >> (2*nd) & 3, base = v === 2 ? 1 : v === 3 ? 0.5 : 0;
-    const val = src === "modru" ? Math.max(base, claimed.has(k) ? 1 : 0) : (claimed.has(k) ? 0 : base);
+    const v = codes[k] >> (2*nd) & 3; base[c] = v === 2 ? 1 : v === 3 ? 0.5 : 0; }
+  for (let c = 0; c < GX * GY; c++) if (cellPlace[c] < 0) base[c] = nearAll[c] >= 0 ? base[nearAll[c]] : 0;
+  // CONTIGUÏTÉ : un claim ne déplace la ligne que s'il est connecté à la zone du camp qui le revendique.
+  // modru part des mailles russes, gsua des mailles non russes, et avance de proche en proche DANS les mailles
+  // revendiquées. Une prise russe isolée en plein territoire UA (ex. Zaporijjia-ville) ou une reprise UA isolée
+  // en plein arrière russe (ex. Crimée) n'est jamais atteinte → ignorée (plus de poches/trous aberrants).
+  const want = src === "modru" ? 1 : 0;   // valeur de départ du camp (russe = base ≥ 0,5)
+  const seen = new Uint8Array(GX * GY), keep = new Uint8Array(GX * GY), q = [];
+  for (let c = 0; c < GX * GY; c++) if ((base[c] >= 0.5 ? 1 : 0) === want) { seen[c] = 1; q.push(c); }
+  for (let h = 0; h < q.length; h++) { const c = q[h], x = c % GX, y = (c / GX) | 0;
+    const nb = [x + 1 < GX ? c + 1 : -1, x > 0 ? c - 1 : -1, y + 1 < GY ? c + GX : -1, y > 0 ? c - GX : -1];
+    for (const d of nb) { if (d < 0 || seen[d]) continue; seen[d] = 1; const k = cellPlace[d];
+      if (k >= 0 && claimed.has(k)) { keep[d] = 1; q.push(d); } }   // claim contigu : on le retient et on continue le flood
+  }
+  const m = new Float32Array(GX * GY); let any = false;
+  for (let c = 0; c < GX * GY; c++) { const val = keep[c] ? (src === "modru" ? 1 : 0) : base[c];
     if (val > 0) { m[c] = val; any = true; } }
-  for (let c = 0; c < GX * GY; c++) if (cellPlace[c] < 0) m[c] = nearAll[c] >= 0 ? m[nearAll[c]] : 0;
   if (!any) return claimZoneCache[key] = null;
-  // on retire les petits îlots isolés (annonces éparses loin de la ligne) pour garder un tracé lisible
+  // filet final : on retire les derniers micro-îlots pour un tracé lisible
   const polys = d3.contours().size([GX, GY]).thresholds([0.5])(m)[0].coordinates;
   const ringArea = r => { let a = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]); return Math.abs(a / 2); };
   const big = polys.filter(p => ringArea(p[0]) >= 12);
