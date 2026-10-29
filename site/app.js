@@ -2959,6 +2959,7 @@ function hover(e){
       const side = _t(best.ru ? "côté russe de la ligne" : "côté ukrainien de la ligne");
       tip.innerHTML = (best.lv === 2 ? `<div>${sub}</div><div style="color:var(--faint)">${_t("observé le {d} ({s}), Sentinel-2", {d: dayName(y, m, d), s: side})}</div>`
         : `<div>${_t("cratère possible, observé le {d} ({s})", {d: dayName(y, m, d), s: side})}</div><div style="color:var(--faint)">${sub}</div>`) + copLink;
+      if (e.type === "click") { tip.classList.add("pin"); tipKey = [mx, my]; }
       tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return;
     }
