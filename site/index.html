@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Où passe le front en Ukraine ? — La guerre vue du ciel</title>
-<meta name="description" content="Carte interactive du front en Ukraine : où passe la ligne, probabilité de contrôle et km² occupés, mois par mois depuis février 2022, recoupant les sources ouvertes ukrainiennes, russes et tierces.">
+<title>Carte de la guerre en Ukraine : où passe le front (mise à jour quotidienne)</title>
+<meta name="description" content="La carte du front russo-ukrainien, mise à jour chaque jour : où passe la ligne, qui avance, quelles localités ont changé de camp. Claire et visuelle, à partir des sources ouvertes ukrainiennes, russes et tierces recoupées.">
 <link rel="canonical" href="https://ukraine-front.pp.ua/">
 <meta name="robots" content="index, follow">
 <meta name="theme-color" content="#0b0d0c">
 <!-- Open Graph / aperçu de lien (Google, Reddit, X, Facebook…) -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="La guerre vue du ciel">
+<meta property="og:site_name" content="Carte de la guerre en Ukraine">
 <meta property="og:url" content="https://ukraine-front.pp.ua/">
-<meta property="og:title" content="Où passe le front en Ukraine ?">
-<meta property="og:description" content="Notre estimation du contrôle, des combats et des poussées à venir, recoupant les sources ouvertes ukrainiennes, russes et tierces avec des signaux physiques (feux, combats, pertes, Telegram, satellites), mois par mois depuis 2022.">
+<meta property="og:title" content="Carte de la guerre en Ukraine : où passe le front">
+<meta property="og:description" content="La carte du front russo-ukrainien mise à jour chaque jour : qui avance, quelles localités ont changé de camp, à partir des sources ouvertes recoupées avec des signaux physiques (feux, combats, pertes, satellites).">
 <meta property="og:image" content="https://ukraine-front.pp.ua/og.png">
 <meta property="og:image:width" content="2400">
 <meta property="og:image:height" content="1260">
@@ -23,12 +23,13 @@
 <meta property="og:locale:alternate" content="uk_UA">
 <meta property="og:locale:alternate" content="ru_RU">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Où passe le front en Ukraine ?">
+<meta name="twitter:title" content="Carte de la guerre en Ukraine : où passe le front">
 <meta name="twitter:description" content="Probabilité de contrôle et km² occupés, mois par mois depuis 2022, à partir des sources ouvertes recoupées avec des signaux physiques.">
 <meta name="twitter:image" content="https://ukraine-front.pp.ua/og.png">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"La guerre vue du ciel","alternateName":["Carte du front en Ukraine","Où passe le front en Ukraine ?"],"url":"https://ukraine-front.pp.ua/","description":"Carte interactive du front en Ukraine à partir des sources ouvertes ukrainiennes, russes et tierces, recoupées avec des signaux physiques.","inLanguage":["fr","en","uk","ru"],"publisher":{"@type":"Organization","name":"La guerre vue du ciel","url":"https://ukraine-front.pp.ua/","logo":{"@type":"ImageObject","url":"https://ukraine-front.pp.ua/icon-512.png"}}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Carte de la guerre en Ukraine","alternateName":["La guerre vue du ciel","Où passe le front en Ukraine ?","Carte du front en Ukraine","Ukraine map"],"url":"https://ukraine-front.pp.ua/","description":"Carte interactive du front en Ukraine à partir des sources ouvertes ukrainiennes, russes et tierces, recoupées avec des signaux physiques.","inLanguage":["fr","en","uk","ru"],"publisher":{"@type":"Organization","name":"La guerre vue du ciel","url":"https://ukraine-front.pp.ua/","logo":{"@type":"ImageObject","url":"https://ukraine-front.pp.ua/icon-512.png"}}}</script>
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
@@ -87,7 +88,6 @@
       <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h15" stroke="var(--uactl)" stroke-width="2" stroke-dasharray="4 3"/><path d="M18 1l8 4-8 4z" fill="var(--bg)" stroke="var(--uactl)" stroke-width="1.4"/></svg><span data-t="lgPoss" data-tt="lgPossTip" title="">poussée ukrainienne possible ⓘ</span></div>
       <div data-lyr="lyrArrows"><svg width="30" height="10"><path d="M2 5h15" stroke="var(--front)" stroke-width="2.4"/><path d="M18 1l8 4-8 4z" fill="var(--bg)" stroke="var(--front)" stroke-width="1.4"/></svg><span data-t="lgProb" data-tt="lgProbTip" title="">poussée russe probable ⓘ</span></div>
       <div data-lyr="lyrClaims" hidden><svg width="30" height="10"><path d="M8 1l5 8H3z" fill="var(--front)"/><path d="M17 1h10l-5 8z" fill="var(--cool)"/></svg><span data-t="lgClaims" data-tt="lgClaimsTip" title="">annonces officielles (30 jours) : rouge, prise annoncée par la Russie ; bleu, reprise annoncée par l'Ukraine ⓘ</span></div>
-      <div data-lyr="lyrEcartMod" hidden><svg width="30" height="10"><path d="M9 1l4 4-4 4-4-4z" fill="var(--uactl)"/><path d="M22 1l4 4-4 4-4-4z" fill="none" stroke="var(--uactl)" stroke-width="1.2" stroke-dasharray="2 2"/></svg><span data-t="lgEcartMod" data-tt="lgEcartModTip" title="">écart MoD RF / nous : localités revendiquées « prises » par le MoD mais tenues par l'UA selon notre ligne ⓘ</span></div>
       <div data-lyr="lyrTg" hidden><svg width="30" height="10"><path d="M8 0l5 5-5 5-5-5z" fill="var(--uactl)" opacity=".85"/><path d="M22 1l4 4-4 4-4-4z" fill="none" stroke="var(--front)" stroke-width="1.4"/></svg><span data-t="lgTg" data-tt="lgTgTip" title="">Telegram (30 jours) : messages publics signalant une activité ici ; bleu, ukrainienne selon des canaux russes ; rouge, russe selon des canaux ukrainiens ⓘ</span></div>
       <div data-lyr="lyrImp" hidden><svg width="30" height="10" style="color:var(--ink)"><circle cx="5" cy="5" r="3.6" fill="var(--bg)"/><circle cx="5" cy="5" r="2.3" fill="currentColor"/><circle cx="14" cy="5" r="3.6" fill="var(--bg)"/><circle cx="14" cy="5" r="2.3" fill="currentColor"/><circle cx="23" cy="5" r="2.8" fill="var(--bg)"/><circle cx="23" cy="5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".7"/></svg><span data-t="lgImp" data-tt="lgImpTip" title="">cratères d'impacts détectés par satellite (Sentinel-2) ; au zoom, chaque détection ⓘ</span></div>
       <div data-lyr="lyrPm"><svg width="30" height="10"><defs><linearGradient id="lgpm"><stop offset="0" stop-color="#e8a200" stop-opacity=".15"/><stop offset="1" stop-color="#e8a200" stop-opacity=".9"/></linearGradient></defs><rect y="2" width="30" height="6" fill="url(#lgpm)"/></svg><span data-t="lgPm" data-tt="lgPmTip" title="">prévision 2 mois : où la ligne va bouger ⓘ</span></div>
@@ -130,7 +130,6 @@
     <label class="chk"><input type="checkbox" id="lyrCombat" autocomplete="off"> <span data-t="cbCombat">combats : intensité et combats derrière la ligne</span></label>
     <label class="chk" hidden style="display:none"><input type="checkbox" id="lyrAsym" autocomplete="off"> <span data-t="cbAsym">combats derrière la ligne</span></label>
     <label class="chk"><input type="checkbox" id="lyrClaims"> <span data-t="cbClaims">annonces officielles (30 jours)</span></label>
-    <label class="chk"><input type="checkbox" id="lyrEcartMod"> <span data-t="cbEcartMod">écart MoD RF / nous (sur-revendications)</span></label>
     <label class="chk"><input type="checkbox" id="lyrTg"> <span data-t="cbTg">signaux Telegram (30 jours)</span></label>
     <label class="chk"><input type="checkbox" id="lyrImp"> <span data-t="cbImp">impacts détectés (Sentinel-2)</span></label>
     <label class="chk"><input type="checkbox" id="lyrPm" checked> <span data-t="cbPm">prévision : où ça va bouger</span></label>
@@ -214,7 +213,6 @@
 <script src="front_contact.js?v=b7d0df68ad"></script>
 <script src="front.js?v=428ba551bf"></script>
 <script src="osint.js?v=1d7793b942"></script>
-<script src="ecart_mod.js?v=530f561d6f"></script>
 <script>
 // langue de l'interface : ?lang=xx, sinon choix mémorisé, sinon français ; chaînes dans i18n.js
 (function(){
