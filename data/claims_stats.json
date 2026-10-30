@@ -1,7 +1,7 @@
 {
  "modru": {
-  "mentions": 9014,
-  "introuvable": 3843,
+  "mentions": 9015,
+  "introuvable": 3844,
   "hors oblast cité": 977,
   "géocodé": 2640,
   "ambigu": 1263,
@@ -15,8 +15,8 @@
   "taux_rejet_localites": 0.478
  },
  "gsua": {
-  "mentions": 3810,
-  "introuvable": 2213,
+  "mentions": 3812,
+  "introuvable": 2215,
   "ambigu": 396,
   "loin du front": 136,
   "géocodé": 812,
