@@ -41,6 +41,15 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 <link rel="stylesheet" href="style.css?v=46ff896693">
 <script data-goatcounter="https://ukraine-map.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <link rel="stylesheet" href="fonts.css?v=18ad898f6f">
+<style>
+/* Pied de page unifié */
+.sitefoot{border-top:1px solid var(--rule);margin:36px 0 0;padding:22px 0 40px;text-align:center}
+.sitefoot-links{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;align-items:center;font-size:13.5px;font-weight:500}
+.sitefoot-links a{color:var(--muted);text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px;transition:color .12s,border-color .12s}
+.sitefoot-links a:hover{color:var(--accent);border-color:var(--accent)}
+.sitefoot-links .sep{color:var(--faint)}
+.sitefoot .rgpd-note{font-size:11.5px;line-height:1.55;color:var(--faint);max-width:66ch;margin:13px auto 0;padding:0 4px;opacity:1}
+</style>
 </head>
 <body class="lean">
 <div class="wrap">
@@ -201,7 +210,14 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 <div class="chart" id="dChart"></div>
 <div class="chart" id="ruChart" hidden></div>
 
-<p class="mapfoot"><a href="comparaison.html" data-t="quiLink">Qui avait raison&nbsp;?</a> · <a href="methode.html#sources" data-t="dataLink">Données, méthode et sources</a></p>
+<footer class="sitefoot">
+  <nav class="sitefoot-links">
+    <a href="comparaison.html" data-t="quiLink">Qui avait raison&nbsp;?</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a href="methode.html#sources" data-t="dataLink">Données, méthode et sources</a>
+  </nav>
+  <p class="rgpd-note" data-fr="Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie." data-en="Anonymous analytics, no cookies (GoatCounter, Plausible). Self-hosted fonts and d3 library. Map tiles from OpenStreetMap / Mapbox (your IP is sent to them to display the map). Hosted on GitHub Pages — no cookies.">Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie.</p>
+</footer>
 </div>
 
 <script src="vendor/d3.min.js"></script>
@@ -245,7 +261,6 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 <script src="troncature_fleches.js?v=204895c1e8"></script>
 <script src="brief.js?v=16b77be869"></script>
 <script src="app.js?v=f1cccd07f3"></script>
-<p class="rgpd-note" style="font:400 12px/1.5 system-ui,-apple-system,sans-serif;opacity:.55;text-align:center;max-width:72ch;margin:1.25rem auto 0;padding:0 1rem" data-fr="Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie." data-en="Anonymous analytics, no cookies (GoatCounter, Plausible). Self-hosted fonts and d3 library. Map tiles from OpenStreetMap / Mapbox (your IP is sent to them to display the map). Hosted on GitHub Pages — no cookies.">Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie.</p>
 <script id="rgpd-lang">document.querySelectorAll(".rgpd-note").forEach(function(n){try{var en=(navigator.language||navigator.userLanguage||"").slice(0,2).toLowerCase()==="en";var v=n.getAttribute(en?"data-en":"data-fr");if(v)n.textContent=v;}catch(e){}});</script>
 <script id="pwa">/* PWA : service worker (hors-ligne, réseau d'abord) + bouton « Installer l'app » */
 (function(){
