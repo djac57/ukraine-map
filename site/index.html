@@ -35,13 +35,17 @@
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="site.webmanifest">
+<script>/* PWA : capter l'invite d'installation au plus tôt (sinon ratée) */
+window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__bip=e;var b=document.getElementById("installBtn");if(b)b.hidden=false;});
+window.addEventListener("appinstalled",function(){window.__bip=null;var b=document.getElementById("installBtn");if(b)b.hidden=true;});</script>
 <link rel="stylesheet" href="style.css?v=46ff896693">
 <script data-goatcounter="https://ukraine-map.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <link rel="stylesheet" href="fonts.css?v=18ad898f6f">
 </head>
 <body class="lean">
 <div class="wrap">
-<header class="top"><span data-t="head">Ukraine · front · 2022→</span><span><span class="langs" role="group" aria-label="Langue"><button class="btn" data-l="fr" type="button" aria-pressed="true">FR</button><button class="btn" data-l="en" type="button" aria-pressed="false">EN</button><button class="btn" data-l="uk" type="button" aria-pressed="false">УКР</button><button class="btn" data-l="ru" type="button" aria-pressed="false">РУС</button></span> <button class="btn" id="theme" type="button" aria-label="Changer de thème">◐</button></span></header>
+<header class="top"><span data-t="head">Ukraine · front · 2022→</span><span><span class="langs" role="group" aria-label="Langue"><button class="btn" data-l="fr" type="button" aria-pressed="true">FR</button><button class="btn" data-l="en" type="button" aria-pressed="false">EN</button><button class="btn" data-l="uk" type="button" aria-pressed="false">УКР</button><button class="btn" data-l="ru" type="button" aria-pressed="false">РУС</button></span> <button class="btn" id="installBtn" data-t="install" type="button" hidden style="border-color:var(--accent);color:var(--accent)">⤓ Installer l'app</button> <button class="btn" id="theme" type="button" aria-label="Changer de thème">◐</button></span></header>
+<p id="installTip" class="src" data-t="installIos" hidden style="margin:8px 0 0">Sur iPhone : touchez Partager, puis « Sur l'écran d'accueil ».</p>
 
 <h1 data-t="title">Où passe le front en Ukraine ?</h1>
 <p class="purpose" data-t="purpose">Notre estimation du contrôle, des combats et des poussées à venir : les cartes ukrainiennes, russes et tierces ne sont que des témoins parmi d'autres, recoupés avec des signaux physiques (feux, combats, pertes, Telegram, satellites) et pondérés selon leur justesse passée.</p>
@@ -243,5 +247,22 @@
 <script src="app.js?v=f1cccd07f3"></script>
 <p class="rgpd-note" style="font:400 12px/1.5 system-ui,-apple-system,sans-serif;opacity:.55;text-align:center;max-width:72ch;margin:1.25rem auto 0;padding:0 1rem" data-fr="Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie." data-en="Anonymous analytics, no cookies (GoatCounter, Plausible). Self-hosted fonts and d3 library. Map tiles from OpenStreetMap / Mapbox (your IP is sent to them to display the map). Hosted on GitHub Pages — no cookies.">Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie.</p>
 <script id="rgpd-lang">document.querySelectorAll(".rgpd-note").forEach(function(n){try{var en=(navigator.language||navigator.userLanguage||"").slice(0,2).toLowerCase()==="en";var v=n.getAttribute(en?"data-en":"data-fr");if(v)n.textContent=v;}catch(e){}});</script>
+<script id="pwa">/* PWA : service worker (hors-ligne, réseau d'abord) + bouton « Installer l'app » */
+(function(){
+  if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("service-worker.js").catch(function(){}); }); }
+  var btn=document.getElementById("installBtn"), tip=document.getElementById("installTip");
+  if(!btn) return;
+  var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  var standalone=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;
+  if(standalone){ btn.hidden=true; return; }
+  btn.hidden=false;   // toujours proposé (sauf app déjà installée)
+  btn.addEventListener("click",async function(){
+    if(window.__bip){ window.__bip.prompt(); try{ await window.__bip.userChoice; }catch(e){} window.__bip=null; btn.hidden=true; if(tip)tip.hidden=true; return; }
+    if(!tip) return;
+    if(!isIOS){ var l=document.documentElement.lang||"fr", UI=(window.I18N&&(window.I18N[l]||window.I18N.fr))||{}; tip.textContent=UI.installOther||tip.textContent; }
+    else { var l2=document.documentElement.lang||"fr", UI2=(window.I18N&&(window.I18N[l2]||window.I18N.fr))||{}; tip.textContent=UI2.installIos||tip.textContent; }
+    tip.hidden=!tip.hidden;
+  });
+})();</script>
 </body>
 </html>
