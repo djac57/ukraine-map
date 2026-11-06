@@ -216,7 +216,7 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
     <span class="sep" aria-hidden="true">·</span>
     <a href="methode.html#sources" data-t="dataLink">Données, méthode et sources</a>
   </nav>
-  <p class="rgpd-note" data-fr="Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie." data-en="Anonymous analytics, no cookies (GoatCounter, Plausible). Self-hosted fonts and d3 library. Map tiles from OpenStreetMap / Mapbox (your IP is sent to them to display the map). Hosted on GitHub Pages — no cookies.">Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie.</p>
+  <p class="rgpd-note" data-t="rgpd">Analytics anonymes sans cookies (GoatCounter, Plausible). Polices et bibliothèque d3 auto-hébergées. Fonds de carte OpenStreetMap / Mapbox (votre adresse IP leur est transmise pour afficher la carte). Hébergé sur GitHub Pages — aucun cookie.</p>
 </footer>
 </div>
 
@@ -261,7 +261,6 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 <script src="troncature_fleches.js?v=204895c1e8"></script>
 <script src="brief.js?v=66601c585e"></script>
 <script src="app.js?v=f1cccd07f3"></script>
-<script id="rgpd-lang">document.querySelectorAll(".rgpd-note").forEach(function(n){try{var en=(navigator.language||navigator.userLanguage||"").slice(0,2).toLowerCase()==="en";var v=n.getAttribute(en?"data-en":"data-fr");if(v)n.textContent=v;}catch(e){}});</script>
 <script id="pwa">/* PWA : service worker (hors-ligne, réseau d'abord) + bouton « Installer l'app » */
 (function(){
   if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("service-worker.js").catch(function(){}); }); }
