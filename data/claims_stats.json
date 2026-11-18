@@ -1,16 +1,16 @@
 {
  "modru": {
-  "mentions": 9060,
+  "mentions": 9064,
   "introuvable": 3858,
-  "hors oblast cité": 982,
-  "géocodé": 2661,
+  "hors oblast cité": 983,
+  "géocodé": 2664,
   "ambigu": 1267,
   "loin du front": 168,
   "hors Russie": 27,
   "incohérent": 13,
   "Russie : ambigu ou introuvable": 84,
   "géocodé (Russie)": 56,
-  "annonces": 1614,
+  "annonces": 1615,
   "taux_rejet": 0.706,
   "taux_rejet_localites": 0.477
  },
