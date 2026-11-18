@@ -51,6 +51,33 @@ def _load_frontp(path):
     return json.loads(s[s.index("]=") + 2:].strip().rstrip(";"))
 
 
+# Secteur Soumy–Koursk (18/11/2026) : là, le front suit la frontière d'État. La limite domaine UA / hors-domaine
+# russe (cp == -2) n'est pas une ligne p = 0,5, donc le faisceau s'arrêtait vers 50,6°N. On ajoute cette frontière
+# comme ligne, UNIQUEMENT dans cette bbox (lon0, lat0, lon1, lat1) : le reste du front est inchangé.
+# Bord est à 35,6°E : s'arrête avant la frontière Kharkiv–Belgorod (déjà couverte par la ligne p = 0,5).
+BORDER_BBOX = (33.5, 50.4, 35.6, 51.6)
+_BORDER = {}
+
+
+def border_line(cp, g, X0, Y1, SIZE, PROJ4, bbox=BORDER_BBOX):
+    """Mailles UA (domaine, p < 0,5) voisines d'une maille russe hors domaine (cp == -2), dans la bbox."""
+    dom = cp >= 0
+    rus = cp == -2
+    nb = np.zeros_like(dom)
+    nb[:, :-1] |= rus[:, 1:]; nb[:, 1:] |= rus[:, :-1]; nb[:-1, :] |= rus[1:, :]; nb[1:, :] |= rus[:-1, :]
+    key = (cp.shape, bbox)
+    if key not in _BORDER:
+        from pyproj import Transformer
+        jj, ii = np.nonzero(dom & nb)
+        lon, lat = Transformer.from_crs(PROJ4, "EPSG:4326", always_xy=True).transform(
+            X0 + (ii + 0.5) * SIZE, Y1 - (jj + 0.5) * SIZE)
+        keep = (lon >= bbox[0]) & (lon <= bbox[2]) & (lat >= bbox[1]) & (lat <= bbox[3])
+        m = np.zeros_like(dom)
+        m[jj[keep], ii[keep]] = True
+        _BORDER[key] = m
+    return _BORDER[key] & (g < 0.5)
+
+
 class Front:
     """Grille, mailles du domaine et champ « equilibre » par mois (copie de sar/frontlib.py + sar/band.py)."""
 
@@ -108,7 +135,7 @@ class Front:
         line[:, 1:] |= (ru[:, 1:] & ua[:, :-1]) | (ua[:, 1:] & ru[:, :-1])
         line[:-1, :] |= (ru[:-1, :] & ua[1:, :]) | (ua[:-1, :] & ru[1:, :])
         line[1:, :] |= (ru[1:, :] & ua[:-1, :]) | (ua[1:, :] & ru[:-1, :])
-        return line
+        return line | border_line(self.cp, g, self.X0, self.Y1, self.SIZE, self.PROJ4)
 
     def fld(self, m):
         ks = [k for k in self.FM if k <= m]

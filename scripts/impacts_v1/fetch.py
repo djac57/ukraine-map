@@ -213,11 +213,18 @@ def run_tile(t, start, end):
     return f"{len(dates)} dates, {sum(det.values())} détections"
 
 
+# Secteur Soumy–Koursk (18/11/2026) : tuiles (déjà dans tiles.json) dont des mailles sont à ≤ 15 km de la frontière
+# ajoutée par band.border_line ; sans elles, l'empreinte s'arrêtait vers 50,4°N.
+SOUMY = {"t040_420", "t040_440", "t060_420", "t060_440", "t080_420", "t080_440", "t080_460", "t080_480",
+         "t100_460", "t100_480", "t120_480"}
+
+
 def main():
     shard, nsh = int(sys.argv[1]), int(sys.argv[2])
     start = sys.argv[3] if len(sys.argv) > 3 else "2024-07-01"
     end = sys.argv[4] if len(sys.argv) > 4 else "2026-10-10"
-    tiles = [t for t in json.load(open(TILES)) if any("2024-07" <= m <= "2026-09" for m in t["act15"])]
+    tiles = [t for t in json.load(open(TILES)) if any("2024-07" <= m <= "2026-09" for m in t["act15"])
+             or t["id"] in SOUMY]
     # tuiles du nord de Lyman d'abord (ordre d'origine, pour un diagnostic lisible)
     tiles.sort(key=lambda t: (abs(t["j0"] - 180) + abs(t["i0"] - 580), t["id"]))
     mine = tiles[shard::nsh]
