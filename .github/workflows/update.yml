@@ -237,6 +237,14 @@ jobs:
             echo "essai $i échoué, nouvel essai dans 15 s"; sleep 15
           done
           exit 1
+      # Sans cette étape le job restait VERT quand le contrôle bloquait la publication : la carte est restée figée du 7 au 16/11/2026 sans alerte.
+      # Le rapport est déjà commité ci-dessus et le job deploy (if: always()) redéploie quand même le dernier bon état.
+      - name: Signaler que la carte n'a pas été publiée (job en rouge = e-mail de GitHub)
+        if: steps.check.outcome != 'success'
+        run: |
+          echo "::error::Contrôle des flèches en échec ou interrompu : données du jour NON publiées (voir data/controle_fleches.txt)"
+          grep -E '\|ECHEC\||echecs=' data/controle_fleches.txt || true
+          exit 1
 
   deploy:
     needs: assemble

@@ -38,7 +38,7 @@
 <script>/* PWA : capter l'invite d'installation au plus tôt (sinon ratée) */
 window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__bip=e;var b=document.getElementById("installBtn");if(b)b.hidden=false;});
 window.addEventListener("appinstalled",function(){window.__bip=null;var b=document.getElementById("installBtn");if(b)b.hidden=true;});</script>
-<link rel="stylesheet" href="style.css?v=46ff896693">
+<link rel="stylesheet" href="style.css?v=5d068e0fa5">
 <script data-goatcounter="https://ukraine-map.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <link rel="stylesheet" href="fonts.css?v=18ad898f6f">
 <style>
@@ -60,6 +60,7 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 <p class="purpose" data-t="purpose">Notre estimation du contrôle, des combats et des poussées à venir : les cartes ukrainiennes, russes et tierces ne sont que des témoins parmi d'autres, recoupés avec des signaux physiques (feux, combats, pertes, Telegram, satellites) et pondérés selon leur justesse passée.</p>
 <p style="margin:0 0 14px"><a href="comparaison.html" style="font-weight:600;color:var(--accent);text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:1px" data-t="smartLink">une carte intelligente · qui avait raison&nbsp;?</a></p>
 
+<div id="staleNote" class="stalenote" role="status" hidden data-t="stale">Mise à jour en retard : la dernière carte publiée a plus de trois jours. Notre contrôle automatique a bloqué les suivantes.</div>
 <div id="briefBox" class="briefbox" hidden>
   <div class="briefbox-head"><span data-t="brTitle">Ce qui se passe au sol</span><span id="briefDate" class="briefbox-date"></span></div>
   <ul id="briefList"></ul>
@@ -221,7 +222,7 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 </div>
 
 <script src="vendor/d3.min.js"></script>
-<script src="i18n.js?v=b00e6e8f24"></script>
+<script src="i18n.js?v=c14be0bfbe"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="raions.js?v=fae513dbae"></script>
@@ -260,7 +261,7 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
 <script src="brief.js?v=5009295c45"></script>
-<script src="app.js?v=953825d7c6"></script>
+<script src="app.js?v=ccc217db51"></script>
 <script id="pwa">/* PWA : service worker (hors-ligne, réseau d'abord) + bouton « Installer l'app » */
 (function(){
   if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("service-worker.js").catch(function(){}); }); }
