@@ -1823,3 +1823,17 @@ Infrastructures (de loin en loin) : `python3 scripts/fetch_infra.py <brut>` puis
   rétroactives de la liste officielle) doit être restreinte ou rejouée.
 - **`grid.R`** : ne jamais nommer `R` une variable locale dans `build_front.py` (rayon terrestre).
 - **Variables numpy** dans `json.dumps` : `default=` déjà prévu.
+
+---
+## TODO — Secteur de SOUMY / frontière nord (noté le 18/11/2026)
+
+**Déclencheur** : tweet AMK Mapping (18/11, 10 h 56) — cratères de KAB profondément en oblast de Soumy tenu par la Russie, possible percée UA vers la frontière internationale. **Notre carte ne le voit pas** (vérifié sur les données du jour) :
+- la détection cratères/impacts Sentinel-2 s'arrête à **50,4°N** → le nord de Soumy (~51°N) est HORS empreinte (0 cratère) ;
+- couche cratères **mensuelle**, détections arrêtées au 24/10 → un événement de mi-novembre ne peut pas encore apparaître ;
+- P(contact) max du secteur Soumy = 6 % (2024) ; ligne gelée (cf. fusion robuste figée au 31/10).
+
+**À faire (calcul lourd, à cadrer — PAS prioritaire, prio = titistoire + généalogie)** :
+1. Étendre l'empreinte de `scripts/crateres_v2/` et `scripts/impacts_v1/` vers le nord (Soumy, abords de Koursk), jusqu'à ~51,5°N.
+2. Envisager une cadence plus rapide que mensuelle sur ce secteur chaud.
+3. Vérifier au prochain passage mensuel (≈10/12) si des cratères novembre apparaissent côté russe de Soumy = test réel du détecteur d'asymétrie (à la Vivaldi/Molin).
+- Prudence : AMK = source unique qui se couvre elle-même (« sauf panne massive de KAB ») → à recouper, ne pas recopier.
