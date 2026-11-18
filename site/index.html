@@ -38,7 +38,7 @@
 <script>/* PWA : capter l'invite d'installation au plus tôt (sinon ratée) */
 window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__bip=e;var b=document.getElementById("installBtn");if(b)b.hidden=false;});
 window.addEventListener("appinstalled",function(){window.__bip=null;var b=document.getElementById("installBtn");if(b)b.hidden=true;});</script>
-<link rel="stylesheet" href="style.css?v=5d068e0fa5">
+<link rel="stylesheet" href="style.css?v=8c0560b1d4">
 <script data-goatcounter="https://ukraine-map.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <link rel="stylesheet" href="fonts.css?v=18ad898f6f">
 <style>
@@ -57,14 +57,14 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 <p id="installTip" class="src" data-t="installIos" hidden style="margin:8px 0 0">Sur iPhone : touchez Partager, puis « Sur l'écran d'accueil ».</p>
 
 <h1 data-t="title">Où passe le front en Ukraine ?</h1>
-<p class="purpose" data-t="purpose">Notre estimation du contrôle, des combats et des poussées à venir : les cartes ukrainiennes, russes et tierces ne sont que des témoins parmi d'autres, recoupés avec des signaux physiques (feux, combats, pertes, Telegram, satellites) et pondérés selon leur justesse passée.</p>
-<p style="margin:0 0 14px"><a href="comparaison.html" style="font-weight:600;color:var(--accent);text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:1px" data-t="smartLink">une carte intelligente · qui avait raison&nbsp;?</a></p>
+<div class="purposebox" id="purposeBox"><p class="purpose" id="purposeText" data-t="purpose">Notre estimation du contrôle, des combats et des poussées à venir : les cartes ukrainiennes, russes et tierces ne sont que des témoins parmi d'autres, recoupés avec des signaux physiques (feux, combats, pertes, Telegram, satellites) et pondérés selon leur justesse passée.</p><button class="btn purpose-more" id="purposeMore" type="button" aria-expanded="false" aria-controls="purposeText" aria-label="Lire la suite">…</button></div>
+<p class="smartp" style="margin:0 0 14px"><a href="comparaison.html" style="font-weight:600;color:var(--accent);text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:1px" data-t="smartLink">une carte intelligente · qui avait raison&nbsp;?</a></p>
 
 <div id="staleNote" class="stalenote" role="status" hidden data-t="stale">Mise à jour en retard : la dernière carte publiée a plus de trois jours. Notre contrôle automatique a bloqué les suivantes.</div>
 <div id="briefBox" class="briefbox" hidden>
   <div class="briefbox-head"><span data-t="brTitle">Ce qui se passe au sol</span><span id="briefDate" class="briefbox-date"></span></div>
   <ul id="briefList"></ul>
-  <div class="briefbox-foot" data-t="brFoot">détections de notre modèle · J-1</div>
+  <div class="briefbox-foot"><span data-t="brFoot">détections de notre modèle · J-1</span><button class="brief-more" id="briefMore" type="button" aria-expanded="false" aria-controls="briefList" hidden></button></div>
 </div>
 
 <div class="mapbox">
@@ -126,6 +126,13 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
   <select id="gran" class="mini" aria-label="pas"><option value="m" data-t="grMois">Mois</option><option value="d" data-t="grJour">Jour</option></select>
   <select id="speed" class="mini" aria-label="vitesse"><option value="0.5">×0,5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option></select>
   <label class="chk" id="rawWrap" hidden style="margin:0 0 0 2px;display:none"><input type="checkbox" id="replayRaw" autocomplete="off"> <span data-t="rpRaw" data-tt="rpRawTip" title="">brut</span></label>
+</div>
+<div class="chgbar" id="chgBar">
+  <!-- « changé depuis » MASQUÉ le 18/11/2026 : le chiffre tiré du champ quotidien contredit le bandeau (source de données à trancher) ; le reste de la barre (copier le lien) reste actif -->
+  <span class="chg-lab" id="chgLab" data-t="chgLab" data-tt="chgTip" title="" hidden>changé depuis</span>
+  <span class="seg" role="group" aria-labelledby="chgLab" hidden><button class="btn" data-chg="7" type="button" aria-pressed="false" data-t="chg7">7 j</button><button class="btn" data-chg="30" type="button" aria-pressed="false" data-t="chg30">30 j</button></span>
+  <span class="chg-out" id="chgOut" role="status" hidden></span>
+  <button class="btn copylink" id="copyLink" type="button" data-t="copyLink">copier le lien</button>
 </div>
 
 <details class="panel layers" id="panel">
@@ -222,7 +229,7 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 </div>
 
 <script src="vendor/d3.min.js"></script>
-<script src="i18n.js?v=c14be0bfbe"></script>
+<script src="i18n.js?v=c905f4e60b"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="raions.js?v=fae513dbae"></script>
@@ -255,13 +262,15 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
   let l = null; try { l = localStorage.getItem("uaf-lang"); } catch(e) {}
   if (!l || !T[l]) l = nav();
   const q = new URLSearchParams(location.search).get("lang"); if (q && T[q]) l = q;
+  // lien partagé : la langue du lien (#…&lang=xx) prime
+  const hl = (location.hash.match(/(?:^#|&)lang=([a-z]{2})(?:&|$)/) || [])[1]; if (hl && T[hl]) l = hl;
   set(l);
 })();
 </script>
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
 <script src="brief.js?v=39181ea51e"></script>
-<script src="app.js?v=4a4115716a"></script>
+<script src="app.js?v=b4cd42d15d"></script>
 <script id="pwa">/* PWA : service worker (hors-ligne, réseau d'abord) + bouton « Installer l'app » */
 (function(){
   if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("service-worker.js").catch(function(){}); }); }

@@ -4,10 +4,12 @@ const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
 // paramètres du THÉÂTRE (seul endroit à changer pour un autre conflit) : date de référence de l'invasion, nom de la
 // période d'avant (ex. « avant 2022 »), découpage de la surface d'avant (champs FR.months[].a.<vue>.*), repli des erreurs
 // empiriques si site/kmchange.js manque. Les graphiques et les échelles en déduisent tout le reste.
+// views : cadrages [lon ouest, lon est, lat sud, lat nord]. « front » = vue d'ouverture et du bouton ⌂ (de Soumy et Kharkiv
+// à Zaporijjia et Kherson, Donbass compris) ; « pays » = tout le théâtre (deuxième appui sur ⌂).
 const THEATRE = Object.assign({start: "2022-02-24", preKey: "depuis2022", preParts: [["Crimée", "horsCrimee"]], preRest: "Donbass",
-  errFallback: {m1: 300, m12: 820}}, window.THEATRE || {});
+  errFallback: {m1: 300, m12: 820}, views: {front: [32.0, 40.3, 45.9, 51.4], pays: [22, 41.5, 44, 53.6]}}, window.THEATRE || {});
 const startLabel = () => new Date(THEATRE.start + "T12:00:00Z").toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
-const FRONT_V = {"advance": "e06f696201", "asym": "268f581ddd", "combat": "5e0e8b57ba", "contact": "91eac8d0df", "crat": "488888adff", "destr": "4d7e1f37c6", "equilibre": "c33474c92c", "fusion": "d6c5836e16", "fusion_hist_2022": "389de84e4a", "fusion_hist_2023": "a947c440f0", "fusion_hist_2024": "3dc31621d1", "fusion_hist_2025": "ac18527fb5", "fusion_hist_2026": "4de2ddaf14", "fusion_robuste": "ae21d62e26", "fusion_robuste_hist_2025": "77219d1e9c", "fusion_robuste_hist_2026": "3252e2a73e", "hist_2025": "3feee8f8cd", "hist_2025_equilibre": "d65ac76e91", "hist_2025_nowcast": "5763b1885f", "hist_2025_ru": "9c7674609a", "hist_2025_tiers": "1b42cf77c6", "hist_2025_ua": "b4fdd53dab", "hist_2026": "511083fa42", "hist_2026_equilibre": "b40d4effe1", "hist_2026_nowcast": "5e4bcb66f7", "hist_2026_ru": "de358638e3", "hist_2026_tiers": "c76aa67109", "hist_2026_ua": "011494be93", "imp": "7b984928a1", "kmc": "70269c4e4f", "mcsd": "4af270c6a4", "nowcast": "d45ca86404", "pmove": "ec4321eea3", "ru": "f2460a39f8", "sans_dsm": "76a101be96", "sans_enveloppes": "1cb56f58dc", "sans_gsua": "c69bae79ba", "sans_indices": "b62be0f39a", "sans_isw": "90549e8b70", "sans_medias": "870e19362c", "sans_modru": "b2e80f49ad", "sans_presence": "f5afaa4f83", "sans_wiki": "c85c210179", "sens": "8c2b2e4742", "strikes": "a2140af9a7", "tg": "8b8df323fb", "tgc": "7979a8cd49", "tiers": "6563325298", "ua": "fd99fcba4e", "zf": "a0153bbaf6", "zm": "cfe46bf16d", "zu": "a46655d485", "zw": "36f42180fc"};
+const FRONT_V = {"advance": "e06f696201", "asym": "268f581ddd", "combat": "5e0e8b57ba", "contact": "91eac8d0df", "crat": "488888adff", "destr": "4d7e1f37c6", "equilibre": "c33474c92c", "fusion": "d6c5836e16", "fusion_hist_2022": "389de84e4a", "fusion_hist_2023": "a947c440f0", "fusion_hist_2024": "3dc31621d1", "fusion_hist_2025": "ac18527fb5", "fusion_hist_2026": "4de2ddaf14", "fusion_refit_hist_2022": "b4fb041253", "fusion_refit_hist_2023": "1305e05bae", "fusion_refit_hist_2024": "c921a71697", "fusion_refit_hist_2025": "eb9f3c1ea8", "fusion_refit_hist_2026": "1638dab14b", "fusion_robuste": "ae21d62e26", "fusion_robuste_hist_2025": "77219d1e9c", "fusion_robuste_hist_2026": "3252e2a73e", "hist_2022": "27242f1d87", "hist_2022_equilibre": "50f648b2e8", "hist_2022_nowcast": "ccec91c4b7", "hist_2022_ru": "4cd31b8736", "hist_2022_tiers": "4bef611ec1", "hist_2022_ua": "e7405b00eb", "hist_2023": "61c90a6963", "hist_2023_equilibre": "20b5620fc1", "hist_2023_nowcast": "c6bdc4abe3", "hist_2023_ru": "f4faae5bda", "hist_2023_tiers": "377f4086b0", "hist_2023_ua": "c788d37e97", "hist_2024": "82518ca758", "hist_2024_equilibre": "e365702f74", "hist_2024_nowcast": "37bb227190", "hist_2024_ru": "4e52c3fc35", "hist_2024_tiers": "6589567b0d", "hist_2024_ua": "5c1ddf6ee0", "hist_2025": "3feee8f8cd", "hist_2025_equilibre": "d65ac76e91", "hist_2025_nowcast": "5763b1885f", "hist_2025_ru": "9c7674609a", "hist_2025_tiers": "1b42cf77c6", "hist_2025_ua": "b4fdd53dab", "hist_2026": "511083fa42", "hist_2026_equilibre": "b40d4effe1", "hist_2026_nowcast": "5e4bcb66f7", "hist_2026_ru": "de358638e3", "hist_2026_tiers": "c76aa67109", "hist_2026_ua": "011494be93", "imp": "7b984928a1", "kmc": "70269c4e4f", "mcsd": "4af270c6a4", "nowcast": "d45ca86404", "pmove": "ec4321eea3", "ru": "f2460a39f8", "sans_dsm": "76a101be96", "sans_enveloppes": "1cb56f58dc", "sans_gsua": "c69bae79ba", "sans_indices": "b62be0f39a", "sans_isw": "90549e8b70", "sans_medias": "870e19362c", "sans_modru": "b2e80f49ad", "sans_presence": "f5afaa4f83", "sans_wiki": "c85c210179", "sens": "8c2b2e4742", "strikes": "a2140af9a7", "tg": "8b8df323fb", "tgc": "7979a8cd49", "tiers": "6563325298", "ua": "fd99fcba4e", "zf": "a0153bbaf6", "zm": "cfe46bf16d", "zu": "a46655d485", "zw": "36f42180fc"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -89,6 +91,11 @@ let W = 0, H = 0, dpr = 1, proj, paths = {}, px, py, cellXY, cities = [], search
 let tr = d3.zoomIdentity, cur = lastIdx, mode = "pts", showFire = false, showLoss = false, showFront = true, showLines = true, showUcdp = false, showArcs = false, perim = "tout";
 // couche missiles/drones : type de frappe affiché (tout | balistique | croisière | shahed | autre) et cascade d'alertes
 let strikeType = "tout", showCascade = false;
+// « qu'est-ce qui a changé ? » : 0 (éteint), 7 ou 30 jours ; clé et résultat du dernier calcul (voir chgUpdate)
+let chgN = 0, chgKey = "", chgRes = null;
+// lien partageable (voir shareState) : actif sur la page carte seulement, une fois l'initialisation terminée
+const SHARE = !!document.getElementById("copyLink");
+let shareLive = false, shareBusy = false, shareT = null;
 const lossOn = O.groups.map(() => true);
 const cutIdx = D.months.indexOf(O.cutoff);
 if (cutIdx >= 0 && cutIdx < cur) cur = cutIdx;  // par défaut : dernier mois où toutes les couches sont publiées
@@ -2068,16 +2075,29 @@ function arcHover(mx, my){
   return _t("oblast visé : {o} · {n} frappes attribuées ce mois-ci (interception {p} %)", {o: topoC(nm), n: fmt(L), p: L ? Math.round(100*D2/L) : 0}) +
     (strikeTIdx() < 0 ? rows : (v[strikeTIdx()][0] ? `<div>${lab[strikeType]} : ${_t("{l} lancés, {d} abattus ({p} %)", {l: fmt(v[strikeTIdx()][0]), d: fmt(v[strikeTIdx()][1]), p: Math.round(100*v[strikeTIdx()][1]/Math.max(1,v[strikeTIdx()][0]))})}</div>` : ""));
 }
-// mobile : cadrage d'ouverture sur le front (est et sud, de Kharkiv à Kherson)
-const zoneM = {type:"MultiPoint", coordinates:[[32.2,46.1],[39.6,46.1],[39.6,50.5],[32.2,50.5]]};
-const zone = {type:"MultiPoint", coordinates:[[22,44],[41.5,44],[41.5,53.6],[22,53.6],[31.75,53.6],[31.75,44]]};
+// cadrages du théâtre (THEATRE.views) : coins et milieux des bords d'une boîte [lonO, lonE, latS, latN]
+const boxPts = ([w, e, s, n]) => ({type:"MultiPoint", coordinates:[[w,s],[e,s],[e,n],[w,n],[(w+e)/2,n],[(w+e)/2,s]]});
+// La PROJECTION (zoom 1) reste calée comme avant : pays entier sur ordinateur, front sur mobile (les seuils de zoom des
+// flèches et des étiquettes, et le contrôle des flèches, en dépendent). Le cadrage d'OUVERTURE est une transformation de
+// zoom par-dessus (viewT) : « front » partout ; « pays » = zoom 1 sur ordinateur, zoom < 1 sur mobile.
+const narrowMap = () => W < 560;
+// zone utile de la carte pour un cadrage : sous la date sur mobile ; à droite de la légende quand elle est ouverte
+function viewPad(name){
+  const lg = document.getElementById("mapLegend"), left = name === "front" && !narrowMap() && lg && lg.open && lg.offsetWidth && lg.offsetWidth < W * 0.4 ? lg.offsetWidth + 22 : 10;
+  return [[left, narrowMap() ? 60 : 10], [W - 10, H - 10]];
+}
+function viewT(name){
+  const b = d3.geoPath(proj).bounds(boxPts(THEATRE.views[name] || THEATRE.views.pays)), [[x0, y0], [x1, y1]] = viewPad(name);
+  const k = Math.min((x1 - x0) / (b[1][0] - b[0][0]), (y1 - y0) / (b[1][1] - b[0][1]));
+  return d3.zoomIdentity.translate((x0 + x1) / 2, (y0 + y1) / 2).scale(k).translate(-(b[0][0] + b[1][0]) / 2, -(b[0][1] + b[1][1]) / 2);
+}
 
 function layout(){
   const w = canvas.parentElement.clientWidth;
   W = w; H = Math.round(w < 560 ? w * 1.05 : Math.max(340, Math.min(w * 0.68, 720)));
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + "px";
-  proj = d3.geoAzimuthalEqualArea().rotate([-FR.grid.lon0, -FR.grid.lat0]).fitExtent([[10, W < 560 ? 60 : 10],[W-10,H-10]], W < 560 ? zoneM : zone);
+  proj = d3.geoAzimuthalEqualArea().rotate([-FR.grid.lon0, -FR.grid.lat0]).fitExtent([[10, W < 560 ? 60 : 10],[W-10,H-10]], boxPts(W < 560 ? THEATRE.views.front : THEATRE.views.pays));
   const gp = d3.geoPath(proj);
   const mk = fs => new Path2D(fs.map(f => gp(f) || "").join(""));
   paths.land = mk(G.land);
@@ -2176,6 +2196,7 @@ function drawRelief(k){
 
 function draw(){
   const k = tr.k;
+  shareSync();   // l'adresse suit ce qui est affiché (différé, sans entrée d'historique)
   let bg = null;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle = C["map-bg"]; ctx.fillRect(0,0,W,H);
@@ -2205,6 +2226,7 @@ function draw(){
   if (showImp) drawImp(k);
   if (showPm) drawPm(k);
   if (showAdv) drawAdv(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
+  if (chgN) drawChg(k);      // mailles basculées depuis 7 ou 30 jours, sur un voile qui estompe le reste
   if (showArrows) { drawArrows(k); drawEventArrows(k); }
   if (REPLAY.on && REPLAY.gran === "d" && REPLAY.evArrows) drawReplayEventArrows(k);
   if (REPLAY.on && REPLAY.gran === "d" && REPLAY.sensArrows) drawReplaySensArrows(k);
@@ -2353,10 +2375,27 @@ function drawLosses(k){
 const zoom = d3.zoom().scaleExtent([1, 14]).on("zoom", e => { tr = e.transform; draw(); });
 const sel = d3.select(canvas).call(zoom);
 // marge de déplacement même au zoom minimal (sinon, sur mobile, glisser d'un doigt ne fait rien et la carte paraît figée)
-function setExtent(){ const mx = W * 0.35, my = H * 0.35; zoom.translateExtent([[-mx, -my], [W + mx, H + my]]).extent([[0,0],[W,H]]); }
+// le zoom minimal et la zone de déplacement couvrent le cadrage « pays » (sur mobile : zoom < 1, la projection étant calée sur le front)
+function setExtent(){
+  const kmin = Math.min(1, viewT("pays").k), mx = W * 0.35 / kmin, my = H * 0.35 / kmin, b = d3.geoPath(proj).bounds(boxPts(THEATRE.views.pays));
+  zoom.scaleExtent([kmin, 14]).translateExtent([[Math.min(0, b[0][0]) - mx, Math.min(0, b[0][1]) - my], [Math.max(W, b[1][0]) + mx, Math.max(H, b[1][1]) + my]]).extent([[0,0],[W,H]]);
+}
 $("zin").onclick = () => sel.transition().duration(300).call(zoom.scaleBy, 1.8);
 $("zout").onclick = () => sel.transition().duration(300).call(zoom.scaleBy, 1/1.8);
-$("zreset").onclick = () => sel.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+// bouton ⌂ : revient au cadrage « front » ; déjà sur ce cadrage, il montre tout le pays (et inversement)
+const atView = name => { const t = viewT(name); return Math.abs(tr.k / t.k - 1) < 0.02 && Math.hypot(tr.x - t.x, tr.y - t.y) < 4; };
+function goView(name, ms){ const t = viewT(name); if (ms) sel.transition().duration(ms).call(zoom.transform, t); else sel.interrupt().call(zoom.transform, t); }
+const ICON_PAYS = '<svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 5.5v-4h4M9.5 1.5h4v4M13.5 9.5v4h-4M5.5 13.5h-4v-4"/></svg>';
+function homeLabel(){
+  const b = document.getElementById("zreset"); if (!b) return;
+  const toPays = atView("front"), lab = toPays ? _t("Voir tout le pays") : _t("Recadrer sur le front");
+  if (b.dataset.to !== (toPays ? "pays" : "front")) { b.dataset.to = toPays ? "pays" : "front"; b.innerHTML = toPays ? ICON_PAYS : "⌂"; }
+  b.setAttribute("aria-label", lab); b.title = lab;
+  if (document.getElementById("zin")) { $("zin").setAttribute("aria-label", _t("Zoomer")); $("zout").setAttribute("aria-label", _t("Dézoomer")); }
+}
+zoom.on("end.home", homeLabel);
+$("zreset").onclick = () => goView(atView("front") ? "pays" : "front", 400);
+window.__uafHome = name => { goView(name === "pays" ? "pays" : "front", 0); homeLabel(); return {k: tr.k, x: tr.x, y: tr.y}; };   // diagnostic (headless) : cadrage immédiat
 function zoomTo(lon, lat, k){
   const q = proj([lon, lat]);
   sel.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(W/2, H/2).scale(k).translate(-q[0], -q[1]));
@@ -2809,6 +2848,86 @@ function setGranMode(g){
 document.addEventListener("uaf-lang", () => { if (REPLAY.relabel) REPLAY.relabel(); });
 // ===================== fin replay quotidien =====================
 
+// ---------- « qu'est-ce qui a changé ? » (boutons 7 j / 30 j sous la carte, éteints par défaut) ----------
+// Mailles du modèle (Ukraine et bande russe frontalière) dont le contrôle le plus probable a basculé (p passe de part et
+// d'autre de 0,5) entre la date affichée et N jours avant. Deux chiffres mesurés, sans intervalle : km² passés côté
+// russe, km² passés côté ukrainien (nombre de mailles × surface d'une maille).
+// DONNÉE : le champ QUOTIDIEN de la fusion (front_fusion*_hist_<année>.js, celui du pas « Jour »), chargé à la demande au
+// premier clic, et non les instantanés du curseur : sur la vue fusion, les pas récents de 3 jours répètent le dernier
+// instantané mensuel (aucune bascule entre eux). Les deux dates sont lissées comme au pas « Jour » (moyenne glissante
+// causale de 7 jours ; champ brut si « brut » est coché). Date de fin = dernier jour de donnée ≤ date affichée ; les deux
+// dates réellement comparées sont écrites à côté des chiffres. Au-delà de CHG_TOL jours d'écart avec N, on ne compare pas.
+const chgWait = {}, CHG_TOL = {7: 2, 30: 3}, CHG_COL = {ru: [224, 20, 30], ua: [16, 104, 240]};
+function chgField(st, j, win){
+  if (win <= 1 || !st.fields[j]) return st.fields[j];
+  const n = UCELLS.length, acc = new Float32Array(n); let cnt = 0;
+  for (let k = Math.max(0, j - win + 1); k <= j; k++) { const f = st.fields[k]; if (!f) continue; for (let u = 0; u < n; u++) acc[u] += f[u]; cnt++; }
+  const q = new Uint8Array(n); for (let u = 0; u < n; u++) q[u] = Math.round(acc[u] / cnt);
+  return q;
+}
+function chgPair(){
+  const N = chgN, day = 864e5; let want, win = 7;
+  if (REPLAY.on) { if (!replayAxis()[REPLAY.idx]) return {none: 1}; want = replayUpper(REPLAY.idx); win = REPLAY.raw ? 1 : (REPLAY.gran === "d" ? 7 : 21); }
+  else { const fi = frontIdx(); if (fi < 0) return {none: 1}; want = FR.months[fi].date; }
+  // année de donnée quotidienne : chargée à la demande (même cache que le pas « Jour »), puis on redessine
+  const year = y => { const st = REPLAY.years[y]; if (st && st.state >= 2) return st; if (!chgWait[y]) { chgWait[y] = 1; replayEnsureYear(y, () => { chgWait[y] = 0; chgKey = ""; draw(); }); } return null; };
+  const s1 = year(want.slice(0, 4)); if (!s1) return {wait: 1};
+  if (s1.state !== 2 || !s1.keys.length || s1.keys[0] > want) return {none: 1};
+  const j1 = replaySnap(s1, want), d1 = s1.keys[j1], w0 = new Date(Date.parse(d1) - N * day).toISOString().slice(0, 10);
+  const s0 = year(w0.slice(0, 4)); if (!s0) return {wait: 1};
+  if (s0.state !== 2 || !s0.keys.length || s0.keys[0] > w0) return {none: 1};
+  const j0 = replaySnap(s0, w0), d0 = s0.keys[j0];
+  if (Math.abs((Date.parse(d1) - Date.parse(d0)) / day - N) > CHG_TOL[N] || !s1.fields[j1] || !s0.fields[j0]) return {none: 1};
+  return {a: () => chgField(s0, j0, win), b: () => chgField(s1, j1, win), d0, d1, src: REPLAY.src + win};   // champs construits seulement si la comparaison change
+}
+const chgDay = s => new Date(s + "T12:00:00Z").toLocaleDateString(LOC(), {day: "numeric", month: "short", timeZone: "UTC"});
+function chgUpdate(){
+  const out = document.getElementById("chgOut"); if (!out) return null;
+  if (!chgN) { if (chgKey !== "off") { chgKey = "off"; chgRes = null; out.innerHTML = ""; } return null; }
+  const P = chgPair(), lang = document.documentElement.lang || "fr";
+  if (P.wait) { chgKey = ""; chgRes = null; out.textContent = "…"; return null; }
+  const key = P.a ? [chgN, P.d0, P.d1, P.src, lang].join("|") : ["none", chgN, lang].join("|");
+  if (key === chgKey) return chgRes;
+  chgKey = key; chgRes = null;
+  if (!P.a) { out.textContent = _t("pas de donnée quotidienne pour comparer à {n} jours", {n: chgN}); return null; }
+  const ru = [], ua = [], cell = (FR.grid.size / 1000) ** 2, A = P.a(), B = P.b();
+  for (let u = 0; u < UCELLS.length; u++) { const was = A[u] >= 32, is = B[u] >= 32;   // 32/63 : premier niveau ≥ 0,5
+    if (is && !was) ru.push(UCELLS[u]); else if (was && !is) ua.push(UCELLS[u]); }
+  chgRes = {n: chgN, d0: P.d0, d1: P.d1, ru: ru.length * cell, ua: ua.length * cell, cells: {ru, ua}, img: {}};
+  const col = c => `rgb(${CHG_COL[c].join(",")})`;
+  out.innerHTML = `<span class="chg-i"><i style="background:${col("ru")}"></i>${_t("gagné par la Russie : {v} km²", {v: "<b>" + fmt(chgRes.ru) + "</b>"})}</span>`
+    + `<span class="chg-i"><i style="background:${col("ua")}"></i>${_t("repris par l'Ukraine : {v} km²", {v: "<b>" + fmt(chgRes.ua) + "</b>"})}</span>`
+    + `<span class="chg-d">${_t("du {a} au {b}", {a: chgDay(P.d0), b: chgDay(P.d1)})}</span>`;
+  return chgRes;
+}
+function drawChg(k){
+  const R = chgUpdate(); if (!R) return;
+  // en vue large une maille fait moins de 3 px : on l'épaissit (r mailles autour) pour qu'elle reste visible ; au zoom, taille réelle
+  const r = Math.max(0, Math.min(2, Math.ceil((3.2 / (gAff[2] * k) - 1) / 2)));
+  let img = R.img[r];
+  if (!img) {
+    img = R.img[r] = document.createElement("canvas"); img.width = GX; img.height = GY;
+    const c2 = img.getContext("2d"), im = c2.createImageData(GX, GY), d = im.data;
+    for (const side of ["ua", "ru"]) { const col = CHG_COL[side];
+      for (const c of R.cells[side]) { const x = c % GX, y = (c - x) / GX;
+        for (let j = Math.max(0, y - r); j <= Math.min(GY - 1, y + r); j++) for (let i = Math.max(0, x - r); i <= Math.min(GX - 1, x + r); i++) { const o = (j * GX + i) * 4; d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = 255; } } }
+    c2.putImageData(im, 0, 0);
+  }
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 0.5; ctx.fillStyle = C["map-bg"]; ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1; ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * tr.x, dpr * tr.y); ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]);
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+function setChg(n){
+  chgN = n === 7 || n === 30 ? n : 0; chgKey = "";
+  document.querySelectorAll("[data-chg]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.chg === chgN));
+  draw(); if (!chgN) chgUpdate();
+}
+document.querySelectorAll("[data-chg]").forEach(b => b.onclick = () => setChg(+b.dataset.chg === chgN ? 0 : +b.dataset.chg));
+// diagnostic (headless) : bascules mesurées (km² par sens, dates comparées) ; null si éteint ou indisponible
+window.__uafChg = n => { if (n !== undefined) setChg(n); const R = chgUpdate(); return R ? {n: R.n, d0: R.d0, d1: R.d1, ru: R.ru, ua: R.ua} : null; };
+
 function setMode(m){ mode = m; $("modePts").setAttribute("aria-pressed", m === "pts"); $("modeDen").setAttribute("aria-pressed", m === "den"); legend(); draw(); }
 $("modePts").onclick = () => setMode("pts"); $("modeDen").onclick = () => setMode("den");
 // comparaison 2021 retirée le 18/10/2026 (décision de l'utilisateur) : la normale 2012-2021 ne sert plus qu'au calcul des feux anormaux
@@ -3223,8 +3342,8 @@ function legend(){
 function updateReadout(){
   const s = D.series[cur], m = +D.months[cur].slice(5) - 1;
   let cum = 0; for (let i = 0; i <= cur; i++) cum += D.series[i][2];
-  $("mLabel").textContent = stepLabel(stepIdx);
-  $("mSub").innerHTML = layerNotes().join("<br>");
+  // au pas « Jour », la date affichée est celle du replay (replayPaint) : un chargement tardif ou un changement de langue ne l'écrase pas
+  if (!REPLAY.on) { $("mLabel").textContent = stepLabel(stepIdx); $("mSub").innerHTML = layerNotes().join("<br>"); }
   const nd = v => covered[cur] ? fmt(v) : "—";
   $("readout").innerHTML = [
     ["feux détectés ce mois-ci", nd(s[0])],
@@ -3785,7 +3904,7 @@ $("ctxs").addEventListener("click", e => {
 });
 
 // ---------- init ----------
-function full(){ layout(); setExtent(); tr = d3.zoomIdentity; sel.call(zoom.transform, d3.zoomIdentity); drawChart(); drawYearly(); drawSky(); oryxTable(); methodTables(); setStep(stepIdx); }
+function full(){ layout(); setExtent(); tr = viewT("front"); sel.call(zoom.transform, tr); homeLabel(); drawChart(); drawYearly(); drawSky(); oryxTable(); methodTables(); setStep(stepIdx); }
 $("cutoff").textContent = monthLabel(cutIdx);
 $("frontLimit").textContent = lastFront >= 0 ? dateFr(FR.months[lastFront].date) : "—";
 if (window.innerWidth < 560) $("panel").open = false;
@@ -3836,10 +3955,27 @@ function fillBrief(){
     const expl = (UI["brExpl_" + it.kind] || "") + (nums.length ? " — " + nums.join(" · ") : "");
     const trend = it.trend && (it.trend[l] || it.trend.fr);   // tendance longue (LLM, 4 langues) — « plus ample que le déterministe »
     const trendHtml = trend ? `<div class="brief-trend">📈 ${escH(trend)}</div>` : "";
-    return `<li><button type="button" class="brief-item" data-i="${i}"><span class="dot ${side}"></span><b>${escH(it.place)}</b> <span class="k">— ${escH(k)}</span><span class="brief-go">${escH(UI.brGo || "voir ↓")}</span></button><div class="brief-expl" hidden>${trendHtml}<div class="brief-sig">${escH(expl)}</div></div></li>`;
+    return `<li${i >= briefLimit() ? ' class="brief-extra"' : ""}><button type="button" class="brief-item" data-i="${i}" title="${escH(it.place + " — " + k)}"><span class="dot ${side}"></span><b>${escH(it.place)}</b> <span class="k">— ${escH(k)}</span><span class="brief-go">${escH(UI.brGo || "voir ↓")}</span></button><div class="brief-expl" hidden>${trendHtml}<div class="brief-sig">${escH(expl)}</div></div></li>`;
   }).join("");
   box.hidden = false;
+  briefMoreLabel();
 }
+// brief compact : au-delà de 2 détections sur mobile (4 sur ordinateur), le reste se déplie (« +n ▾ »)
+const briefLimit = () => (window.matchMedia && window.matchMedia("(max-width:560px)").matches ? 2 : 4);
+function briefMoreLabel(){
+  const b = document.getElementById("briefMore"); if (!b) return;
+  const n = (((window.BRIEF || {}).items || []).length || 0) - briefLimit(), open = $("briefBox").classList.contains("open");
+  b.hidden = n <= 0; b.textContent = open ? "▴" : "+" + n + " ▾";
+  b.setAttribute("aria-expanded", open); b.setAttribute("aria-label", open ? _t("Réduire") : _t("Afficher toutes les détections"));
+}
+if (document.getElementById("briefMore")) $("briefMore").onclick = () => { $("briefBox").classList.toggle("open"); briefMoreLabel(); };
+// introduction : une ligne sur mobile, « … » la déplie (le texte complet reste dans la page)
+function purposeLabel(){
+  const b = document.getElementById("purposeMore"); if (!b) return;
+  const open = $("purposeBox").classList.contains("open");
+  b.textContent = open ? "▴" : "…"; b.setAttribute("aria-expanded", open); b.setAttribute("aria-label", open ? _t("Réduire") : _t("Lire la suite"));
+}
+if (document.getElementById("purposeMore")) { $("purposeMore").onclick = () => { $("purposeBox").classList.toggle("open"); purposeLabel(); }; purposeLabel(); }
 if (document.getElementById("briefList")) $("briefList").addEventListener("click", e => {
   const btn = e.target.closest(".brief-item"); if (!btn) return;
   const it = ((window.BRIEF || {}).items || [])[+btn.dataset.i]; if (!it) return;
@@ -3848,8 +3984,93 @@ if (document.getElementById("briefList")) $("briefList").addEventListener("click
   if (it.lon != null) { zoomTo(it.lon, it.lat, 9); const m = $("map"); if (m.scrollIntoView) m.scrollIntoView({behavior: "smooth", block: "center"}); }
 });
 legend(); full(); fillBrief();
+
+// ---------- lien partageable : l'adresse (#…) garde la date, le cadrage, les calques, « changé depuis » et la langue ----------
+// #t=2026-11-08 (pas ou mois affiché ; avec g=d : pas « Jour ») &c=lon,lat&z=largeur de carte en km (cadrage, indépendant de
+// l'écran) &on=…&off=… (cases qui diffèrent de l'état par défaut) &chg=7|30 &lang=xx. Sans paramètre : comportement par
+// défaut (cadrage front, dernière date, langue du navigateur). L'adresse est réécrite par history.replaceState (aucune
+// entrée d'historique) et reste nue tant que rien n'a été changé.
+const cbKey = cb => cb.id || (cb.dataset.raw ? "raw:" + cb.dataset.raw : cb.dataset.var ? "var:" + cb.dataset.var : "");
+const shareBoxes = () => [...document.querySelectorAll('input[type="checkbox"]')].filter(cb => cbKey(cb) && !cb.closest(".controls"));
+// au pas « Jour » les calques sont neutralisés (replayToggle) : on lit l'état mis de côté, celui qui reviendra à la sortie
+function cbState(cb){
+  if (REPLAY.on && REPLAY.saved) {
+    if (cb.id && REPLAY.saved.cbs && cb.id in REPLAY.saved.cbs) return REPLAY.saved.cbs[cb.id];
+    const r = (REPLAY.saved.rawcb || []).find(x => x[0] === cb); if (r) return r[1];
+  }
+  return cb.checked;
+}
+let langExplicit = /(?:^#|&)lang=/.test(location.hash);
+document.addEventListener("uaf-lang", () => { langExplicit = true; });
+function shareState(all){
+  const p = []; let tLast = null;
+  if (REPLAY.on) { const e = replayAxis() && replayAxis()[REPLAY.idx]; if (e) p.push("t=" + e, "g=d"); if (REPLAY.raw) p.push("raw=1"); }
+  else { const a = AX[stepIdx], t = "t=" + (a.d || D.months[a.m]); if (stepIdx !== AX.length - 1) p.push(t); else tLast = t; }
+  if (!atView("front")) { const c = proj.invert([(W / 2 - tr.x) / tr.k, (H / 2 - tr.y) / tr.k]); p.push("c=" + c[0].toFixed(4) + "," + c[1].toFixed(4), "z=" + (W * kmPerPx(tr.k)).toFixed(1)); }
+  const on = [], off = [];
+  for (const cb of shareBoxes()) { const v = cbState(cb); if (v !== cb.defaultChecked) (v ? on : off).push(cbKey(cb)); }
+  if (on.length) p.push("on=" + on.join(","));
+  if (off.length) p.push("off=" + off.join(","));
+  if (chgN) p.push("chg=" + chgN);
+  // dernière date : écrite dès que le lien porte autre chose (il garde la date vue) ; sinon l'adresse reste nue
+  if (tLast && (all || p.length)) p.unshift(tLast);
+  if (all || langExplicit || p.length) p.push("lang=" + (document.documentElement.lang || "fr"));
+  return p.join("&");
+}
+function applyShare(hash){
+  const q = new URLSearchParams(String(hash || "").replace(/^#/, ""));
+  if (!["t", "c", "z", "on", "off", "chg", "g", "lang"].some(k => q.has(k))) return false;
+  shareBusy = true;
+  try {
+    const lg = q.get("lang"), lb = lg && lg !== document.documentElement.lang ? [...document.querySelectorAll("[data-l]")].find(b => b.dataset.l === lg) : null;
+    if (lb) lb.click();
+    if (REPLAY.on) setGranMode("m");   // les calques ne se règlent qu'au pas « Mois »
+    const on = new Set((q.get("on") || "").split(",")), off = new Set((q.get("off") || "").split(","));
+    for (const cb of shareBoxes()) { const k = cbKey(cb), v = on.has(k) ? true : off.has(k) ? false : cb.defaultChecked;
+      if (cb.checked !== v) { cb.checked = v; cb.dispatchEvent(new Event("change", {bubbles: true})); } }
+    const t = q.get("t") || "";
+    if (q.get("g") === "d" && /^\d{4}-\d\d-\d\d$/.test(t)) {
+      window.__uafReplayGoto(t);
+      const rc = document.getElementById("replayRaw"); if (rc && rc.checked !== (q.get("raw") === "1")) { rc.checked = !rc.checked; rc.dispatchEvent(new Event("change", {bubbles: true})); }
+    } else if (t) {   // pas exact, sinon dernier pas du même mois à cette date ou avant, sinon le mois
+      let k = AX.findIndex(a => a.d === t); if (k < 0 && t.length === 10) AX.forEach((a, i) => { if (a.d && a.d <= t && a.d.slice(0, 7) === t.slice(0, 7)) k = i; });
+      const mi = D.months.indexOf(t.slice(0, 7)); if (k >= 0) setStep(k); else if (mi >= 0) setMonth(mi); }
+    else setStep(AX.length - 1);
+    const c = (q.get("c") || "").split(",").map(Number), z = +q.get("z");
+    if (c.length === 2 && c.every(isFinite) && z > 0) {
+      const ext = zoom.scaleExtent(), k = Math.max(ext[0], Math.min(ext[1], W * (FR.grid.size / 1000) / (gAff[2] * z))), pt = proj(c);
+      sel.interrupt().call(zoom.transform, d3.zoomIdentity.translate(W / 2, H / 2).scale(k).translate(-pt[0], -pt[1]));
+    } else goView("front", 0);
+    setChg(+q.get("chg") || 0);
+  } finally { shareBusy = false; }
+  homeLabel();
+  return true;
+}
+function shareSync(){
+  if (!SHARE || !shareLive || shareBusy) return;
+  clearTimeout(shareT);
+  shareT = setTimeout(() => {
+    if (timer || REPLAY.timer) return shareSync();   // pas pendant la lecture : on attend l'arrêt
+    const h = shareState(false);
+    if (h !== location.hash.replace(/^#/, "")) try { history.replaceState(history.state, "", location.pathname + location.search + (h ? "#" + h : "")); } catch(e) {}
+  }, 300);
+}
+if (SHARE) {
+  applyShare(location.hash);
+  shareLive = true;
+  window.addEventListener("hashchange", () => applyShare(location.hash));
+  zoom.on("end.share", shareSync);
+  const btn = $("copyLink"), label = () => { const l = document.documentElement.lang || "fr"; return ((window.I18N && (window.I18N[l] || window.I18N.fr)) || {}).copyLink || btn.textContent; };
+  btn.onclick = () => {
+    const url = location.origin + location.pathname + location.search + "#" + shareState(true);
+    const done = ok => { if (!ok) { window.prompt(label(), url); return; } btn.textContent = _t("lien copié"); setTimeout(() => { btn.textContent = label(); }, 1600); };
+    const legacy = () => { try { const ta = document.createElement("textarea"); ta.value = url; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;top:0;left:0;opacity:0"; document.body.appendChild(ta); ta.select(); const ok = document.execCommand("copy"); ta.remove(); done(ok); } catch(e) { done(false); } };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => done(true), legacy); else legacy();
+  };
+  window.__uafShare = () => shareState(true);   // diagnostic (headless) : lien complet de la vue affichée
+}
 window.addEventListener("load", () => { if (showBase) setTimeout(loadBasemap, 300); if (showArrows) loadMcsd(() => { arrowCache = {}; draw(); }); });
-document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw(); fillBrief();
+document.addEventListener("uaf-lang", () => { updateArea(); setStep(stepIdx); legend(); drawAreaChart(); draw(); fillBrief(); homeLabel(); purposeLabel();
   // graphiques reconstruits : replacer la boîte orange du pas affiché ; libellés posés une fois par JS (lecture, onglet)
   marks.forEach(f => f()); $("play").textContent = timer ? pauseLabel() : playLabel(); document.title = _t("Où passe le front en Ukraine ? — La guerre vue du ciel"); });
 document.title = _t("Où passe le front en Ukraine ? — La guerre vue du ciel");

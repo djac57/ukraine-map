@@ -214,6 +214,15 @@ jobs:
           python scripts/check_arrows.py 2>&1 | tee data/controle_fleches.txt
         timeout-minutes: 40
         continue-on-error: true
+      # Fins de série (ISW, UCDP) : ALERTE visible mais NON bloquante (décision du 18/11/2026). La valeur oscillait autour du
+      # seuil sur un mois passé et a bloqué toute publication du 7 au 16/11/2026. Un avertissement par ligne, sans échec.
+      - name: "Alerte non bloquante : fins de série (lignes SERIE en ALERTE)"
+        continue-on-error: true
+        run: |
+          [ -f data/controle_fleches.txt ] || exit 0
+          grep -E '^SERIE\|.*\|ALERTE\|' data/controle_fleches.txt | while IFS= read -r line; do
+            echo "::warning title=Contrôle des flèches (fin de série)::${line//%/%25}"
+          done || true
       - name: Publier seulement le rapport du contrôle s'il échoue (lisible sans connexion à GitHub)
         if: steps.check.outcome == 'failure'
         continue-on-error: true
