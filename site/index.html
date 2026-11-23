@@ -102,6 +102,9 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
       <div data-lyr="lyrClaims" hidden><svg width="30" height="10"><path d="M8 1l5 8H3z" fill="var(--front)"/><path d="M17 1h10l-5 8z" fill="var(--cool)"/></svg><span data-t="lgClaims" data-tt="lgClaimsTip" title="">annonces officielles (30 jours) : rouge, prise annoncée par la Russie ; bleu, reprise annoncée par l'Ukraine ⓘ</span></div>
       <div data-lyr="lyrTg" hidden><svg width="30" height="10"><path d="M8 0l5 5-5 5-5-5z" fill="var(--uactl)" opacity=".85"/><path d="M22 1l4 4-4 4-4-4z" fill="none" stroke="var(--front)" stroke-width="1.4"/></svg><span data-t="lgTg" data-tt="lgTgTip" title="">Telegram (30 jours) : messages publics signalant une activité ici ; bleu, ukrainienne selon des canaux russes ; rouge, russe selon des canaux ukrainiens ⓘ</span></div>
       <div data-lyr="lyrImp" hidden><svg width="30" height="10" style="color:var(--ink)"><circle cx="5" cy="5" r="3.6" fill="var(--bg)"/><circle cx="5" cy="5" r="2.3" fill="currentColor"/><circle cx="14" cy="5" r="3.6" fill="var(--bg)"/><circle cx="14" cy="5" r="2.3" fill="currentColor"/><circle cx="23" cy="5" r="2.8" fill="var(--bg)"/><circle cx="23" cy="5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".7"/></svg><span data-t="lgImp" data-tt="lgImpTip" title="">cratères d'impacts détectés par satellite (Sentinel-2) ; au zoom, chaque détection ⓘ</span></div>
+      <div data-lyr="lyrFort" hidden><svg width="30" height="10" style="color:#1d6b34"><line x1="0" y1="3" x2="13" y2="3" stroke="currentColor" stroke-width="1.6"/><line x1="17" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="0 4"/><line x1="0" y1="8" x2="30" y2="8" stroke="currentColor" stroke-width=".8" stroke-dasharray="3 2.5" opacity=".6"/></svg><span data-t="lgFort" data-tt="lgFortTip" title="">fossés antichars, dents de dragon, barbelés ⓘ</span></div>
+      <div data-lyr="lyrFort" hidden><svg width="30" height="10"></svg><span><span data-t="lgFortBy">tracés</span> <a href="https://x.com/Playfra0" target="_blank" rel="noopener">@Playfra0</a> · <a href="https://t.me/PlayfraOSINT" target="_blank" rel="noopener">Telegram</a></span></div>
+      <div data-lyr="lyrFortDet" hidden><svg width="30" height="10"><path d="M7 1 L11 5 L7 9 L3 5 Z" fill="#1d6b34"/><path d="M22 1.5 L25.5 5 L22 8.5 L18.5 5 Z" fill="none" stroke="#1d6b34" stroke-width="1.4"/></svg><span data-t="lgFortDet" data-tt="lgFortDetTip" title="">plein : fossé daté ; creux : nouvelle ligne à vérifier ⓘ</span></div>
       <div data-lyr="lyrPm"><svg width="30" height="10"><defs><linearGradient id="lgpm"><stop offset="0" stop-color="#e8a200" stop-opacity=".15"/><stop offset="1" stop-color="#e8a200" stop-opacity=".9"/></linearGradient></defs><rect y="2" width="30" height="6" fill="url(#lgpm)"/></svg><span data-t="lgPm" data-tt="lgPmTip" title="">prévision 2 mois : où la ligne va bouger ⓘ</span></div>
     </details>
     <details class="lggrp" open data-grp="lgGrpCombat"><summary data-t="lgGrpCombat">combats</summary>
@@ -151,6 +154,8 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
     <label class="chk"><input type="checkbox" id="lyrClaims"> <span data-t="cbClaims">annonces officielles (30 jours)</span></label>
     <label class="chk"><input type="checkbox" id="lyrTg"> <span data-t="cbTg">signaux Telegram (30 jours)</span></label>
     <label class="chk"><input type="checkbox" id="lyrImp"> <span data-t="cbImp">impacts détectés (Sentinel-2)</span></label>
+    <label class="chk"><input type="checkbox" id="lyrFort"> <span data-t="cbFort">fortifications (@Playfra)</span></label>
+    <label class="chk"><input type="checkbox" id="lyrFortDet"> <span data-t="cbFortDet">fortifications datées / détectées (Sentinel-2)</span></label>
     <label class="chk"><input type="checkbox" id="lyrPm" checked> <span data-t="cbPm">prévision : où ça va bouger</span></label>
     <div class="seg" role="group" aria-label="Vue" hidden style="display:none"><button class="btn" data-mode="equilibre" type="button" aria-pressed="true" data-t="mEq">équilibrée</button><button class="btn" data-mode="ua" type="button" aria-pressed="false">UA</button><button class="btn" data-mode="ru" type="button" aria-pressed="false">RU</button><button class="btn" data-mode="tiers" type="button" aria-pressed="false" data-t="mTiers">tiers</button></div>
   </fieldset>
@@ -229,7 +234,7 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 </div>
 
 <script src="vendor/d3.min.js"></script>
-<script src="i18n.js?v=c905f4e60b"></script>
+<script src="i18n.js?v=bcdb8be06e"></script>
 <script src="toponyms.js?v=bb5a01f8e9"></script>
 <script src="geo.js?v=f4660667fd"></script>
 <script src="raions.js?v=fae513dbae"></script>
@@ -269,8 +274,8 @@ window.addEventListener("appinstalled",function(){window.__bip=null;var b=docume
 </script>
 <script src="barrieres_dures.js?v=661d7567b4"></script>
 <script src="troncature_fleches.js?v=204895c1e8"></script>
-<script src="brief.js?v=314f0ae900"></script>
-<script src="app.js?v=b467ed10fc"></script>
+<script src="brief.js?v=09d503a964"></script>
+<script src="app.js?v=6796bc2dcb"></script>
 <script id="pwa">/* PWA : service worker (hors-ligne, réseau d'abord) + bouton « Installer l'app » */
 (function(){
   if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("service-worker.js").catch(function(){}); }); }

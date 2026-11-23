@@ -319,6 +319,29 @@ probabilité de contrôle russe** partout (bande russe comprise) ; les distances
   mêmes lignes à chaque étape, `FRONT.pmove.steps`) : **AUC 0,804 → 0,822** (sans février-avril 2022) **→ 0,839**
   (+ liste) **→ 0,842** (+ Ookla, publié). Ookla seul sur la fenêtre : 0,828 ; liste + Ookla en gardant 2022 : 0,836.
 
+### 3.12 bis Fortifications (24/11/2026)
+- **Source** : tracés de **Playfra** (X @Playfra0, Telegram t.me/PlayfraOSINT, dépôt github.com/playframap/playframap.github.io) :
+  fossés antichars, dents de dragon, barbelés, **des deux camps**, **non datés**. Accord écrit (message privé X, 22-23/11/2026) :
+  GeoJSON réutilisable, crédit = lien X et/ou Telegram. Capture de l'accord à garder.
+- `scripts/build_fortifs.py` : téléchargement, Douglas-Peucker 15 m, coordonnées 1e-5° en différences → `site/fortifs_playfra.js`
+  (1,7 Mo, chargé à la demande) + `data/fortifs_playfra.json`. Workflow **`fortifs.yml`** le lundi 4 h 30 UTC (garde-fou : recul
+  > 20 % d'un type ⇒ version publiée gardée). 23/11 : 23 624 fossés (13 059 km), 10 986 lignes de dents (3 782 km), 14 807 barbelés (13 432 km).
+- **Calque « fortifications (@Playfra) »** (`drawFort`, décoché) : vert militaire #1d6b34 (couleur libre : routes brun, UCDP violet,
+  missiles bleu-vert), fossés trait plein + halo, dents en points, barbelés tireté ; vue d'ensemble (> 1,2 km/px) : fossés et dents
+  seulement, pâles. Montré quel que soit le pas (non daté), neutralisé pendant le replay. Crédit dans la légende (liens) et sur
+  methode.html#sources.
+- **Calque « fortifications datées / détectées (Sentinel-2) »** (`drawFortDet`, décoché) : `site/fortifs_detect.js` + `site/fortifs_det/*.jpg`
+  (297 vignettes avant | après, 6,8 Mo) écrits HORS dépôt par `ukraine-recherche/terrain/fortifs/playfra/publish_detect.py` :
+  258 groupes de fossés Playfra **datés** (saison d'apparition, dating2) et 39 **candidats** du détecteur v4 hors Playfra (≥ 250 m,
+  non vérifiés ; sur un contrôle visuel de 2 candidats : 1 vrai, 1 douteux). 18 fenêtres tests seulement (pas de couverture du front entier) ;
+  pas d'automatisation pour l'instant (composites lourds : 1,4 Go pour 18 fenêtres).
+- **P(mouvement)** : variable `fortifs` (sectors.fortifs : km de fossés + dents par maille, échantillon 100 m ; dans pmove : km par km de
+  front à ≤ 10 km de la ligne, côté ukrainien et côté russe, log1p). Objets non datés ⇒ validation optimiste avant 2025 ; build_front
+  compare AUC 2023+ et AUC 2025-07+ avec / sans et **ne publie la variable que si aucune des deux ne baisse** (`FRONT.pmove.fort`,
+  ligne ajoutée dans `steps`). Test local impossible sous Windows (fork) : premier verdict au prochain passage CI.
+- Étude du frein (ukraine-recherche/terrain/fortifs/playfra/RESULTATS.md, étape 4b) : temps de traversée médian 2,5 mois avec fossé
+  daté contre 1,0 sans (p = 0,014, optimiste).
+
 ### 3.13 Validation
 - Walk-forward : chaque paramètre appris au mois t n'utilise que des mois dont la vérité était connue à t.
 - Brier (nowcast) sur la bande de 30 km et sur les mailles qui changent de camp ; AUC globale et « à distance égale »

@@ -9,7 +9,7 @@ const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
 const THEATRE = Object.assign({start: "2022-02-24", preKey: "depuis2022", preParts: [["Crimée", "horsCrimee"]], preRest: "Donbass",
   errFallback: {m1: 300, m12: 820}, views: {front: [32.0, 40.3, 45.9, 51.4], pays: [22, 41.5, 44, 53.6]}}, window.THEATRE || {});
 const startLabel = () => new Date(THEATRE.start + "T12:00:00Z").toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
-const FRONT_V = {"advance": "f7a865edbe", "asym": "060d2b915c", "combat": "026f155293", "contact": "65389cd341", "crat": "488888adff", "destr": "29c151deed", "equilibre": "aeb9ca9d63", "fusion": "e080a4d9f8", "fusion_hist_2022": "389de84e4a", "fusion_hist_2023": "a947c440f0", "fusion_hist_2024": "3dc31621d1", "fusion_hist_2025": "ac18527fb5", "fusion_hist_2026": "4de2ddaf14", "fusion_refit_hist_2022": "b4fb041253", "fusion_refit_hist_2023": "1305e05bae", "fusion_refit_hist_2024": "c921a71697", "fusion_refit_hist_2025": "eb9f3c1ea8", "fusion_refit_hist_2026": "1638dab14b", "fusion_robuste": "177d71b124", "fusion_robuste_hist_2025": "095793d055", "fusion_robuste_hist_2026": "372e1025f9", "hist_2022": "27242f1d87", "hist_2022_equilibre": "50f648b2e8", "hist_2022_nowcast": "ccec91c4b7", "hist_2022_ru": "4cd31b8736", "hist_2022_tiers": "4bef611ec1", "hist_2022_ua": "e7405b00eb", "hist_2023": "61c90a6963", "hist_2023_equilibre": "20b5620fc1", "hist_2023_nowcast": "c6bdc4abe3", "hist_2023_ru": "f4faae5bda", "hist_2023_tiers": "377f4086b0", "hist_2023_ua": "c788d37e97", "hist_2024": "82518ca758", "hist_2024_equilibre": "e365702f74", "hist_2024_nowcast": "37bb227190", "hist_2024_ru": "4e52c3fc35", "hist_2024_tiers": "6589567b0d", "hist_2024_ua": "5c1ddf6ee0", "hist_2025": "3feee8f8cd", "hist_2025_equilibre": "d65ac76e91", "hist_2025_nowcast": "5763b1885f", "hist_2025_ru": "9c7674609a", "hist_2025_tiers": "1b42cf77c6", "hist_2025_ua": "b4fdd53dab", "hist_2026": "636662526c", "hist_2026_equilibre": "c1b053e6fb", "hist_2026_nowcast": "fd2a8f42dc", "hist_2026_ru": "528bc2deaa", "hist_2026_tiers": "b04500900d", "hist_2026_ua": "13b70f49d8", "imp": "7b984928a1", "kmc": "0179056218", "mcsd": "e5ee1f5df6", "nowcast": "15dbaf3196", "pmove": "8057bea9b6", "ru": "b86690d6b6", "sans_dsm": "46901d5a53", "sans_enveloppes": "d6ac3444c4", "sans_gsua": "e1f64cb45f", "sans_indices": "9145a1eca9", "sans_isw": "ee775581b2", "sans_medias": "635ce65a8e", "sans_modru": "6f9cbc1737", "sans_presence": "f365b13159", "sans_wiki": "a02ccd9601", "sens": "6edb693a64", "strikes": "7a9a67fa42", "tg": "7737567107", "tgc": "61f9e08d87", "tiers": "472786e0e6", "ua": "5f72d9115a", "zf": "55e327b738", "zm": "365ab47016", "zu": "68c7975b3c", "zw": "7e85bd1fb3"};
+const FRONT_V = {"advance": "c3786fa833", "asym": "060d2b915c", "combat": "026f155293", "contact": "65389cd341", "crat": "488888adff", "destr": "29c151deed", "equilibre": "aeb9ca9d63", "fdet": "9a57911ae9", "fort": "17c1098fa7", "fusion": "570a93449a", "fusion_hist_2022": "389de84e4a", "fusion_hist_2023": "a947c440f0", "fusion_hist_2024": "3dc31621d1", "fusion_hist_2025": "ac18527fb5", "fusion_hist_2026": "4de2ddaf14", "fusion_refit_hist_2022": "b4fb041253", "fusion_refit_hist_2023": "1305e05bae", "fusion_refit_hist_2024": "c921a71697", "fusion_refit_hist_2025": "eb9f3c1ea8", "fusion_refit_hist_2026": "1638dab14b", "fusion_robuste": "5bfd0fb7e8", "fusion_robuste_hist_2025": "cb6a8eb7ef", "fusion_robuste_hist_2026": "32c975ea03", "hist_2022": "27242f1d87", "hist_2022_equilibre": "50f648b2e8", "hist_2022_nowcast": "ccec91c4b7", "hist_2022_ru": "4cd31b8736", "hist_2022_tiers": "4bef611ec1", "hist_2022_ua": "e7405b00eb", "hist_2023": "61c90a6963", "hist_2023_equilibre": "20b5620fc1", "hist_2023_nowcast": "c6bdc4abe3", "hist_2023_ru": "f4faae5bda", "hist_2023_tiers": "377f4086b0", "hist_2023_ua": "c788d37e97", "hist_2024": "82518ca758", "hist_2024_equilibre": "e365702f74", "hist_2024_nowcast": "37bb227190", "hist_2024_ru": "4e52c3fc35", "hist_2024_tiers": "6589567b0d", "hist_2024_ua": "5c1ddf6ee0", "hist_2025": "3feee8f8cd", "hist_2025_equilibre": "d65ac76e91", "hist_2025_nowcast": "5763b1885f", "hist_2025_ru": "9c7674609a", "hist_2025_tiers": "1b42cf77c6", "hist_2025_ua": "b4fdd53dab", "hist_2026": "636662526c", "hist_2026_equilibre": "c1b053e6fb", "hist_2026_nowcast": "fd2a8f42dc", "hist_2026_ru": "528bc2deaa", "hist_2026_tiers": "b04500900d", "hist_2026_ua": "13b70f49d8", "imp": "7b984928a1", "kmc": "0179056218", "mcsd": "e5ee1f5df6", "nowcast": "15dbaf3196", "pmove": "8057bea9b6", "ru": "b86690d6b6", "sans_dsm": "46901d5a53", "sans_enveloppes": "d6ac3444c4", "sans_gsua": "e1f64cb45f", "sans_indices": "9145a1eca9", "sans_isw": "ee775581b2", "sans_medias": "635ce65a8e", "sans_modru": "6f9cbc1737", "sans_presence": "f365b13159", "sans_wiki": "a02ccd9601", "sens": "6edb693a64", "strikes": "7a9a67fa42", "tg": "7737567107", "tgc": "61f9e08d87", "tiers": "472786e0e6", "ua": "5f72d9115a", "zf": "55e327b738", "zm": "365ab47016", "zu": "68c7975b3c", "zw": "7e85bd1fb3"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -1682,6 +1682,72 @@ function drawImp(k){
   for (const [mm, gx, gy, zr, zu] of IMP.rows) if (mm === m && ((zr || 0) >= 1 || (zu || 0) >= 1))
     impHits.push({x: (gAff[0] + gx * gAff[2]) * k + tr.x, y: (gAff[1] + gy * gAff[2]) * k + tr.y, zr, zu});
 }
+// fortifications tracées par Playfra (fortifs_playfra.js, scripts/build_fortifs.py ; X @Playfra0, Telegram
+// t.me/PlayfraOSINT, accord écrit du 22-23/11/2026) : fossés antichars (trait plein), dents de dragon (pointillé de
+// points), barbelés (tireté fin). Objets NON datés : instantané du jour du téléchargement, montré quel que soit le pas
+// affiché (neutralisé pendant le replay). Encre neutre (aucune couleur réservée : rouge / bleu = camps, ambre =
+// prévision, brique = feux). Chemins projetés une fois (Path2D en coordonnées de projection), refaits si la
+// projection change (redimensionnement).
+let showFort = false, FORT = null, fortPaths = null, fortProj = null;
+function loadFort(then){
+  if (window.FORTIFS) { FORT = window.FORTIFS; return then && then(); }
+  const sc = document.createElement("script"); sc.src = "fortifs_playfra.js?v=" + (FRONT_V.fort || 0);
+  sc.onload = () => { FORT = window.FORTIFS; if (then) then(); }; document.head.appendChild(sc); }
+function fortBuild(){
+  fortPaths = {}; fortProj = proj; const S = FORT.scale || 1e5;
+  for (const [t, L] of Object.entries(FORT.types)) {
+    const P = new Path2D();
+    for (const a of L) { let x = a[0], y = a[1], q = proj([x / S, y / S]); P.moveTo(q[0], q[1]);
+      for (let i = 2; i < a.length; i += 2) { x += a[i]; y += a[i + 1]; q = proj([x / S, y / S]); P.lineTo(q[0], q[1]); } }
+    fortPaths[t] = P;
+  }
+}
+function drawFort(k){
+  if (!FORT) return; if (!fortPaths || fortProj !== proj) fortBuild();
+  // vert militaire (aucune autre couche ne l'utilise ; routes = brun, UCDP = violet, missiles = bleu-vert)
+  const kmpx = kmPerPx(k), far = kmpx > 1.2, ink = C.dark ? "#7fdc8f" : "#1d6b34", halo = C.dark ? "#0b0d0c" : "#fbf8f0";
+  ctx.save(); ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * tr.x, dpr * tr.y); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = ink;
+  if (far) {   // vue d'ensemble : fossés et dents seulement, traits fins et pâles (les barbelés saturent l'écran)
+    ctx.globalAlpha = 0.5; ctx.lineWidth = 0.7 / k; ctx.stroke(fortPaths.ditch);
+    ctx.globalAlpha = 0.45; ctx.lineWidth = 1 / k; ctx.setLineDash([0, 2.5 / k]); ctx.stroke(fortPaths.teeth);
+    ctx.restore(); ctx.globalAlpha = 1; return;
+  }
+  // barbelés : tireté fin, sous le reste
+  ctx.globalAlpha = 0.75; ctx.lineWidth = 0.9 / k; ctx.setLineDash([3 / k, 2.5 / k]); ctx.stroke(fortPaths.wire); ctx.setLineDash([]);
+  // fossés : trait plein cerclé d'un halo clair (lisible sur le rouge comme sur les hachures de la zone grise)
+  ctx.globalAlpha = 0.8; ctx.strokeStyle = halo; ctx.lineWidth = 3.4 / k; ctx.stroke(fortPaths.ditch);
+  ctx.globalAlpha = 1; ctx.strokeStyle = ink; ctx.lineWidth = 1.6 / k; ctx.stroke(fortPaths.ditch);
+  // dents de dragon : points ronds espacés
+  ctx.lineWidth = 2.4 / k; ctx.setLineDash([0, 4 / k]); ctx.stroke(fortPaths.teeth);
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+window.__uafFort = () => FORT ? {n: FORT.n, fetched: FORT.fetched, on: showFort} : null;   // contrôle (captures)
+// fortifications DATÉES ou DÉTECTÉES par Sentinel-2 (fortifs_detect.js + fortifs_det/<id>.jpg, écrits par
+// ukraine-recherche/terrain/fortifs/playfra/publish_detect.py) : losange plein = fossé Playfra dont on a daté
+// l'apparition (saison) ; losange creux = candidat du détecteur hors des tracés Playfra (non vérifié). Survol : vignette
+// avant | après en fausses couleurs (Copernicus Sentinel-2 modifié). Même vert que le calque Playfra.
+let showFortDet = false, FDET = null, fdetHits = [];
+function loadFortDet(then){
+  if (window.FORTDET) { FDET = window.FORTDET; return then && then(); }
+  const sc = document.createElement("script"); sc.src = "fortifs_detect.js?v=" + (FRONT_V.fdet || 0);
+  sc.onload = () => { FDET = window.FORTDET; if (then) then(); }; document.head.appendChild(sc); }
+function drawFortDet(k){
+  fdetHits = []; if (!FDET) return;
+  const ink = C.dark ? "#7fdc8f" : "#1d6b34", halo = C.dark ? "#0b0d0c" : "#fbf8f0", r = kmPerPx(k) > 1.2 ? 3.2 : 4.6;
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const pass of ["n", "d"]) for (const o of FDET.objs) { if (o.k !== pass) continue;
+    const q = proj([o.lon, o.lat]), x = q[0] * k + tr.x, y = q[1] * k + tr.y;
+    if (x < -8 || x > W + 8 || y < -8 || y > H + 8) continue;
+    const dia = rr => { ctx.beginPath(); ctx.moveTo(x, y - rr); ctx.lineTo(x + rr, y); ctx.lineTo(x, y + rr); ctx.lineTo(x - rr, y); ctx.closePath(); };
+    ctx.globalAlpha = 0.9; ctx.fillStyle = halo; dia(r + 1.6); ctx.fill();
+    dia(r); if (o.k === "d") { ctx.fillStyle = ink; ctx.fill(); } else { ctx.strokeStyle = ink; ctx.lineWidth = 1.6; ctx.stroke(); }
+    fdetHits.push({x, y, o});
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+function fdetSeason(code){ const s = {P: _t("printemps"), E: _t("été"), A: _t("automne")}[code.slice(-1)]; return s + " " + code.slice(0, 4); }
+function fdetMonth(m){ const [y, mo] = m.split("-").map(Number); return new Date(Date.UTC(y, mo - 1, 15)).toLocaleDateString(document.documentElement.lang || "fr", {month: "short", year: "numeric", timeZone: "UTC"}); }
+window.__uafFortDet = () => FDET ? {n: FDET.objs.length, shown: fdetHits.length, first: fdetHits.length ? {x: fdetHits[fdetHits.length - 1].x, y: fdetHits[fdetHits.length - 1].y} : null} : null;   // contrôle (captures)
 // liseré P(mouvement) dessiné AU-DESSUS des feux et des hachures, avec un fin contour sombre pour le détacher
 // avancée possible d'ici 2 mois (front_advance.js, scripts/build_advance.py) : fourchette à 80 % par tronçon de 24 km,
 // barre fine perpendiculaire à la ligne (rouge pâle vers le côté ukrainien : avancée russe possible ; bleu pâle vers le
@@ -2223,6 +2289,8 @@ function draw(){
   if (showUcdp) drawUcdp(k);
   if (showLoss) drawLosses(k);
   if (showArcs) drawArcs(k);
+  if (showFort) drawFort(k);
+  if (showFortDet) drawFortDet(k);
   if (showImp) drawImp(k);
   if (showPm) drawPm(k);
   if (showAdv) drawAdv(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
@@ -2765,14 +2833,14 @@ function replayToggle(on){
     stop(); replayStop();
     // sauvegarde de l'état des couches (restauré à la sortie du replay)
     REPLAY.saved = {fvar, showFront, showLines, step: stepIdx, sliderMax: slider.max, dsm: rawOn.dsm, isw: rawOn.isw, wiki: rawOn.wiki,
-      showContact, showUnc, showAsym, showDestr, showCombat, showArrows, showTg, showFire, showLoss, showUcdp, showArcs, showImp, showAdv, showPm, showClaims, showEcartMod, showStates};
+      showContact, showUnc, showAsym, showDestr, showCombat, showArrows, showTg, showFire, showLoss, showUcdp, showArcs, showImp, showFort, showFortDet, showAdv, showPm, showClaims, showEcartMod, showStates};
     // le replay ne montre que le champ de contrôle fusionné (+ sa bande d'incertitude au jour) : les autres couches neutralisées
     showContact = showAsym = showDestr = showCombat = showArrows = showTg = showFire = false;
-    showLoss = showUcdp = showArcs = showImp = showAdv = showPm = showClaims = showEcartMod = showStates = false;
+    showLoss = showUcdp = showArcs = showImp = showFort = showFortDet = showAdv = showPm = showClaims = showEcartMod = showStates = false;
     rawOn.dsm = rawOn.isw = rawOn.wiki = false; fvar = null; showFront = true; showLines = true;
     // décocher (sans déclencher onchange) les cases des couches neutralisées, et accorder la légende
     REPLAY.saved.cbs = {};
-    ["lyrContact","lyrUnc","lyrAsym","lyrDestr","lyrCombat","lyrArrows","lyrTg","lyrFire","lyrLoss","lyrUcdp","lyrArcs","lyrImp","lyrAdv","lyrPm","lyrClaims","lyrEcartMod","lyrStates"]
+    ["lyrContact","lyrUnc","lyrAsym","lyrDestr","lyrCombat","lyrArrows","lyrTg","lyrFire","lyrLoss","lyrUcdp","lyrArcs","lyrImp","lyrFort","lyrFortDet","lyrAdv","lyrPm","lyrClaims","lyrEcartMod","lyrStates"]
       .forEach(cid => { const cb = document.getElementById(cid); if (cb) { REPLAY.saved.cbs[cid] = cb.checked; cb.checked = false; } });
     REPLAY.saved.rawcb = [...document.querySelectorAll("input[data-raw]")].map(cb => { const v = cb.checked; cb.checked = false; return [cb, v]; });
     // bande d'incertitude AU JOUR : les isolignes 5 % / 95 % du champ de contrôle quotidien (calculées dans buildFront à
@@ -2792,7 +2860,7 @@ function replayToggle(on){
     const s = REPLAY.saved || {};
     showContact = s.showContact; showUnc = s.showUnc; showAsym = s.showAsym; showDestr = s.showDestr; showCombat = s.showCombat;
     showArrows = s.showArrows; showTg = s.showTg; showFire = s.showFire; showLoss = s.showLoss; showUcdp = s.showUcdp;
-    showArcs = s.showArcs; showImp = s.showImp; showAdv = s.showAdv; showPm = s.showPm; showClaims = s.showClaims; showEcartMod = s.showEcartMod; showStates = s.showStates;
+    showArcs = s.showArcs; showImp = s.showImp; showFort = !!s.showFort; showFortDet = !!s.showFortDet; showAdv = s.showAdv; showPm = s.showPm; showClaims = s.showClaims; showEcartMod = s.showEcartMod; showStates = s.showStates;
     fvar = s.fvar; showFront = s.showFront; showLines = s.showLines; rawOn.dsm = s.dsm; rawOn.isw = s.isw; rawOn.wiki = s.wiki;
     Object.entries(s.cbs || {}).forEach(([cid, v]) => { const cb = document.getElementById(cid); if (cb) cb.checked = v; });
     (s.rawcb || []).forEach(([cb, v]) => { cb.checked = v; });
@@ -2965,6 +3033,8 @@ function setVar(v){
   frontFor = -2; draw(); updateArea(); legend(); varNote();
 }
 document.querySelectorAll("[data-raw]").forEach(cb => cb.onchange = () => { rawOn[cb.dataset.raw] = cb.checked; legend(); draw(); });
+if ($("lyrFortDet")) $("lyrFortDet").onchange = e => { showFortDet = e.target.checked; if (showFortDet) loadFortDet(() => draw()); legend(); draw(); };
+if ($("lyrFort")) $("lyrFort").onchange = e => { showFort = e.target.checked; if (showFort) loadFort(() => draw()); legend(); draw(); };
 if ($("lyrImp")) $("lyrImp").onchange = e => { showImp = e.target.checked; if (showImp) loadImp(() => draw()); legend(); draw(); };
 if ($("lyrTg")) $("lyrTg").onchange = e => { showTg = e.target.checked; if (showTg) loadTg(() => draw()); legend(); draw(); };
 if ($("lyrClaims")) $("lyrClaims").onchange = e => { showClaims = e.target.checked; legend(); draw(); };
@@ -3065,6 +3135,17 @@ function hover(e){
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
   // info-bulle épinglée par un clic (liens Telegram cliquables) : on la garde tant que la souris reste à moins de 12 px
   if (tip.classList.contains("pin")) { if (e.type === "mousemove" && tipKey && Math.hypot(tipKey[0] - mx, tipKey[1] - my) < 12) return; tip.classList.remove("pin"); }
+  if (showFortDet && fdetHits.length) {
+    let best = null, bd = 9; for (const h of fdetHits) { const dd = Math.hypot(h.x - mx, h.y - my); if (dd < bd) { bd = dd; best = h; } }
+    if (best) { const o = best.o;
+      const head = o.k === "d" ? _t("fossé antichar, apparition : {s} (tracé Playfra, daté par Sentinel-2)", {s: fdetSeason(o.s)})
+        : _t("ligne nouvelle détectée automatiquement (Sentinel-2), absente des tracés Playfra : à vérifier");
+      tip.innerHTML = `<div>${head}</div><img src="fortifs_det/${o.id}.jpg" width="290" height="144" alt="" style="display:block;margin:4px 0;max-width:100%;height:auto">`
+        + `<div style="color:var(--faint)">${_t("avant : {a} · après : {b} — fausses couleurs, viseur au centre (Copernicus Sentinel-2)", {a: fdetMonth(o.ta), b: fdetMonth(o.tb)})}</div>`;
+      if (e.type === "click") { tip.classList.add("pin"); tipKey = [mx, my]; }
+      tip.style.display = "block"; const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(mx + 14, W - tw - 4) + "px"; tip.style.top = Math.max(4, my - th - 10) + "px"; return; }
+  }
   if (showImp && impHits.length) {
     let best = null, bd = 40; for (const h of impHits) { const dd = Math.hypot(h.x - mx, h.y - my); if (dd < (h.pt ? Math.min(bd, 8) : bd)) { bd = dd; best = h; } }
     if (best && best.pt) {

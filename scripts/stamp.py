@@ -25,7 +25,7 @@ def main():
         front_v[os.path.basename(path)[6:-3]] = digest(os.path.basename(path))
     # couches chargées à la demande par app.js avec FRONT_V.tg / FRONT_V.strikes (mises à jour chaque jour en CI)
     for key, name in (("tg", "telegram_troncons.js"), ("tgc", "telegram_cells.js"), ("strikes", "strikes_ru.js"), ("kmc", "kmchange.js"),
-                      ("imp", "impacts_troncons.js"), ("crat", "crateres_points.js")):
+                      ("imp", "impacts_troncons.js"), ("crat", "crateres_points.js"), ("fort", "fortifs_playfra.js"), ("fdet", "fortifs_detect.js")):
         if digest(name):
             front_v[key] = digest(name)
     for page in glob.glob(os.path.join(SITE, "*.html")):
