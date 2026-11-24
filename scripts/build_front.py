@@ -3280,6 +3280,8 @@ def main():
     sect.official_list()
     sect.kab()
     sect.ookla()
+    sect.fortifs()
+    print(f"fortifications Playfra : {float(sect.FORT.sum()):,.0f} km de fossés et dents sur {int((sect.FORT > 0).sum()):,} mailles", flush=True)
     # champ des CARTES (équilibré, avant la bande locale) : mouvement récent de P(contact)
     sect.PEQ = {t: np.frombuffer(qstore["equilibre"][months[t]], np.uint8).astype(np.float32) / 63 for t in tsm if months[t] in qstore["equilibre"]}
     print(f"liste officielle rejouée : {int((sect.LIST > 0).sum()):,} mailles-mois en hostilités actives (connues à la date)", flush=True)
@@ -3331,8 +3333,38 @@ def main():
                     ("+ liste officielle rejouée", dict(use_ookla=False))):
         _, a_, _, n_ = sect.pmove(tsp, SDe, truth, P_now, ind, **kw)
         pm_steps.append([lab, round(a_, 4) if a_ else None, n_])
+    def _auc_since(scored, since):
+        sm_, sc_, ys_ = scored
+        z = [(p, y) for m, p, y in zip(sm_, sc_, ys_) if m >= since]
+        n1 = sum(y for _, y in z); n0 = len(z) - n1
+        if not n1 or not n0:
+            return None
+        o_ = sorted(range(len(z)), key=lambda i: z[i][0]); rk = [0] * len(z)
+        for r_, i in enumerate(o_):
+            rk[i] = r_ + 1
+        return (sum(rk[i] for i in range(len(z)) if z[i][1]) - n1 * (n1 + 1) / 2) / (n1 * n0)
     PMV, pm_auc, pm_base, pm_n = sect.pmove(tsp, SDe, truth, P_now, ind)
-    pm_steps.append(["+ Ookla (publié)", round(pm_auc, 4) if pm_auc else None, pm_n])
+    pm_rec = _auc_since(sect.pm_scored, "2025-07")
+    # fortifications Playfra (non datées : instantané actuel appliqué à tous les mois ⇒ validation optimiste avant 2025 ;
+    # on juge aussi sur les mois 2025-07+, où l'essentiel des fossés existait déjà). Publiées seulement si elles ne
+    # dégradent ni l'AUC 2023+ ni l'AUC 2025-07+.
+    pm_fort = None
+    if float(sect.FORT.sum()) > 0:
+        names0 = list(sect.pm_names)
+        PMVf, af, bf, nf = sect.pmove(tsp, SDe, truth, P_now, ind, use_fort=True)
+        rf = _auc_since(sect.pm_scored, "2025-07")
+        keep = bool(af and pm_auc and af >= pm_auc and (rf is None or pm_rec is None or rf >= pm_rec))
+        pm_fort = {"auc": round(af, 4) if af else None, "aucRecent": round(rf, 4) if rf else None,
+                   "aucSans": round(pm_auc, 4) if pm_auc else None, "aucRecentSans": round(pm_rec, 4) if pm_rec else None,
+                   "publie": keep, "depuis": "2025-07", "names": sect.pm_names[-2:]}
+        print(f"P(mouvement) + fortifications Playfra : AUC 2023+ {pm_auc:.4f} → {af:.4f} ; 2025-07+ {pm_rec or 0:.4f} → {rf or 0:.4f} ⇒ {'publié' if keep else 'non publié'}", flush=True)
+        if keep:
+            PMV, pm_auc, pm_base, pm_n = PMVf, af, bf, nf
+        else:
+            sect.pm_names = names0
+    pm_steps.append(["+ Ookla" + ("" if pm_fort and pm_fort["publie"] else " (publié)"), pm_fort["aucSans"] if pm_fort else (round(pm_auc, 4) if pm_auc else None), pm_n])
+    if pm_fort:
+        pm_steps.append(["+ fortifications Playfra (non datées)" + (" (publié)" if pm_fort["publie"] else " (non publié)"), pm_fort["auc"], pm_n])
     print("secteurs susceptibles de bouger, étapes : " + " ; ".join(f"{a} {b} (n={c})" for a, b, c in pm_steps), flush=True)
     print(f"secteurs susceptibles de bouger : AUC walk-forward {pm_auc:.3f} (2023+, n={pm_n}, taux de base {pm_base:.0%})" if pm_auc else "secteurs susceptibles de bouger : pas de validation", flush=True)
     pm_q, pm_t = {}, {}
@@ -3551,7 +3583,7 @@ def main():
         "asym": {"bilan": asym_bilan, "thr": 0.2, "tile_km": 24},
         "pmove": {"auc": round(pm_auc, 3) if pm_auc else None, "base": round(pm_base, 3) if pm_base else None, "n": pm_n, "tile_km": 24, "thr_km": 0.5,
                   "horizon_months": 2, "encoding": "q = 1 + P × 62 sur les mailles à ≤ 3 km de la ligne, 0 ailleurs",
-                  "features": getattr(sect, "pm_names", []), "trainFrom": "2022-05", "steps": pm_steps,
+                  "features": getattr(sect, "pm_names", []), "trainFrom": "2022-05", "steps": pm_steps, "fort": pm_fort,
                   "ookla": "Speedtest® by Ookla® Global Fixed and Mobile Network Performance Maps (https://github.com/teamookla/ookla-open-data), CC BY-NC-SA 4.0 ; agrégats par bloc de 10 km × trimestre",
                   "missingInCI": ["Telegram (mentions de combat, dossier de recherche)"]},
         "zscores": {"refMonths": 12, "names": ["feux", "UCDP", "pertes", "mouvement"], "encoding": "q = (z + 2) × 5"},

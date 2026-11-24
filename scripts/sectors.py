@@ -616,7 +616,36 @@ class Sectors:
                 self.OOK[t] = BL[have[-1]]
         return self.OOK
 
-    def pmove(self, tsm, SD, truth, pnow, ind=None, tg=None, win=20, thr_km=0.5, train_from="2022-05", use_list=True, use_ookla=True):
+    def fortifs(self):
+        """Fortifications tracées par Playfra (X @Playfra0, t.me/PlayfraOSINT ; accord écrit 22-23/11/2026 ;
+        data/fortifs_playfra.json écrit par build_fortifs.py) : km de fossés antichars + dents de dragon par maille
+        (échantillonnage tous les 100 m ; barbelés écartés : trop nombreux, faible obstacle). Objets NON DATÉS : instantané
+        actuel, appliqué à tous les mois ; la validation walk-forward est donc optimiste avant 2025 (des fossés creusés
+        en 2025 comptent dès 2023). self.FORT (mailles), 0 sans fichier."""
+        self.FORT = np.zeros(len(self.U), np.float32)
+        path = os.path.join(self.root, "data", "fortifs_playfra.json")
+        if not os.path.exists(path):
+            return self.FORT
+        F = json.load(open(path, encoding="utf-8"))
+        S = float(F.get("scale", 1e5))
+        for t in ("ditch", "teeth"):
+            for a in F["types"].get(t, []):
+                x, y = a[0], a[1]
+                pts = [(x, y)]
+                for i in range(2, len(a), 2):
+                    x += a[i]; y += a[i + 1]; pts.append((x, y))
+                for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+                    lo0, la0, lo1, la1 = x0 / S, y0 / S, x1 / S, y1 / S
+                    L = math.hypot((lo1 - lo0) * 111.32 * math.cos(math.radians(la0)), (la1 - la0) * 111.32)
+                    n = max(1, int(L / 0.1))
+                    for k in range(n):
+                        f = (k + 0.5) / n
+                        u = self.pos.get(self.grid_index(lo0 + f * (lo1 - lo0), la0 + f * (la1 - la0)))
+                        if u is not None:
+                            self.FORT[u] += L / n
+        return self.FORT
+
+    def pmove(self, tsm, SD, truth, pnow, ind=None, tg=None, win=20, thr_km=0.5, train_from="2022-05", use_list=True, use_ookla=True, use_fort=False, fort_km=10.0):
         """« Secteurs susceptibles de bouger » : par tronçon de 24 km traversé par la ligne, P(la ligne bougera d'au moins
         0,5 km de profondeur d'ici t+2), SANS sens. Position Y = surface russe du tronçon (consensus des cartes ; à défaut,
         champ du mois > 0,5) / 24 km. Variables à t, moyennes à ≤ 20 km de la ligne : assauts de l'état-major, asymétrie
@@ -659,6 +688,9 @@ class Sectors:
                               "liste : pas encore publiée"]
         if ook is not None:
             self.pm_names += ["Ookla : baisse des tests (côté ukrainien)"]
+        fort = getattr(self, "FORT", None) if use_fort else None
+        if fort is not None:
+            self.pm_names += ["fortifications devant la ligne, côté ukrainien (Playfra, non datées)", "fortifications devant la ligne, côté russe"]
         if tg is not None:
             self.pm_names += ["Telegram"]
         for t in tsm:
@@ -687,6 +719,10 @@ class Sectors:
                     f += [ls[nr].mean(), dif, (ls[nr] - ls1[nr]).mean(), float(self.LMISS[t])]
                 if ook is not None:   # Ookla : baisse des tests de débit, côté ukrainien (0 côté russe)
                     f.append(ok_[nr].mean())
+                if fort is not None:   # km de fossés + dents par km de front, à ≤ fort_km de la ligne, de chaque côté
+                    a_ = us[(sd[us] < 0) & (sd[us] >= -fort_km)]
+                    b_ = us[(sd[us] > 0) & (sd[us] <= fort_km)]
+                    f += [math.log1p(float(fort[a_].sum()) / wkm), math.log1p(float(fort[b_].sum()) / wkm)]
                 if tg is not None:   # Telegram : mentions de combat localisées dans le tronçon (signal de MOUVEMENT, pas de sens)
                     f.append(np.log1p(tg.get((self.months[t], k), 0.0)))
                 F[(t, k)] = np.array(f)
@@ -698,7 +734,7 @@ class Sectors:
                 p = 1 / (1 + np.exp(-np.clip(X @ w, -30, 30)))
                 w += np.linalg.solve((X * (p * (1 - p))[:, None]).T @ X + lam * np.diag(np.r_[0, np.ones(X.shape[1] - 1)]), X.T @ (y - p) - lam * np.r_[0, w[1:]])
             return w
-        out, sc, ys = {}, [], []
+        out, sc, ys, sm = {}, [], [], []
         for t in tsm:
             tr = [(q, k) for (q, k) in F if t - win <= q <= t - 2 and (q + 2, k) in Y and self.months[q] >= train_from]
             te = [(q, k) for (q, k) in F if q == t]
@@ -713,11 +749,12 @@ class Sectors:
                 p = float(1 / (1 + np.exp(-np.clip(w[0] + ((F[x] - mu) / sdv) @ w[1:], -30, 30))))
                 out[t][x[1]] = p
                 if self.months[t] >= "2023-01" and (t + 2, x[1]) in Y:
-                    sc.append(p); ys.append(abs(Y[(t + 2, x[1])] - Y[x]) >= thr_km)
+                    sc.append(p); ys.append(abs(Y[(t + 2, x[1])] - Y[x]) >= thr_km); sm.append(self.months[t])
         auc = base = None
         if ys and 0 < sum(ys) < len(ys):
             s_, y_ = np.array(sc), np.array(ys, float)
             o = np.argsort(s_); rk = np.empty(len(s_)); rk[o] = np.arange(1, len(s_) + 1); n1 = y_.sum()
             auc, base = float((rk[y_ == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * (len(y_) - n1))), float(y_.mean())
         self.pm_tile = tile
+        self.pm_scored = (sm, sc, [bool(v) for v in ys])
         return out, auc, base, len(ys)
