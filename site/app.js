@@ -604,11 +604,20 @@ function sensArrows(fi, view){
     let bx = null, by = null, bd = 1e9; for (const run of runs) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; bx = x; by = y; } }
     if (bx === null || bd * km > 25) continue;
     // sens : vers le terrain adverse du camp qui pousse (côté ukrainien pour une poussée russe, et inversement)
-    let dx, dy; if (bd > 1e-6) { dx = (cx - bx) / bd; dy = (cy - by) / bd; } else continue;
-    const c = Math.floor(cy) * GX + Math.floor(cx), cRu = g[c] > 0.5; if (ru === cRu) { dx = -dx; dy = -dy; }
+    // (normale locale de la ligne, d'après le gradient du champ au point de base ; l'ancienne règle « vers le centre du
+    // tronçon » se trompait quand la ligne serpente : flèche bleue pointée vers l'Ukraine à Lyman, 24/11/2026)
+    const nd = sideDir(g, bx, by, !ru); if (!nd) continue; const [dx, dy] = nd;
     out.push({gx: bx, gy: by, dx, dy, v: 1, ru, L: 24, segKm: 24, vm: [], uncertain: !ru, possible: !ru, probable: ru, pb: r[2], ps: r[3], cues: r[5], q: ru ? V.fleche_ru_2km : uaQ,
               why: ru ? "poussée russe probable (modèle de sens)" : "poussée possible (modèle de sens)"}); }
   return out;
+}
+// direction unitaire, au point (x, y) de la ligne, vers le côté russe (toRu) ou ukrainien : gradient du champ de
+// contrôle russe, différences sur ±1 à ±4 mailles (la première non nulle) ; null si le champ est plat
+function sideDir(g, x, y, toRu){
+  const at = (u, v) => { const i = Math.floor(u), j = Math.floor(v); return i >= 0 && j >= 0 && i < GX && j < GY ? g[j * GX + i] : 0.5; };
+  for (const h of [1, 2, 3, 4]) { const nx = at(x + h, y) - at(x - h, y), ny = at(x, y + h) - at(x, y - h), n = Math.hypot(nx, ny);
+    if (n > 1e-3) return toRu ? [nx / n, ny / n] : [-nx / n, -ny / n]; }
+  return null;
 }
 const possCache = {};
 function possibleArrows(fi, view){
@@ -631,10 +640,13 @@ function possibleArrows(fi, view){
   for (const q of cl) { if (q.n < 6) continue; const cx = q.x / q.n, cy = q.y / q.n;
     let bx = null, by = null, bd = 1e9; for (const run of runs) for (const [x, y] of run) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; bx = x; by = y; } }
     if (bx === null || bd * km > 25 || bd < 1e-6) continue;
-    out.push({gx: bx, gy: by, dx: (cx - bx) / bd, dy: (cy - by) / bd, v: 1, ru: false, L: 20, segKm: 20, vm: [], uncertain: true, possible: true, why: "combats derrière la ligne russe (2 mois)"}); }
+    let dx = (cx - bx) / bd, dy = (cy - by) / bd; const nd = sideDir(g, bx, by, true);
+    if (nd && dx * nd[0] + dy * nd[1] <= 0.2) { dx = nd[0]; dy = nd[1]; }   // le foyer est « derrière » mais la flèche doit entrer côté russe
+    out.push({gx: bx, gy: by, dx, dy, v: 1, ru: false, L: 20, segKm: 20, vm: [], uncertain: true, possible: true, why: "combats derrière la ligne russe (2 mois)"}); }
   const Vq = SENS && SENS.validationBuild ? SENS.validationBuild.ancienne_regle_1km : null; if (Vq) for (const a of out) a.q = Vq;
   return possCache[key] = viaSens ? viaSens.filter(a => a.probable).concat(out) : out;
 }
+window.__uafPossCheck = () => { const fi = frontIdx(), g = fullField(fieldName(), fi); return possibleArrows(fi).map(a => { const v = (t) => g[Math.floor(a.gy + a.dy * t) * GX + Math.floor(a.gx + a.dx * t)]; return {x: +a.gx.toFixed(1), y: +a.gy.toFixed(1), ru: a.ru, ahead: +((v(3) + v(5)) / 2).toFixed(2), behind: +((v(-3) + v(-5)) / 2).toFixed(2)}; }); };
 function overviewArrows(fi, view){
   const kept = [], minD = 30 / (FR.grid.size / 1000), all = [20, 50, 100].flatMap(L => computeArrows(fi, L, view));
   for (const a of all.sort((x, y) => y.v - x.v)) if (!kept.some(b => Math.hypot(b.gx - a.gx, b.gy - a.gy) < minD)) kept.push(a);
