@@ -1883,9 +1883,8 @@ function initSummary(){
   const fi = frontIdx(), I = initOn() && showLines && fi >= 0 ? initiative(fi) : null, sk = I ? fi + ":" + fieldName() + ":" + document.documentElement.lang : "";
   if (sk === initSumKey) return; initSumKey = sk; if (!I) { el.innerHTML = ""; return; }
   const tot = I.len.ru + I.len.ua + I.len.mx || 1, col = INIT_COL(), mx = Math.max(I.len.ru, I.len.ua, I.len.mx) || 1;
-  const row = (k, lab) => `<span class="ikrow"><i style="background:${col[k]};width:${Math.max(4, Math.round(60 * I.len[k] / mx))}px"></i><b>${fmt(Math.round(I.len[k]))} km</b> <span>${lab} (${Math.round(100 * I.len[k] / tot)} %)</span></span>`;
-  el.innerHTML = row("ru", _t("initiative russe")) + row("mx", _t("mixte")) + row("ua", _t("initiative ukrainienne")) +
-    `<span class="iknote">${_t("terrain gagné entre {a} et {b} · ligne de {n} km", {a: frameLabel(I.ref), b: frameLabel(I.eff), n: fmt(Math.round(tot))})}</span>`;
+  const row = (k, lab) => `<span class="ikrow"><i style="background:${col[k]};width:${Math.max(4, Math.round(60 * I.len[k] / mx))}px"></i><b>${fmt(Math.round(I.len[k]))} km</b> <span>${lab}</span></span>`;
+  el.innerHTML = row("ru", _t("initiative russe")) + row("mx", _t("mixte")) + row("ua", _t("initiative ukrainienne"));
 }
 // destruction cumulée (radar Sentinel-1) : part du bâti modifié depuis 2021, mailles de 2 km, couche d'information
 let destrFor = -1, destrImg = null, showDestr = false;
