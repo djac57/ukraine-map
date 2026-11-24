@@ -1866,6 +1866,7 @@ function drawInit(fi, u){
   }
   ctx.restore(); return true;
 }
+window.__uafInitRuns = () => { const I = initiative(frontIdx()), km = FR.grid.size / 1000; return I.runs.map(({run, cls}) => { const Wc = {ru: 0, ua: 0, mx: 0}; let L = 0; for (let t = 1; t < run.length; t++) L += Math.hypot(run[t][0] - run[t-1][0], run[t][1] - run[t-1][1]) * km; const ll = p => proj.invert([gAff[0] + p[0] * gAff[2], gAff[1] + p[1] * gAff[2]]).map(v => +v.toFixed(2)); let W = 0; for (let t = 1; t < run.length; t++) { const q = ll(run[t]); if (q[0] < 35.3 && q[1] < 47.75) { const d = Math.hypot(run[t][0] - run[t-1][0], run[t][1] - run[t-1][1]) * km; W += d; Wc[cls[t]] += d; } } return {L: Math.round(L), dnipro: Math.round(W), dniproCls: Object.fromEntries(Object.entries(Wc).map(([k, v]) => [k, Math.round(v)])), a: ll(run[0]), b: ll(run[run.length - 1]), n: run.length}; }); };
 window.__uafInit = (opt, fi) => { const f = fi == null ? frontIdx() : fi, I = initiative(f, opt); return I && {date: FR.months[I.eff].date, ref: FR.months[I.ref].date, len: I.len}; };
 const initOn = () => showInit && !REPLAY.on;
 // la ligne colorée est dessinée APRÈS les calques de prévision et de combats (sinon l'ambre de P(mouvement) la noie),
@@ -1883,7 +1884,7 @@ function initSummary(){
   const fi = frontIdx(), I = initOn() && showLines && fi >= 0 ? initiative(fi) : null, sk = I ? fi + ":" + fieldName() + ":" + document.documentElement.lang : "";
   if (sk === initSumKey) return; initSumKey = sk; if (!I) { el.innerHTML = ""; return; }
   const tot = I.len.ru + I.len.ua + I.len.mx || 1, col = INIT_COL(), mx = Math.max(I.len.ru, I.len.ua, I.len.mx) || 1;
-  const row = (k, lab) => `<span class="ikrow"><i style="background:${col[k]};width:${Math.max(4, Math.round(60 * I.len[k] / mx))}px"></i><b>${fmt(Math.round(I.len[k]))} km</b> <span>${lab}</span></span>`;
+  const row = (k, lab) => `<span class="ikrow"><i style="background:${col[k]};width:${Math.max(4, Math.round(60 * I.len[k] / mx))}px"></i><b>${fmt(Math.round(I.len[k]))} km</b> <span>${lab} (${Math.round(100 * I.len[k] / tot)} %)</span></span>`;
   el.innerHTML = row("ru", _t("initiative russe")) + row("mx", _t("mixte")) + row("ua", _t("initiative ukrainienne"));
 }
 // destruction cumulée (radar Sentinel-1) : part du bâti modifié depuis 2021, mailles de 2 km, couche d'information
