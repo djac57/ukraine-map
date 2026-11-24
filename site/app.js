@@ -9,7 +9,7 @@ const D = window.DATA, G = window.GEO, O = window.OSINT, FR = window.FRONT;
 const THEATRE = Object.assign({start: "2022-02-24", preKey: "depuis2022", preParts: [["Crimée", "horsCrimee"]], preRest: "Donbass",
   errFallback: {m1: 300, m12: 820}, views: {front: [32.0, 40.3, 45.9, 51.4], pays: [22, 41.5, 44, 53.6]}}, window.THEATRE || {});
 const startLabel = () => new Date(THEATRE.start + "T12:00:00Z").toLocaleDateString(document.documentElement.lang || "fr", {day: "numeric", month: "long", year: "numeric"});
-const FRONT_V = {"advance": "aca2b6de50", "asym": "0e94feb016", "combat": "7f7cd3950f", "contact": "99785b4a57", "crat": "488888adff", "destr": "4d7e1f37c6", "equilibre": "27e090b6eb", "fdet": "d4651ff634", "fort": "d169e4b1dd", "fusion": "8280e8ff53", "fusion_hist_2022": "389de84e4a", "fusion_hist_2023": "a947c440f0", "fusion_hist_2024": "3dc31621d1", "fusion_hist_2025": "ac18527fb5", "fusion_hist_2026": "4de2ddaf14", "fusion_refit_hist_2022": "b4fb041253", "fusion_refit_hist_2023": "1305e05bae", "fusion_refit_hist_2024": "c921a71697", "fusion_refit_hist_2025": "eb9f3c1ea8", "fusion_refit_hist_2026": "1638dab14b", "fusion_robuste": "f9781b6778", "fusion_robuste_hist_2025": "3c1f90758b", "fusion_robuste_hist_2026": "4d9c541542", "hist_2022": "27242f1d87", "hist_2022_equilibre": "50f648b2e8", "hist_2022_nowcast": "ccec91c4b7", "hist_2022_ru": "4cd31b8736", "hist_2022_tiers": "4bef611ec1", "hist_2022_ua": "e7405b00eb", "hist_2023": "61c90a6963", "hist_2023_equilibre": "20b5620fc1", "hist_2023_nowcast": "c6bdc4abe3", "hist_2023_ru": "f4faae5bda", "hist_2023_tiers": "377f4086b0", "hist_2023_ua": "c788d37e97", "hist_2024": "82518ca758", "hist_2024_equilibre": "e365702f74", "hist_2024_nowcast": "37bb227190", "hist_2024_ru": "4e52c3fc35", "hist_2024_tiers": "6589567b0d", "hist_2024_ua": "5c1ddf6ee0", "hist_2025": "3feee8f8cd", "hist_2025_equilibre": "d65ac76e91", "hist_2025_nowcast": "5763b1885f", "hist_2025_ru": "9c7674609a", "hist_2025_tiers": "1b42cf77c6", "hist_2025_ua": "b4fdd53dab", "hist_2026": "c7c2f2ff81", "hist_2026_equilibre": "052187aec1", "hist_2026_nowcast": "8a485ba7f6", "hist_2026_ru": "19a08ffef7", "hist_2026_tiers": "952c2fc81e", "hist_2026_ua": "7d4ef54d7d", "imp": "7b984928a1", "kmc": "3ebe513deb", "mcsd": "f6a5b9ceeb", "nowcast": "4f32f0acd3", "pmove": "1e8bd46074", "ru": "2f7aff3d87", "sans_dsm": "1b5b6d8786", "sans_enveloppes": "55ce682f04", "sans_gsua": "82121cbb00", "sans_indices": "3cbce6363f", "sans_isw": "c9447988f6", "sans_medias": "033e527901", "sans_modru": "da7428f1c0", "sans_presence": "5329f41504", "sans_wiki": "4160dd342b", "sens": "09f5855ed4", "strikes": "19a06927bd", "tg": "4b661ef514", "tgc": "981cccd7cc", "tiers": "937fe594ee", "ua": "2bc71c0313", "zf": "a0153bbaf6", "zm": "c7a5ff975f", "zu": "9e4912224c", "zw": "7911c02d7f"};
+const FRONT_V = {"advance": "e76b854619", "asym": "0e94feb016", "combat": "7f7cd3950f", "contact": "99785b4a57", "crat": "488888adff", "destr": "4d7e1f37c6", "equilibre": "27e090b6eb", "fdet": "9a57911ae9", "fort": "17c1098fa7", "fusion": "9b4948effb", "fusion_hist_2022": "389de84e4a", "fusion_hist_2023": "a947c440f0", "fusion_hist_2024": "3dc31621d1", "fusion_hist_2025": "ac18527fb5", "fusion_hist_2026": "4de2ddaf14", "fusion_refit_hist_2022": "b4fb041253", "fusion_refit_hist_2023": "1305e05bae", "fusion_refit_hist_2024": "c921a71697", "fusion_refit_hist_2025": "eb9f3c1ea8", "fusion_refit_hist_2026": "1638dab14b", "fusion_robuste": "38a33ab9df", "fusion_robuste_hist_2025": "4bf32b2ae2", "fusion_robuste_hist_2026": "5282ca4daa", "hist_2022": "27242f1d87", "hist_2022_equilibre": "50f648b2e8", "hist_2022_nowcast": "ccec91c4b7", "hist_2022_ru": "4cd31b8736", "hist_2022_tiers": "4bef611ec1", "hist_2022_ua": "e7405b00eb", "hist_2023": "61c90a6963", "hist_2023_equilibre": "20b5620fc1", "hist_2023_nowcast": "c6bdc4abe3", "hist_2023_ru": "f4faae5bda", "hist_2023_tiers": "377f4086b0", "hist_2023_ua": "c788d37e97", "hist_2024": "82518ca758", "hist_2024_equilibre": "e365702f74", "hist_2024_nowcast": "37bb227190", "hist_2024_ru": "4e52c3fc35", "hist_2024_tiers": "6589567b0d", "hist_2024_ua": "5c1ddf6ee0", "hist_2025": "3feee8f8cd", "hist_2025_equilibre": "d65ac76e91", "hist_2025_nowcast": "5763b1885f", "hist_2025_ru": "9c7674609a", "hist_2025_tiers": "1b42cf77c6", "hist_2025_ua": "b4fdd53dab", "hist_2026": "c7c2f2ff81", "hist_2026_equilibre": "052187aec1", "hist_2026_nowcast": "8a485ba7f6", "hist_2026_ru": "19a08ffef7", "hist_2026_tiers": "952c2fc81e", "hist_2026_ua": "7d4ef54d7d", "imp": "7b984928a1", "kmc": "3ebe513deb", "mcsd": "f6a5b9ceeb", "nowcast": "4f32f0acd3", "pmove": "1e8bd46074", "ru": "2f7aff3d87", "sans_dsm": "1b5b6d8786", "sans_enveloppes": "55ce682f04", "sans_gsua": "82121cbb00", "sans_indices": "3cbce6363f", "sans_isw": "c9447988f6", "sans_medias": "033e527901", "sans_modru": "da7428f1c0", "sans_presence": "5329f41504", "sans_wiki": "4160dd342b", "sens": "09f5855ed4", "strikes": "19a06927bd", "tg": "4b661ef514", "tgc": "981cccd7cc", "tiers": "937fe594ee", "ua": "2bc71c0313", "zf": "a0153bbaf6", "zm": "c7a5ff975f", "zu": "9e4912224c", "zw": "7911c02d7f"};
 const DUMMY = {}; const $ = id => document.getElementById(id) || DUMMY[id] || (DUMMY[id] = document.createElement("div"));
 const L = d3.formatLocale({decimal:",",thousands:" ",grouping:[3],currency:[""," €"]});
 const fmtFr = L.format(",d");
@@ -1802,6 +1802,79 @@ function drawPm(k){
   ctx.drawImage(pmImg, 0, 0, GX, GY);
   ctx.restore();
 }
+// INITIATIVE (case lyrInit, sous-option de la ligne) : la ligne 50 % est colorée selon le camp qui a gagné du terrain
+// sur les ~60 jours précédant le pas affiché (même champ que la ligne, instantané le plus proche à J-60). En chaque sommet,
+// surface basculée vers chaque camp dans une fenêtre de 2·INIT_R + 1 mailles (≈ 30 km) ; ramenée à des km de profondeur
+// (surface / largeur de fenêtre). Russe si les gains russes ≥ INIT_T km et ≥ INIT_DOM × gains ukrainiens ; ukrainien
+// symétriquement ; sinon « mixte » (personne ne gagne nettement, ou les deux). Lissage par vote majoritaire le long de la
+// ligne (± INIT_SM sommets) pour éviter les confettis. Longueurs : somme des segments, en km.
+let showInit = !!(document.getElementById("lyrInit") && document.getElementById("lyrInit").checked);
+const INIT_DAYS = 60, INIT_R = 7, INIT_T = 1.5, INIT_DOM = 2, INIT_SM = 4, initCache = {};
+const INIT_COL = () => ({ru: C.front, ua: C.uactl, mx: C.dark ? "#ffd23f" : "#e0a800"});
+function sat(a){ const S = new Float64Array((GX + 1) * (GY + 1));
+  for (let y = 0; y < GY; y++) { let r = 0; for (let x = 0; x < GX; x++) { r += a[y * GX + x]; S[(y + 1) * (GX + 1) + x + 1] = S[y * (GX + 1) + x + 1] + r; } }
+  return S; }
+function satSum(S, x0, y0, x1, y1){ x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(GX, x1); y1 = Math.min(GY, y1);
+  if (x1 <= x0 || y1 <= y0) return 0; const W1 = GX + 1; return S[y1 * W1 + x1] - S[y0 * W1 + x1] - S[y1 * W1 + x0] + S[y0 * W1 + x0]; }
+function initiative(fi, opt){
+  const o = Object.assign({days: INIT_DAYS, R: INIT_R, T: INIT_T, dom: INIT_DOM, sm: INIT_SM}, opt || {});
+  const view = o.view || fieldName(), key = [view, fi, o.days, o.R, o.T, o.dom, o.sm].join(":"); if (initCache[key]) return initCache[key];
+  // pas de 3 jours d'une vue qui n'en a pas (fusion : les pas récents recopient le dernier mois) : on se ramène au mois
+  // dont le champ est identique, et la référence est alors le mois situé o.days / 30 mois plus tôt
+  const F = viewFields(view); if (!F || !F[fi]) return null;
+  let ef = fi;
+  if (fi >= NMF) for (let m = NMF - 1; m >= Math.max(0, NMF - 3); m--) { const a = F[m]; if (!a) continue; let same = true;
+    for (let u = 0; u < a.length; u++) if (a[u] !== F[fi][u]) { same = false; break; } if (same) { ef = m; break; } }
+  const fr = ef < NMF ? ef - Math.round(o.days / 30) : frameAt(ef, o.days); if (fr < 0 || !F[fr]) return null;
+  const g1 = fullField(view, ef), g0 = fullField(view, fr); if (!g1 || !g0) return null;
+  const ru = new Float32Array(GX * GY), ua = new Float32Array(GX * GY);
+  for (let c = 0; c < GX * GY; c++) { if (cellPlace[c] < 0) continue; const a = g0[c] >= 0.5, b = g1[c] >= 0.5; if (!a && b) ru[c] = 1; else if (a && !b) ua[c] = 1; }
+  const SR = sat(ru), SU = sat(ua), km = FR.grid.size / 1000, wkm = (2 * o.R + 1) * km, out = [], len = {ru: 0, ua: 0, mx: 0};
+  for (const run of lines50(view, ef)) {
+    const cls = run.map(([x, y]) => { const i = Math.round(x), j = Math.round(y);
+      const dr = satSum(SR, i - o.R, j - o.R, i + o.R + 1, j + o.R + 1) * km * km / wkm, du = satSum(SU, i - o.R, j - o.R, i + o.R + 1, j + o.R + 1) * km * km / wkm;
+      return dr >= o.T && dr >= o.dom * du ? "ru" : du >= o.T && du >= o.dom * dr ? "ua" : "mx"; });
+    const sm = cls.map((_, t) => { const n = {ru: 0, ua: 0, mx: 0}; for (let s = Math.max(0, t - o.sm); s <= Math.min(cls.length - 1, t + o.sm); s++) n[cls[s]]++;
+      return n.ru > n.ua && n.ru > n.mx ? "ru" : n.ua > n.ru && n.ua > n.mx ? "ua" : n.mx >= n.ru && n.mx >= n.ua ? "mx" : cls[t]; });
+    for (let t = 1; t < run.length; t++) len[sm[t]] += Math.hypot(run[t][0] - run[t - 1][0], run[t][1] - run[t - 1][1]) * km;
+    out.push({run, cls: sm});
+  }
+  return initCache[key] = {runs: out, len, ref: fr, eff: ef};
+}
+function drawInit(fi, u){
+  const I = initiative(fi); if (!I) return false; const col = INIT_COL();
+  ctx.save(); ctx.setLineDash([]); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const pass of [0, 1]) for (const {run, cls} of I.runs) {
+    let t0 = 0;
+    for (let t = 1; t <= run.length; t++) { if (t < run.length && cls[t] === cls[t0]) continue;
+      const a = Math.max(0, t0 - 1); ctx.beginPath(); ctx.moveTo(run[a][0], run[a][1]); for (let s = a + 1; s < Math.min(t + 1, run.length); s++) ctx.lineTo(run[s][0], run[s][1]);
+      if (pass === 0) { ctx.strokeStyle = C.dark ? "rgba(0,0,0,.85)" : "rgba(40,30,20,.75)"; ctx.globalAlpha = 1; ctx.lineWidth = 5.2 * u; }
+      else { ctx.strokeStyle = col[cls[t0]]; ctx.globalAlpha = 1; ctx.lineWidth = 3.4 * u; }
+      ctx.stroke(); t0 = t; }
+  }
+  ctx.restore(); return true;
+}
+window.__uafInit = (opt, fi) => { const f = fi == null ? frontIdx() : fi, I = initiative(f, opt); return I && {date: FR.months[I.eff].date, ref: FR.months[I.ref].date, len: I.len}; };
+const initOn = () => showInit && !REPLAY.on;
+// la ligne colorée est dessinée APRÈS les calques de prévision et de combats (sinon l'ambre de P(mouvement) la noie),
+// sous les flèches
+function drawInitLayer(k){
+  const fi = frontIdx(); if (fi < 0 || !initiative(fi)) return;
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(tr.x, tr.y); ctx.scale(k, k);
+  ctx.transform(gAff[2], 0, 0, gAff[2], gAff[0], gAff[1]); ctx.clip(domainPath);
+  drawInit(fi, 1 / (k * gAff[2])); ctx.restore(); ctx.globalAlpha = 1;
+}
+// résumé chiffré de l'initiative pour la légende de la carte (km et part de la ligne)
+let initSumKey = null;
+function initSummary(){
+  const el = document.getElementById("initKm"); if (!el) return;
+  const fi = frontIdx(), I = initOn() && showLines && fi >= 0 ? initiative(fi) : null, sk = I ? fi + ":" + fieldName() + ":" + document.documentElement.lang : "";
+  if (sk === initSumKey) return; initSumKey = sk; if (!I) { el.innerHTML = ""; return; }
+  const tot = I.len.ru + I.len.ua + I.len.mx || 1, col = INIT_COL(), mx = Math.max(I.len.ru, I.len.ua, I.len.mx) || 1;
+  const row = (k, lab) => `<span class="ikrow"><i style="background:${col[k]};width:${Math.max(4, Math.round(60 * I.len[k] / mx))}px"></i><b>${fmt(Math.round(I.len[k]))} km</b> <span>${lab} (${Math.round(100 * I.len[k] / tot)} %)</span></span>`;
+  el.innerHTML = row("ru", _t("initiative russe")) + row("mx", _t("mixte")) + row("ua", _t("initiative ukrainienne")) +
+    `<span class="iknote">${_t("terrain gagné entre {a} et {b} · ligne de {n} km", {a: frameLabel(I.ref), b: frameLabel(I.eff), n: fmt(Math.round(tot))})}</span>`;
+}
 // destruction cumulée (radar Sentinel-1) : part du bâti modifié depuis 2021, mailles de 2 km, couche d'information
 let destrFor = -1, destrImg = null, showDestr = false;
 function buildDestr(fi){
@@ -1835,9 +1908,12 @@ function drawFront(k){
     ctx.save(); ctx.clip(domainPath);
     ctx.strokeStyle = C.front; ctx.globalAlpha = 0.9; ctx.setLineDash([4*u, 3*u]); ctx.lineWidth = 0.9 * u;
     if (showUnc) { ctx.stroke(isoPaths[0]); ctx.stroke(isoPaths[2]); }
-    ctx.setLineDash([]); ctx.lineWidth = 1.8 * u; ctx.globalAlpha = 1; if (showLines) ctx.stroke(isoPaths[1]);
+    ctx.setLineDash([]); ctx.lineWidth = 1.8 * u; ctx.globalAlpha = 1;
+    const fiL = frontIdx();
+    if (showLines && !(initOn() && fiL >= 0 && initiative(fiL))) ctx.stroke(isoPaths[1]);   // sinon : drawInitLayer, plus haut dans la pile
     ctx.restore();
     // ligne de front en Russie (Koursk, Belgorod) : même style que la ligne principale, c'est une ligne de front comme une autre
+    initSummary();
     if (isoBand && showLines) { ctx.save(); ctx.clip(bandPath); ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.strokeStyle = C.front; ctx.lineWidth = 1.8 * u; ctx.stroke(isoBand); ctx.restore(); }
   }
   const fi = frontIdx();
@@ -2293,6 +2369,7 @@ function draw(){
   if (showFortDet) drawFortDet(k);
   if (showImp) drawImp(k);
   if (showPm) drawPm(k);
+  if (showLines && initOn()) drawInitLayer(k);
   if (showAdv) drawAdv(k);   // au-dessus des feux et des combats (sinon l'ambre se perd dans les points de feux)
   if (chgN) drawChg(k);      // mailles basculées depuis 7 ou 30 jours, sur un voile qui estompe le reste
   if (showArrows) { drawArrows(k); drawEventArrows(k); }
@@ -3001,6 +3078,7 @@ $("modePts").onclick = () => setMode("pts"); $("modeDen").onclick = () => setMod
 // comparaison 2021 retirée le 18/10/2026 (décision de l'utilisateur) : la normale 2012-2021 ne sert plus qu'au calcul des feux anormaux
 $("lyrFront").onchange = e => { showFront = e.target.checked; legend(); draw(); };
 $("lyrLines").onchange = e => { showLines = e.target.checked; legend(); draw(); };
+if ($("lyrInit")) $("lyrInit").onchange = e => { showInit = e.target.checked; legend(); draw(); };
 if ($("lyrContact")) $("lyrContact").onchange = e => { showContact = e.target.checked; ensureView("contact", () => { contactFor = -2; legend(); draw(); }); };
 if ($("lyrUnc")) $("lyrUnc").onchange = e => { showUnc = e.target.checked; legend(); draw(); };
 $("lyrStates").onchange = e => { showStates = e.target.checked; frontFor = -2; legend(); draw(); };
@@ -3098,6 +3176,10 @@ function syncMapLegend(){
     if (row.hasAttribute("data-off")) { row.hidden = true; return; }   // entrée d'une case masquée (modèle unique)
     const cb = k.startsWith("raw:") ? document.querySelector(`input[data-raw="${k.slice(4)}"]`) : document.getElementById(k);
     row.hidden = !(cb && cb.checked); });
+  // ligne colorée par l'initiative : l'entrée « initiative » remplace celle de la ligne rouge, et n'existe pas sans ligne
+  { const L = document.getElementById("lyrLines"), I = document.getElementById("lyrInit"), on = !!(L && L.checked && I && I.checked);
+    document.querySelectorAll('#mapLegend [data-lyr="lyrInit"]').forEach(r => { r.hidden = !on; });
+    if (on) document.querySelectorAll('#mapLegend [data-lyr="lyrLines"]').forEach(r => { r.hidden = true; }); }
   // un groupe sans entrée visible disparaît
   document.querySelectorAll("#mapLegend details.lggrp").forEach(g => { g.hidden = ![...g.querySelectorAll("[data-lyr]")].some(r => !r.hidden); });
 }
@@ -3381,6 +3463,7 @@ $("legend").addEventListener("click", e => {
 });
 
 function legend(){
+  initSumKey = null; if (typeof initSummary === "function") initSummary();
   if (typeof layerNotes === "function" && $("mSub")) $("mSub").innerHTML = layerNotes().join("<br>");
   const front = showFront || showLines ? (showStates ? `<span><i style="background:rgba(${C["front-rgb"]},.6);border-radius:0"></i>${_t("contrôle russe (p > 0,95)")}</span><span><i style="background:rgba(${C["grey-rgb"]},.7);border-radius:0"></i>${_t("incertitude des cartes (0,05 – 0,95)")}</span><span>${_t("sans couleur : contrôle ukrainien (p < 0,05)")}</span>` : `<span><i style="background:rgba(${C["front-rgb"]},.75);border-radius:0"></i>${_t("probabilité d'occupation russe")}</span>`) +
     (showLines ? `<span><i style="background:${C.front};height:2px;border-radius:0;vertical-align:3px"></i>${_t("ligne médiane (p = 50 %)")}</span>` : "") +

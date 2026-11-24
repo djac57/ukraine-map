@@ -283,3 +283,11 @@ footer p{margin:0 0 8px}
 
 .dtip{position:absolute;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:3px 8px;font:12px "JetBrains Mono",monospace;color:var(--muted);pointer-events:none;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 .dtip b{color:var(--ink);font-weight:500}
+
+/* légende : initiative le long de la ligne (km par camp) */
+.maplegend .lginit{flex-wrap:wrap}
+.initkm{display:flex;flex-direction:column;gap:2px;flex-basis:100%;margin:3px 0 2px 36px;font-size:.92em}
+.initkm .ikrow{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.initkm .ikrow i{display:inline-block;height:7px;border-radius:2px;flex:none}
+.initkm .ikrow b{font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.initkm .iknote{opacity:.7;font-size:.9em;white-space:normal}
