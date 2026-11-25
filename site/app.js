@@ -2320,7 +2320,9 @@ function drawRelief(k){
   if (typeof domainPath !== "undefined" && domainPath) ctx.clip(domainPath);   // Ukraine et bande russe du modèle
   const hyp = RLF === window.HYPSO;
   ctx.globalCompositeOperation = hyp ? "source-over" : "multiply";
-  if (hyp) ctx.filter = "blur(0.6px)";   // dégradé adouci : pas de liseré clair aux bords des vallées
+  // dégradé adouci (pas de liseré clair aux bords des vallées) et teintes ATTÉNUÉES : le relief reste un fond, la ligne et
+  // le contrôle doivent ressortir (retour du 25/11 : carte « difficilement lisible », le jaune « mixte » se perdait dans le vert-jaune)
+  if (hyp) ctx.filter = "blur(0.6px) saturate(0.45) contrast(0.8) brightness(1.05)";
   ctx.globalAlpha = hyp ? 1 : RELIEF_MODE === "over" ? 0.5 : 0.85;
   ctx.imageSmoothingEnabled = true;
   const z0 = rlfImg(L[0].file), z1 = kmpx < 0.9 ? rlfImg(L[1].file) : null;
