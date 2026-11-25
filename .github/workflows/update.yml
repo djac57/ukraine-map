@@ -287,5 +287,9 @@ jobs:
       # v5 (25/11) : avec v3/v4, deploy-pages@v4 ne trouvait plus l'artefact « github-pages » depuis le 25/11 au matin
       - uses: actions/upload-pages-artifact@v5
         with: { path: site }
+      # depuis le 25/11, deploy-pages ne « voit » pas l'artefact tout juste envoyé (délai de l'API GitHub,
+      # actions/deploy-pages#issue « Intermittent No artifacts named github-pages ») : on laisse l'API se mettre à jour
+      - name: Attendre que l'artefact soit visible
+        run: sleep 60
       - id: pages
         uses: actions/deploy-pages@v5
