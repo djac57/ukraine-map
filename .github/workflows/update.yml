@@ -284,7 +284,8 @@ jobs:
           git diff --quiet "origin/${GITHUB_REF_NAME}" -- site/brief.js site/index.html && echo "brief inchangé" \
             || { git commit -m "Brief quotidien : détections du jour (chaîné à l'update)"; git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"; }
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      # v4 (25/11) : avec v3, deploy-pages ne trouvait plus l'artefact « github-pages » depuis le 25/11 au matin
+      - uses: actions/upload-pages-artifact@v4
         with: { path: site }
       - id: pages
         uses: actions/deploy-pages@v4
